@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">通勤闹钟</string>
+    <string name="app_name_en" translatable="false">weather-traffic-alarm</string>
+</resources>

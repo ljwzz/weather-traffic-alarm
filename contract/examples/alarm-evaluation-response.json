@@ -1,0 +1,23 @@
+{
+  "decisionId": "00000000-0000-4000-8000-000000000004",
+  "planId": "00000000-0000-4000-8000-000000000003",
+  "planRevision": 1,
+  "targetDate": "2026-07-24",
+  "workdayStatus": "WORKDAY",
+  "estimatedDepartureAt": "2026-07-24T08:00:00+08:00",
+  "commuteSeconds": 1800,
+  "weatherSeverity": 0,
+  "weatherBufferMinutes": 0,
+  "weatherRuleVersion": "v1",
+  "recommendedWakeAt": "2026-07-24T05:30:00+08:00",
+  "routeProvider": "amap_driving",
+  "routeProviderReportTime": "2026-07-23T19:05:00Z",
+  "weatherProvider": "caiyun_v2.6",
+  "weatherProviderReportTime": "2026-07-23T19:05:00Z",
+  "weatherWindowStart": "2026-07-24T05:00:00+08:00",
+  "weatherWindowEnd": "2026-07-24T09:00:00+08:00",
+  "fallbackReason": "NONE",
+  "insufficientAdvance": false,
+  "generatedAt": "2026-07-23T19:05:00Z",
+  "expiresAt": "2026-07-24T05:00:00+08:00"
+}

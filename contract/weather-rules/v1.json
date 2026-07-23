@@ -1,0 +1,39 @@
+{
+  "weatherRuleVersion": "v1",
+  "description": "Weather severity classification for Caiyun v2.6 skycon codes",
+  "levels": {
+    "0": {
+      "label": "fine",
+      "defaultBufferMinutes": 0,
+      "skyconCodes": ["CLEAR_DAY", "CLEAR_NIGHT", "PARTLY_CLOUDY_DAY", "PARTLY_CLOUDY_NIGHT", "CLOUDY"]
+    },
+    "1": {
+      "label": "light",
+      "defaultBufferMinutes": 10,
+      "skyconCodes": ["LIGHT_RAIN", "LIGHT_SNOW"]
+    },
+    "2": {
+      "label": "moderate",
+      "defaultBufferMinutes": 20,
+      "skyconCodes": ["MODERATE_RAIN", "HEAVY_RAIN", "MODERATE_SNOW", "HEAVY_SNOW", "FOG", "DUST", "SAND", "WIND"]
+    },
+    "3": {
+      "label": "severe",
+      "defaultBufferMinutes": 30,
+      "skyconCodes": ["STORM_RAIN", "STORM_SNOW"]
+    }
+  },
+  "unknownCodeBehavior": "WEATHER_UNKNOWN_CODE",
+  "upgradeConditions": {
+    "precipitationProbability": 0.7,
+    "precipitationIntensity": 10.0,
+    "windSpeed": 15.0,
+    "visibility": 1000.0
+  },
+  "notes": [
+    "Unknown skycon codes return WEATHER_UNKNOWN_CODE, never treated as fine",
+    "Freezing rain has no dedicated skycon in v2.6; only alert-based upgrade can map to level 3",
+    "Alerts can only upgrade severity, never downgrade",
+    "Values above thresholds trigger one-level upgrade from base skycon level"
+  ]
+}

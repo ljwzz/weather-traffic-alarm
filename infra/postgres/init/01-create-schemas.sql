@@ -1,0 +1,2 @@
+-- Placeholder for schema initialization
+-- Flyway manages production schema migrations

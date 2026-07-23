@@ -1,0 +1,435 @@
+openapi: "3.1.0"
+info:
+  title: weather-traffic-alarm API
+  version: "0.1.0"
+  description: Backend API for commuter alarm evaluation, calendar, and place search.
+servers:
+  - url: https://api.example.com/v1
+    description: Production server (placeholder)
+
+paths:
+  /v1/installations/attest:
+    post:
+      operationId: attestInstallation
+      summary: Obtain an installation token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttestRequest'
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /v1/calendars/CN/{year}:
+    get:
+      operationId: getCalendar
+      summary: Get official Chinese holiday calendar for a year
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 2020
+            maximum: 2099
+      responses:
+        '200':
+          description: Calendar data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarResponse'
+        '304':
+          description: Not modified (ETag match)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /v1/places/search:
+    post:
+      operationId: searchPlaces
+      summary: Search places by query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceSearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /v1/alarm-evaluations:
+    post:
+      operationId: evaluateAlarm
+      summary: Evaluate alarm time for a plan on a target date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmEvaluationRequest'
+      responses:
+        '200':
+          description: Evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlarmEvaluationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code
+        message:
+          type: string
+          description: Human-readable error description
+        retryable:
+          type: boolean
+        retryAfterSeconds:
+          type: integer
+          minimum: 0
+        correlationId:
+          type: string
+          format: uuid
+      additionalProperties: false
+
+    AttestRequest:
+      type: object
+      required: [installationId, platform, appVersion]
+      properties:
+        installationId:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum: [android]
+        appVersion:
+          type: string
+        integrityToken:
+          type: string
+          description: Play Integrity standard request token (optional)
+      additionalProperties: false
+
+    AttestResponse:
+      type: object
+      required: [installationToken, quotaTier, expiresAt]
+      properties:
+        installationToken:
+          type: string
+        quotaTier:
+          type: string
+          enum: [anonymous, verified]
+        expiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    CalendarResponse:
+      type: object
+      required: [country, year, version, publishedAt, sourceUrl, payloadSha256, signatureAlgorithm, signature, days]
+      properties:
+        country:
+          type: string
+          const: CN
+        year:
+          type: integer
+        version:
+          type: integer
+        publishedAt:
+          type: string
+          format: date-time
+        sourceUrl:
+          type: string
+          format: uri
+        payloadSha256:
+          type: string
+        signatureAlgorithm:
+          type: string
+        signature:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarDay'
+      additionalProperties: false
+
+    CalendarDay:
+      type: object
+      required: [date, status]
+      properties:
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [WORKDAY, HOLIDAY]
+        label:
+          type: string
+      additionalProperties: false
+
+    PlaceSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 80
+        cityCode:
+          type: string
+        pageToken:
+          type: string
+      additionalProperties: false
+
+    PlaceSearchResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/PlaceRef'
+        nextPageToken:
+          type: string
+      additionalProperties: false
+
+    PlaceRef:
+      type: object
+      required: [name, displayAddress, longitudeGcj02, latitudeGcj02, adcode, citycode]
+      properties:
+        poiId:
+          type: string
+        name:
+          type: string
+        displayAddress:
+          type: string
+        longitudeGcj02:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: GCJ-02 longitude
+        latitudeGcj02:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: GCJ-02 latitude
+        adcode:
+          type: string
+        citycode:
+          type: string
+      additionalProperties: false
+
+    AlarmEvaluationRequest:
+      type: object
+      required:
+        [requestId, planId, planRevision, targetDate, timezone,
+         defaultWakeTime, arrivalTime, preparationMinutes, maxAdvanceMinutes,
+         commuteMode, origin, destination, routePolicy, weatherRuleVersion]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        planRevision:
+          type: integer
+          minimum: 0
+        targetDate:
+          type: string
+          format: date
+        timezone:
+          type: string
+          description: IANA timezone ID
+        defaultWakeTime:
+          type: string
+          format: partial-time
+        arrivalTime:
+          type: string
+          format: partial-time
+        preparationMinutes:
+          type: integer
+          minimum: 0
+          maximum: 240
+        maxAdvanceMinutes:
+          type: integer
+          minimum: 0
+          maximum: 180
+        commuteMode:
+          $ref: '#/components/schemas/CommuteMode'
+        origin:
+          $ref: '#/components/schemas/PlaceRef'
+        destination:
+          $ref: '#/components/schemas/PlaceRef'
+        waypoints:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/PlaceRef'
+        routePolicy:
+          type: string
+          enum: [default, least_time, least_distance, least_traffic]
+        weatherRuleVersion:
+          type: string
+      additionalProperties: false
+
+    AlarmEvaluationResponse:
+      type: object
+      required:
+        [decisionId, planId, planRevision, targetDate, workdayStatus,
+         recommendedWakeAt, weatherSeverity, weatherBufferMinutes,
+         weatherRuleVersion, routeProvider, weatherProvider,
+         generatedAt, expiresAt, fallbackReason, insufficientAdvance]
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        planRevision:
+          type: integer
+        targetDate:
+          type: string
+          format: date
+        workdayStatus:
+          type: string
+          enum: [WORKDAY, HOLIDAY]
+        estimatedDepartureAt:
+          type: string
+          format: date-time
+          nullable: true
+        commuteSeconds:
+          type: integer
+          nullable: true
+        weatherSeverity:
+          $ref: '#/components/schemas/WeatherSeverity'
+        weatherBufferMinutes:
+          type: integer
+          minimum: 0
+          maximum: 60
+        weatherRuleVersion:
+          type: string
+        recommendedWakeAt:
+          type: string
+          format: date-time
+        routeProvider:
+          type: string
+          nullable: true
+        routeProviderReportTime:
+          type: string
+          format: date-time
+          nullable: true
+        weatherProvider:
+          type: string
+          nullable: true
+        weatherProviderReportTime:
+          type: string
+          format: date-time
+          nullable: true
+        weatherWindowStart:
+          type: string
+          format: date-time
+          nullable: true
+        weatherWindowEnd:
+          type: string
+          format: date-time
+          nullable: true
+        fallbackReason:
+          $ref: '#/components/schemas/FallbackReason'
+        insufficientAdvance:
+          type: boolean
+        generatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    CommuteMode:
+      type: string
+      enum: [DRIVING, TRANSIT, WALKING, BICYCLING, ELECTRIC_BICYCLE]
+
+    WeatherSeverity:
+      type: integer
+      minimum: 0
+      maximum: 3
+
+    FallbackReason:
+      type: string
+      enum:
+        - NONE
+        - CURRENT_TRAFFIC_FALLBACK
+        - FUTURE_ROUTE_NOT_ENTITLED
+        - ROUTE_HORIZON_UNAVAILABLE
+        - ROUTE_PROVIDER_TIMEOUT
+        - ROUTE_PROVIDER_QUOTA
+        - ROUTE_NOT_FOUND
+        - WEATHER_HORIZON_UNAVAILABLE
+        - WEATHER_PROVIDER_TIMEOUT
+        - WEATHER_PROVIDER_AUTH
+        - WEATHER_PROVIDER_QUOTA
+        - WEATHER_UNKNOWN_CODE
+        - CALENDAR_FALLBACK
+        - STALE_RESPONSE
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Unprocessable entity
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
