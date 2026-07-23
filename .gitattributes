@@ -1,0 +1,26 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Gradle
+*.gradle.kts text diff=java
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+
+# Android
+*.kt text diff=kotlin
+*.kts text diff=kotlin
+
+# Binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.keystore binary
+*.jks binary
+*.aab binary
+*.apk binary
+*.jar binary
+*.aar binary
+
+# Lock files
+gradle.lockfile text
+gradle/verification-metadata.xml text

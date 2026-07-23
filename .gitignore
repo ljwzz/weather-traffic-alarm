@@ -1,0 +1,50 @@
+# Android/Gradle
+android/.gradle/
+android/build/
+android/local.properties
+android/app/build/
+android/captures/
+*.iml
+.idea/
+
+# Backend/Gradle
+backend/.gradle/
+backend/build/
+backend/*/build/
+backend/bin/
+
+# macOS
+.DS_Store
+
+# Java
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+hs_err_pid*
+replay_pid*
+
+# Environment & secrets
+.env
+.env.local
+*.env
+local.properties
+*.keystore
+*.jks
+secrets/
+
+# Docker
+infra/data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Generated code
+android/**/generated/
+backend/**/generated/
+
+# Logs
+*.log
