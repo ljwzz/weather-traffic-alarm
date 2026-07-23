@@ -1,0 +1,21 @@
+package com.ljwzz.weathertrafficalarm.core.model
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+enum class FallbackReason {
+    NONE,
+    CURRENT_TRAFFIC_FALLBACK,
+    FUTURE_ROUTE_NOT_ENTITLED,
+    ROUTE_HORIZON_UNAVAILABLE,
+    ROUTE_PROVIDER_TIMEOUT,
+    ROUTE_PROVIDER_QUOTA,
+    ROUTE_NOT_FOUND,
+    WEATHER_HORIZON_UNAVAILABLE,
+    WEATHER_PROVIDER_TIMEOUT,
+    WEATHER_PROVIDER_AUTH,
+    WEATHER_PROVIDER_QUOTA,
+    WEATHER_UNKNOWN_CODE,
+    CALENDAR_FALLBACK,
+    STALE_RESPONSE,
+}
