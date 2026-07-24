@@ -33,22 +33,20 @@ class AlarmTimeCalculatorTest {
     }
 
     @Test
-    fun `normal commute advances wake time`() {
+    fun `normal commute is capped at default wake time`() {
         // 30min commute + 30min prep = arrival - 60min = 08:00
+        // recommendedWake = min(06:00, 08:00) = 06:00
         val result = AlarmTimeCalculator.calculate(
             defaultWakeTime = defaultWake,
             arrivalTime = arrivalTime,
             preparationMinutes = 30,
             maxAdvanceMinutes = defaultMaxAdvance,
-            commuteSeconds = 1800, // 30 min
+            commuteSeconds = 1800,
             weatherBufferMinutes = 0,
             targetDate = targetDate,
             zoneId = zoneId,
         )
-        val expectedWake = targetDate.atTime(LocalTime.of(8, 0)).atZone(zoneId).toInstant().toEpochMilli()
-        // 08:00 > 06:00? No. 08:00 > 05:00 (earliest)? Yes, so clampedWake = 08:00.
-        // recommendedWake = min(06:00, 08:00) = 06:00
-        // So with normal commute, alarm doesn't advance because it's already at default
+        val expectedWake = targetDate.atTime(LocalTime.of(6, 0)).atZone(zoneId).toInstant().toEpochMilli()
         assertEquals(expectedWake, result.recommendedWakeAt)
     }
 
@@ -74,8 +72,12 @@ class AlarmTimeCalculatorTest {
     }
 
     @Test
-    fun `weather buffer further advances wake time`() {
+    fun `weather buffer advances wake time within max advance`() {
         // 30min commute + 30min prep + 20min weather = arrival - 80min = 07:40
+        // earliestAllowed = 06:00 - 60 = 05:00
+        // clampedWake = max(05:00, 07:40) = 07:40
+        // recommendedWake = min(06:00, 07:40) = 06:00
+        // Alarm doesn't advance beyond default
         val result = AlarmTimeCalculator.calculate(
             defaultWakeTime = defaultWake,
             arrivalTime = arrivalTime,
@@ -86,29 +88,51 @@ class AlarmTimeCalculatorTest {
             targetDate = targetDate,
             zoneId = zoneId,
         )
-        val expectedWake = targetDate.atTime(LocalTime.of(7, 40)).atZone(zoneId).toInstant().toEpochMilli()
+        val expectedWake = targetDate.atTime(LocalTime.of(6, 0)).atZone(zoneId).toInstant().toEpochMilli()
         assertEquals(expectedWake, result.recommendedWakeAt)
     }
 
     @Test
-    fun `insufficientAdvance when calculatedWake before earliestAllowed`() {
-        // 180min commute + 30min prep = arrival - 210min = 05:30
-        // earliestAllowed = 06:00 - 60min = 05:00
-        // calculatedWake = 09:00 - 03:00 - 00:30 = 05:30
-        // clampedWake = max(05:00, 05:30) = 05:30
-        // recommendedWake = min(06:00, 05:30) = 05:30
+    fun `significant commute plus weather advances wake time`() {
+        // 150min commute + 30min prep + 10min weather = target - 190min = 05:50
+        // earliestAllowed = 05:00
+        // clampedWake = max(05:00, 05:50) = 05:50
+        // recommendedWake = min(06:00, 05:50) = 05:50
         val result = AlarmTimeCalculator.calculate(
             defaultWakeTime = defaultWake,
             arrivalTime = arrivalTime,
             preparationMinutes = 30,
             maxAdvanceMinutes = defaultMaxAdvance,
-            commuteSeconds = 10800, // 180 min
+            commuteSeconds = 9000, // 150 min
+            weatherBufferMinutes = 10,
+            targetDate = targetDate,
+            zoneId = zoneId,
+        )
+        val expectedWake = targetDate.atTime(LocalTime.of(5, 50)).atZone(zoneId).toInstant().toEpochMilli()
+        assertEquals(expectedWake, result.recommendedWakeAt)
+    }
+
+    @Test
+    fun `insufficientAdvance when calculatedWake before earliestAllowed`() {
+        // 220min commute + 30min prep = arrival - 250min = 04:50
+        // earliestAllowed = 06:00 - 60min = 05:00
+        // calculatedWake = 09:00 - 03:40 - 00:30 = 04:50
+        // clampedWake = max(05:00, 04:50) = 05:00
+        // recommendedWake = min(06:00, 05:00) = 05:00
+        // insufficientAdvance = true (clamped to earliestAllowed)
+        val result = AlarmTimeCalculator.calculate(
+            defaultWakeTime = defaultWake,
+            arrivalTime = arrivalTime,
+            preparationMinutes = 30,
+            maxAdvanceMinutes = defaultMaxAdvance,
+            commuteSeconds = 13200, // 220 min
             weatherBufferMinutes = 0,
             targetDate = targetDate,
             zoneId = zoneId,
         )
-        assertEquals(330, result.insufficientAdvance) // 05:30 = 330 min after midnight
-        true
+        assertEquals(true, result.insufficientAdvance)
+        val earliestAllowed = targetDate.atTime(LocalTime.of(5, 0)).atZone(zoneId).toInstant().toEpochMilli()
+        assertEquals(earliestAllowed, result.recommendedWakeAt)
     }
 
     @Test

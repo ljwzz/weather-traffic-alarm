@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -18,15 +17,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions {
-        jvmTarget = "21"
-    }
 
-    buildConfig = false
+    buildFeatures {
+        buildConfig = false
+    }
 }
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
 
+    testImplementation(libs.kotlin.test)
     testImplementation(libs.junit)
 }

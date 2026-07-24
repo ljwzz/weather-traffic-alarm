@@ -20,7 +20,6 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            buildConfig = false
         }
         release {
             isMinifyEnabled = true
@@ -28,7 +27,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfig = false
         }
     }
 
@@ -37,12 +35,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions {
-        jvmTarget = "21"
-    }
-
     buildFeatures {
         compose = true
+        buildConfig = false
     }
 }
 

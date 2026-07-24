@@ -19,11 +19,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions {
-        jvmTarget = "21"
-    }
 
-    buildConfig = false
+    buildFeatures {
+        buildConfig = false
+    }
 }
 
 dependencies {
@@ -31,6 +30,7 @@ dependencies {
     implementation(project(":core:data"))
 
     implementation(libs.work.runtime)
+    implementation(libs.hilt.android)
     implementation(libs.hilt.core)
     ksp(libs.hilt.compiler)
 
