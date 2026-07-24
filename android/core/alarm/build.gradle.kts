@@ -40,4 +40,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.work.testing)
     testImplementation(libs.coroutines.test)
+    testImplementation(libs.androidx.test.core)
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
