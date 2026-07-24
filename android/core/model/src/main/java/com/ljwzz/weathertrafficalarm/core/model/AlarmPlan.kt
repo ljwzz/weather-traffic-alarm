@@ -1,5 +1,6 @@
 package com.ljwzz.weathertrafficalarm.core.model
 
+import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.time.LocalTime
@@ -12,8 +13,8 @@ data class AlarmPlan(
     val name: String,
     val enabled: Boolean,
     val zoneId: String,
-    val defaultWakeLocalTime: LocalTime,
-    val arrivalLocalTime: LocalTime,
+    val defaultWakeLocalTime: String,
+    val arrivalLocalTime: String,
     val preparationMinutes: Int,
     val maxAdvanceMinutes: Int,
     val commuteMode: CommuteMode,
@@ -25,8 +26,8 @@ data class AlarmPlan(
     val sound: AlarmSound = AlarmSound(),
     val vibration: VibrationPattern = VibrationPattern(),
     val snoozeMinutes: Int = 10,
-    val createdAt: Instant = Instant.now(),
-    val updatedAt: Instant = Instant.now(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
 ) {
     init {
         require(preparationMinutes in 0..240) { "preparationMinutes must be 0-240" }
@@ -38,12 +39,12 @@ data class AlarmPlan(
         }
     }
 
-    fun withRevisionIncremented(): AlarmPlan = copy(revision = revision + 1, updatedAt = Instant.now())
+    fun withRevisionIncremented(): AlarmPlan = copy(revision = revision + 1, updatedAt = System.currentTimeMillis())
 
     fun zoneIdInstance(): ZoneId = ZoneId.of(zoneId)
 
     companion object {
-        val DEFAULT_WAKE_TIME = LocalTime.of(6, 0)
+        val DEFAULT_WAKE_TIME = "06:00"
         const val DEFAULT_MAX_ADVANCE_MINUTES = 60
         const val DEFAULT_PREPARATION_MINUTES = 30
     }

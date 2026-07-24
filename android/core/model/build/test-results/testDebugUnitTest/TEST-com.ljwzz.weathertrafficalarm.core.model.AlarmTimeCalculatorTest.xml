@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-07-24T02:27:54.517Z" hostname="liujiweideMacBook-Pro.local" time="0.011">
+  <properties/>
+  <testcase name="only advance never delay for existing occurrence" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.008"/>
+  <testcase name="no commute data returns default wake time" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.001"/>
+  <testcase name="significant commute plus weather advances wake time" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.0"/>
+  <testcase name="long commute advances beyond earliest allowed" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.001"/>
+  <testcase name="insufficientAdvance when calculatedWake before earliestAllowed" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.0"/>
+  <testcase name="normal commute is capped at default wake time" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.0"/>
+  <testcase name="weather buffer advances wake time within max advance" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.0"/>
+  <testcase name="already scheduled earlier wake is preserved" classname="com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculatorTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

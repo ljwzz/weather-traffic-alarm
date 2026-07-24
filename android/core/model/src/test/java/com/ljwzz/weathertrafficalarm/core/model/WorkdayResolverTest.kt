@@ -52,9 +52,16 @@ class WorkdayResolverTest {
     }
 
     @Test
-    fun `nextWorkday finds next weekday`() {
-        val friday = LocalDate.of(2026, 7, 24)
-        val next = emptyResolver.nextWorkday(friday)
+    fun `nextWorkday returns itself on a workday`() {
+        val monday = LocalDate.of(2026, 7, 27)
+        val next = emptyResolver.nextWorkday(monday)
+        assertEquals(monday, next)
+    }
+
+    @Test
+    fun `nextWorkday finds next weekday from Saturday`() {
+        val saturday = LocalDate.of(2026, 7, 25)
+        val next = emptyResolver.nextWorkday(saturday)
         assertEquals(LocalDate.of(2026, 7, 27), next) // Monday
     }
 

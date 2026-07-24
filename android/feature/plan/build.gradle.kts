@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -12,7 +13,9 @@ android {
         minSdk = 29
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildConfig = false
+    buildFeatures {
+        buildConfig = false
+    }
 }
 
 dependencies {
@@ -20,6 +23,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:alarm"))
     implementation(project(":core:map"))
+    implementation(libs.hilt.android)
     implementation(libs.hilt.core)
     ksp(libs.hilt.compiler)
 
