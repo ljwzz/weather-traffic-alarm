@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
@@ -30,6 +30,9 @@ dependencies {
     implementation(project(":core:data"))
 
     implementation(libs.work.runtime)
+    implementation(libs.datastore.core)
+    implementation(libs.datastore.preferences)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.hilt.android)
     implementation(libs.hilt.core)
     ksp(libs.hilt.compiler)

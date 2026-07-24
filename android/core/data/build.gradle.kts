@@ -1,8 +1,12 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 android {
@@ -31,13 +35,17 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.datastore.proto)
     implementation(libs.datastore.core)
+    implementation(libs.datastore.preferences)
     implementation(libs.hilt.android)
     implementation(libs.hilt.core)
     ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)
-    testImplementation(libs.room.testing)
     testImplementation(libs.coroutines.test)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext)
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
