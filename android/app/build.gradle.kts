@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -55,6 +57,17 @@ dependencies {
 
     // Navigation
     implementation(libs.navigation.compose)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.navigation.compose)
+
+    // Core module dependencies
+    implementation(project(":core:model"))
+    implementation(project(":core:data"))
+    implementation(project(":core:network"))
+    implementation(project(":core:alarm"))
 
     // Testing
     testImplementation(libs.junit)

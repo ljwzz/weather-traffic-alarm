@@ -17,4 +17,7 @@ data class PlaceRef(
         require(latitudeGcj02 in -180.0..180.0) { "latitude out of range: $latitudeGcj02" }
         require(name.isNotBlank()) { "name must not be blank" }
     }
+
+    override fun toString(): String =
+        "PlaceRef(name=$name, displayAddress=$displayAddress, poiId=$poiId, adcode=$adcode, citycode=$citycode)"
 }

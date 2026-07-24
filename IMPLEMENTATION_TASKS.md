@@ -688,7 +688,7 @@ cd ../backend && ./gradlew :app:test
 
 ## 4. P2：Android 数据、网络和依赖注入
 
-### [ ] T020 配置 Hilt 和 KSP
+### [x] T020 配置 Hilt 和 KSP
 
 依赖：T010。
 
@@ -718,7 +718,7 @@ cd android
 ./gradlew :app:assembleDebug :app:testDebugUnitTest
 ```
 
-### [ ] T021 定义 Room schema 和 DAO
+### [x] T021 定义 Room schema 和 DAO
 
 依赖：T011、T020。
 
@@ -744,7 +744,7 @@ cd android
 test -n "$(find core/data/schemas -type f -print -quit)"
 ```
 
-### [ ] T022 建立 Room 迁移测试基线
+### [x] T022 建立 Room 迁移测试基线
 
 依赖：T021。
 
@@ -771,7 +771,7 @@ cd android
 ./gradlew :core:data:connectedDebugAndroidTest
 ```
 
-### [ ] T023 实现偏好 Proto DataStore
+### [x] T023 实现偏好 Proto DataStore
 
 依赖：T020。
 
@@ -794,7 +794,7 @@ cd android
 ./gradlew :core:data:testDebugUnitTest --tests '*PreferencesStoreTest'
 ```
 
-### [ ] T024 实现设备保护存储的下一闹钟快照
+### [x] T024 实现设备保护存储的下一闹钟快照
 
 依赖：T020、T021。
 
@@ -823,7 +823,7 @@ cd android
 ./gradlew :core:alarm:testDebugUnitTest --tests '*NextAlarmSnapshotStoreTest'
 ```
 
-### [ ] T025 实现 repository 和事务用例
+### [x] T025 实现 repository 和事务用例
 
 依赖：T021、T023、T024。
 
@@ -846,7 +846,7 @@ cd android
 ./gradlew :core:data:testDebugUnitTest
 ```
 
-### [ ] T026 实现后端 API 客户端
+### [x] T026 实现后端 API 客户端
 
 依赖：T018、T020。
 
@@ -870,7 +870,7 @@ cd android
 ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T027 实现客户端日志脱敏
+### [x] T027 实现客户端日志脱敏
 
 依赖：T026。
 

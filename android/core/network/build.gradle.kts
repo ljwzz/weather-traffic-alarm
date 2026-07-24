@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -13,6 +12,7 @@ android {
     defaultConfig {
         minSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "API_BASE_URL", "\"https://api.example.com/\"")
     }
 
     compileOptions {
@@ -20,9 +20,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-
     buildFeatures {
-        buildConfig = false
+        buildConfig = true
     }
 }
 
