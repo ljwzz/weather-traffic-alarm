@@ -7,9 +7,6 @@ android/captures/
 .idea/
 
 # Backend/Gradle
-backend/.gradle/
-backend/**/build/
-backend/bin/
 
 # macOS
 .DS_Store
@@ -31,7 +28,6 @@ local.properties
 secrets/
 
 # Docker
-infra/data/
 
 # IDE
 .vscode/
@@ -42,7 +38,6 @@ infra/data/
 
 # Generated code
 android/**/generated/
-backend/**/generated/
 
 # Logs
 *.log

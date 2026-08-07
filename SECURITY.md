@@ -1,10 +1,17 @@
 # 安全策略
 
+## 凭证保护
+
+- 高德（Web 服务 Key、Android SDK Key）与彩云（App Key、App Secret）凭证只由用户在应用内配置，**禁止写入源码、构建产物、version catalog、manifest 或任何文档**。
+- 凭证使用 Android Keystore 生成的 AES-256-GCM 不可导出密钥加密，密文存应用私有目录，明文不落磁盘。
+- 凭证存储必须排除在系统备份/迁移之外；备份恢复后设备上不允许残留凭证。
+- 凭证配置页禁止截图与录屏（`FLAG_SECURE`）；凭证不进入日志、崩溃堆栈、诊断记录或任何导出内容。
+
 ## 禁止
 
 - 提交任何生产凭证（API key、secret、token、密码、证书私钥）到仓库。
-- 在日志中输出地址、POI、坐标、令牌或请求/响应 body。
-- 在客户端包含后端 API secret 或 Web API key。
+- 在日志中输出地址、POI、坐标、令牌、请求/响应 body 或任意第三方密钥。
+- 在应用包内硬编码第三方 API 密钥。
 
 ## 报告安全问题
 
@@ -19,4 +26,4 @@
 
 - 所有依赖版本锁定，不使用 `+`、`latest.release` 或 `SNAPSHOT`。
 - Gradle dependency locking 和 verification metadata 已启用。
-- 新增依赖须确认许可证兼容性。
+- 新增依赖须确认许可证兼容性（如 holiday-cn 为 MIT，数据真值归国务院公告，见 SPEC 2.1）。
