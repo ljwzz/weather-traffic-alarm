@@ -1,46 +1,46 @@
 # 通勤闹钟（weather-traffic-alarm）产品与技术规格
 
-- 状态：实施基线
-- 版本：1.1
-- 日期：2026-07-23
+- 状态：实施基线（纯 Android 本地优先架构，替代 2026-07-23 客户端+后端架构）
+- 版本：2.1
+- 日期：2026-08-07
 - 仓库名：`weather-traffic-alarm`
 - 中文名称：`通勤闹钟`
-- 英文名称：`weather-traffic-alarm`
 - Android `applicationId` / `namespace`：`com.ljwzz.weathertrafficalarm`
-- `minSdk`：29
+- `minSdk`：36（与当前构建一致；是否下探至 API 29–35 见第 14 章未确认项）
 - `compileSdk` / `targetSdk`：36
 - 可执行任务清单：[`IMPLEMENTATION_TASKS.md`](./IMPLEMENTATION_TASKS.md)
 
-> 用户给出的 `com.ljwzz.weather-traffic-alarm` 不能作为 Android application ID：各段只能包含字母、数字或下划线，且每段必须以字母开头。因此包名规范化为 `com.ljwzz.weathertrafficalarm`；带连字符的写法只保留为仓库名和英文产品名。
+> 架构变更说明：本规格删除了后端（Spring Boot）、PostgreSQL、Redis、OpenAPI 契约、Play Integrity、Tink 日历签名与全部部署内容。第三方 API（高德、彩云天气）由 App 直接调用，凭证由用户在本机配置；工作日数据改用 holiday-cn 开源数据由 App 抓取缓存。旧的 API 29–36 支持范围改为 minSdk 36 单版本（Android 16 专属），理由与取舍见第 14 章。
 >
-> 依据：https://developer.android.com/build/configure-app-module
+> v2.1 闹钟架构变更：**正常起床闹钟不再由本 App 注册**，由用户在系统时钟 App 中设置并完全由系统持有；本 App 只在夜间评估完全成功且确实需要提前时，注册一个**一次性提前闹钟**。评估失败、凭证缺失或 App 被清理/强制停止时，正常起床闹钟不受任何影响，避免“本 App 失效导致没有任何闹钟响”的极端场景。本 App 无法读取系统时钟 App 的闹钟列表（无公开 API），只能做设置引导与 `getNextAlarmClock()` 启发式核对（见第 14 章取舍）。
 
 ## 1. 产品目标
 
-用户为每个计划设置默认起床时间、到岗时间、准备时长、家庭/工作地点和固定通勤方式。系统在每天 19:00 后评估下一工作日的天气及通勤时间，只允许自动提前同一次闹钟，不允许自动推迟。
+用户为每个计划设置默认起床时间、到岗时间、准备时长、家庭/工作地点和固定通勤方式；默认起床时间同时是**系统时钟 App 中正常起床闹钟的引导时间**。系统在每天 19:00 后评估下一工作日的天气及通勤时间：只有评估完全成功且确实需要提前时，才注册一个一次性提前闹钟；不允许自动推迟任何闹钟。天气、路线或网络失败时不注册、不修改任何闹钟。正常起床闹钟由系统时钟 App 提供，与本 App 生命周期完全解耦。
 
 ### 1.1 首版范围
 
-- 原生 Kotlin、Jetpack Compose，支持 Android 10–16（API 29–36）。
+- 原生 Kotlin、Jetpack Compose，Android 16（API 36）。
 - 支持驾车、公交、步行、骑行、电动车；计划保存后不自动切换方式。
-- 支持中国大陆法定节假日、调休上班日以及用户单日覆盖。
+- 工作日规则基于 holiday-cn 年度 JSON（法定假日 + 调休上班日），支持用户单日覆盖，失败时回退周规则。
 - 默认起床时间为 06:00，默认最多提前 60 分钟。
-- 无用户账号；计划和历史保存在本机。
-- 后端不持久化家庭/工作坐标、地址或完整计算请求。
+- 无用户账号；计划、决策与日历缓存全部保存在本机，不上传任何服务端。
 - 只在用户主动点击“使用当前位置”时请求前台定位。
-- 保存或启用计划时立即注册基础闹钟，天气、路线和网络均不能成为响铃前置条件。
+- 保存或启用计划**不注册任何闹钟**；正常起床闹钟由用户在系统时钟 App 中设置（App 内提供引导与核对提示）；App 只在评估成功后注册一次性提前闹钟，天气、路线和网络失败不会阻止系统闹钟响铃。
+- 高德与彩云凭证由用户在本机凭证配置页输入并测试连接，密钥经 Android Keystore 加密保存。
 
 ### 1.2 非目标
 
-- 不申请后台定位。
-- 不持续监控路线，不提供导航。
-- 不做跨设备同步、企业日历接入或 iOS 客户端。
+- 不申请后台定位，不做跨设备同步，不做 iOS/桌面客户端。
+- 不提供导航、不持续监控路线。
 - 不承诺绕过用户“强制停止”后的 Android 平台限制。
 - 首版不自动选择或切换通勤方式。
+- 不提供服务器端聚合、限流代理或任何形式的密钥托管服务。
+- **不读取、不枚举、不修改系统时钟 App 的闹钟**：Android 没有公开 API 可以读取其他应用的闹钟列表；本 App 只提供设置引导与 `getNextAlarmClock()` 启发式核对。
 
 ## 2. 依赖复用结论
 
-原则：优先使用平台 API、AndroidX、高德官方 SDK/API、彩云天气官方 API 及成熟基础库；业务规则、隐私边界、调度状态机和降级策略由本项目实现。默认不复制或分叉第三方源码。
+原则：优先使用平台 API、AndroidX、高德官方 API/SDK、彩云天气官方 API 及成熟基础库；业务规则、隐私边界、调度状态机和降级策略由本项目实现。默认不复制或分叉第三方源码。
 
 | 能力 | 采用方案 | 项目自有实现边界 | 结论 |
 |---|---|---|---|
@@ -51,79 +51,60 @@
 | 结构化数据 | Room 2 | 实体、DAO、迁移和事务 | 采用 |
 | 偏好及 Direct Boot 快照 | Proto DataStore | schema、迁移和快照最小化 | 采用 |
 | 非精确后台任务 | WorkManager | 19:00 调度、重试截止和幂等 | 采用 |
-| 最终响铃 | `AlarmManager.setAlarmClock()` | occurrence 状态机、重调度和过期校验 | 采用平台 API |
+| 一次性提前闹钟 | `AlarmManager.setAlarmClock()` | 临时闹钟状态机、重调度和过期校验；正常起床闹钟由系统时钟 App 提供 | 采用平台 API |
 | 通知 | AndroidX Core `NotificationCompat` | 渠道、动作、全屏降级 | 采用 |
 | 响铃前台服务 | `systemExempted` foreground service | occurrence 校验、通知、停止和贪睡 | 采用平台能力 |
 | 响铃音频 | 平台 `RingtoneManager` / `Ringtone` | 音源回退、循环、振动和停止 | 采用平台 API |
 | HTTP | Retrofit + Kotlin Serialization converter + OkHttp | DTO、脱敏拦截器、错误分类 | 采用 |
 | 地图/选点/前台定位 | 高德 Android 合包，通过 `AndroidView` 承载 `MapView` | Compose 适配层、隐私闸门 | 采用官方 SDK |
-| 路线、POI | 高德 Web API，仅由后端调用 | Provider 适配、缓存、配额和降级 | 采用官方 API |
-| 天气 | 彩云天气 v2.6 API，仅由后端调用 | HMAC 鉴权、天气规则、缓存、配额和降级 | 采用官方稳定 API |
-| 年度工作日 | 国务院年度通知 → 后端版本化日历 | 抽取、复核、签名、覆盖优先级 | 不采用社区日历为真值 |
-| 日历签名 | Tink Digital Signature | 固定公钥、轮换策略和规范化 JSON | 采用 |
-| 后端业务框架 | Spring Boot 3.5.x | 领域服务和接口实现 | 采用 |
-| 容错 | Resilience4j | 每个 Provider 的超时、重试、熔断策略 | 采用 |
-| 分布式限流 | Bucket4j + Redis/Lettuce | 安装令牌和 Provider 配额维度 | 采用 |
-| 数据库迁移 | Flyway | 版本化 SQL | 采用 |
-| 指标/追踪 | Spring Boot Actuator + Micrometer；部署侧 OpenTelemetry Java Agent | 指标名、脱敏属性和告警 | 采用 |
-| 契约生成 | OpenAPI Generator | 生成 Android DTO/API 和 Spring 接口；生成物禁止手改 | 有条件采用 |
-| 安装证明 | Play Integrity | 仅 Play/GMS 渠道启用；非 GMS 使用低配额匿名令牌 | 可选 |
-| 崩溃/ANR | Google Play Android vitals + 本地脱敏诊断 | 不接入额外采集 SDK | 首版采用 |
+| 路线、POI、输入提示 | 高德 Web 服务 API，App 内直连 | 请求构造、缓存、错误码与降级 | 采用官方 API |
+| 天气 | 彩云天气 v2.6 API，App 内直连 | HMAC 鉴权、天气规则、缓存与降级 | 采用官方稳定 API |
+| 年度工作日 | holiday-cn 年度 JSON，App 抓取缓存 | 拉取策略、schema 校验、合并与兜底 | 采用（数据源见 2.1 评估） |
+| 凭证加密 | Android Keystore AES-GCM（密钥不可导出） | 密钥管理、密文格式、备份排除 | 采用平台能力 |
+| 崩溃/ANR | 本地脱敏诊断；不接入第三方采集 SDK | 环形诊断记录、凭证脱敏 | 首版采用 |
 
-技术依据：
+技术依据（Android 平台机制部分在实施任务中按官方文档逐步核对，本节只列本轮已核验的外部事实）：
 
-- Compose 和与 Android 架构组件的集成：https://developer.android.com/compose
-- AndroidX 库在 Compose 中的使用：https://developer.android.com/develop/ui/compose/libraries
-- Hilt：https://developer.android.com/training/dependency-injection/hilt-android
-- Room 2.8.4：https://developer.android.com/jetpack/androidx/releases/room
-- DataStore 1.2.1 及 Direct Boot 支持：https://developer.android.com/jetpack/androidx/releases/datastore
-- WorkManager 2.11.2：https://developer.android.com/jetpack/androidx/releases/work
-- 精确闹钟：https://developer.android.com/develop/background-work/services/alarms
-- 闹钟前台服务类型：https://developer.android.com/develop/background-work/services/fgs/service-types
-- `RingtoneManager` / `Ringtone`：https://developer.android.com/reference/android/media/RingtoneManager 和 https://developer.android.com/reference/android/media/Ringtone
-- Retrofit 3.0.0 及 Kotlin Serialization converter：https://github.com/square/retrofit/releases
-- OkHttp：https://github.com/square/okhttp
-- Compose 嵌入 View 的 `AndroidView`：https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
-- 高德 Android 合包：https://lbs.amap.com/api/android-sdk/guide/create-project/android-studio-create-project
-- 彩云天气 API 版本说明：https://docs.caiyunapp.com/weather-api/version-guide.html
-- 彩云天气 v2.6 鉴权：https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html
-- 彩云天气 v2.6 小时预报：https://docs.caiyunapp.com/weather-api/v2/v2.6/3-hourly.html
-- 彩云天气现象代码：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html
-- Tink Android 和 Digital Signature：https://developers.google.com/tink/setup/java 和 https://developers.google.com/tink/digital-signature
-- Resilience4j Spring Boot 3：https://resilience4j.readme.io/docs/getting-started-3
-- Bucket4j：https://github.com/bucket4j/bucket4j
-- Spring Boot Actuator/Micrometer：https://docs.spring.io/spring-boot/reference/actuator/metrics.html
-- OpenTelemetry Spring Boot 集成：https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/
-- OpenAPI Kotlin/Spring 生成器：https://openapi-generator.tech/docs/generators/kotlin/ 和 https://openapi-generator.tech/docs/generators/spring/
-- Android vitals：https://support.google.com/googleplay/android-developer/answer/9859174
+- holiday-cn 数据格式、数据地址与注意事项：https://github.com/NateScarlet/holiday-cn/blob/master/README.md
+- holiday-cn 2025 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2025.json
+- holiday-cn 2026 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2026.json
+- 高德 Web 服务 API 错误码说明（10001/10003/10019–10021/10044 等）：https://lbs.amap.com/api/webservice/guide/tools/info
+- 彩云天气 API 计费与套餐（按量/包月/企业，QPS 差异）：https://docs.caiyunapp.com/weather-api/billing.html
+- 彩云天气 API 数据与价目介绍（免费版调用量、套餐构成）：https://caiyunapp.com/api/weather_intro.html
+- 彩云天气 API 官网入口：https://caiyunapp.com/api/weather
+- Android `AlarmManager` 文档（`setAlarmClock()`、`getNextAlarmClock()` 自 API 21 公开、`ACTION_NEXT_ALARM_CLOCK_CHANGED` 为系统独占发送且只投递已注册 receiver、闹钟在重启后清除、强制停止会清除本应用 PendingIntent）：https://developer.android.com/reference/kotlin/android/app/AlarmManager
 
-### 2.1 明确不采用
+### 2.1 数据源评估：holiday-cn
+
+采用 [holiday-cn](https://github.com/NateScarlet/holiday-cn)（MIT 许可）作为年度工作日数据源，理由与本项目边界：
+
+- 数据由 CI 每日抓取国务院公告生成，JSON 顶层字段为 `year`（整数）、`papers`（所用国务院文件 URL 数组）、`days`（`name` 节日名、`date` ISO 8601 日期、`isOffDay` 是否休息日）。
+- `days` 只包含法定假日与调休上班日，不包含普通周末；未列出日期按默认周规则判定。
+- 官方注意事项：年份按国务院文件标题年份，12 月日期可能受下一年文件影响，应检查两个文件；“与周末连休”的周末不是法定节假日，数据中不含。
+- 数据地址：`https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{年份}.json`，或 jsDelivr 镜像 `https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{年份}.json`、`https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{年份}.json`。
+- 本项目的职责：拉取策略（10 月 1 日分界）、schema 校验、年份合并（12 月）、本地缓存、版本覆盖与兜底。数据真值归属国务院公告，以 `papers` 字段保留来源。
+- 不采用签名机制：数据无本项目签名的需求，Tink 依赖随之移除（旧后端架构遗留）。
+
+依据：https://github.com/NateScarlet/holiday-cn/blob/master/README.md ；数据样例 2025/2026 年文件见本节上述 URL。
+
+### 2.2 明确不采用
 
 - 不采用通用第三方 AlarmManager 封装：精确闹钟权限、PendingIntent 身份、Direct Boot 和厂商行为仍需由应用处理，封装不能替代领域状态机。
-- 不采用 Media3 播放闹钟：首版只需本地闹铃；平台 `Ringtone` 已支持闹铃类型、AudioAttributes 和循环。Media3 ExoPlayer 的自动音频焦点限定于媒体/游戏用途，不适合作为 `USAGE_ALARM` 的默认实现。
-  - https://developer.android.com/reference/android/media/Ringtone
-  - https://developer.android.com/reference/androidx/media3/exoplayer/ExoPlayer.Builder
-  - https://developer.android.com/reference/android/media/AudioAttributes
-- 不采用 Accompanist permissions：常规运行时权限直接使用平台 Activity Result API；精确闹钟和全屏 Intent 属于特殊访问能力，应走对应系统设置及能力检测。
-  - https://developer.android.com/training/permissions/requesting-special
-- 不采用社区节假日包作为生产真值：年度节假日和调休由国务院逐年发布，应用使用带来源、版本和签名的年度数据。
-  - 2026 年官方通知：https://big5.www.gov.cn/gate/big5/www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
-- 不采用未经高德官方维护的 Compose 地图封装；使用 `AndroidView` 包装官方 `MapView`。
-  - https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
-- 不在首版接入额外崩溃采集 SDK，以免引入新的个人信息披露和网络依赖；发布渠道先使用 Android vitals。
-  - https://support.google.com/googleplay/android-developer/answer/9859174
+- 不采用 Media3 播放闹钟：首版只需本地闹铃；平台 `Ringtone` 已支持闹铃类型、循环和 AudioAttributes。
+- 不采用社区节假日库作为直接依赖：直接抓取 holiday-cn 的 JSON 数据（保留 `papers` 来源），避免引入未审计代码。
+- 不采用任何密钥托管/集中代理服务（如自建网关转发第三方请求）：与本地优先架构冲突。
+- 不采用 Tink 等额外签名库：日历数据改为第三方 JSON 直取，签名与验签职责删除。
+- 不在首版接入额外崩溃采集 SDK，以免引入新的个人信息披露和网络依赖；崩溃信息必须不含凭证（见第 9 章）。
 
-### 2.2 源码复用规则
+### 2.3 源码复用规则
 
-- AOSP DeskClock 只作为行为和异常测试参考，不直接复刻实现。其代码包含平台内部及历史兼容路径，当前项目仍需按 API 29–36 重新实现。
-  - 仓库：https://android.googlesource.com/platform/packages/apps/DeskClock/
-  - 历史响铃实现：https://android.googlesource.com/platform/packages/apps/DeskClock/+/65cfff020befe01baa0488a8e6c06d7a1fe81dc6/src/com/android/deskclock/AsyncRingtonePlayer.java
+- AOSP DeskClock 只作为行为和异常测试参考，不直接复刻实现。
 - 如确需复制小段第三方代码，必须固定来源 URL、提交号和许可证，在 `NOTICE` 记录修改；未经许可证核验不得复制。
-- OpenAPI 生成代码视为构建产物：生成模板和生成器版本必须锁定，生成物不允许手改，CI 必须验证重新生成后无 diff。
+- 依赖版本一律锁定在 version catalog；禁止 `+`、`latest.release` 或 `latest.integration`。
 
 ## 3. 技术基线与版本锁定
 
-以下为 2026-07-23 的初始化基线；升级依赖必须通过单元、契约、仪器和响铃回归测试。
+以下为 2026-08-07 按当前仓库 `android/gradle/libs.versions.toml` 核对的基线；升级依赖必须通过单元、仪器和响铃回归测试。
 
 ### 3.1 Android
 
@@ -132,72 +113,34 @@
 | Android Gradle Plugin | `9.3.0` |
 | Gradle Wrapper | `9.5.0` |
 | Kotlin | `2.3.21` |
-| KSP | `2.3.4` |
+| KSP | `2.3.10` |
 | JDK | `21` |
+| `compileSdk` / `targetSdk` | `36` |
+| `minSdk` | `36`（Android 16 专属，待确认项见 14 章） |
 | Compose BOM | `2026.06.00` |
 | Navigation Compose | `2.9.8` |
 | Room | `2.8.4` |
 | DataStore | `1.2.1` |
 | WorkManager | `2.11.2` |
-| Hilt Core | `2.60.1` |
-| AndroidX Hilt | `1.3.0` |
-| Retrofit | `3.0.0` |
-| OkHttp | 先使用 Retrofit 3.0.0 已验证的 `4.12.0` 依赖线；升级到 5.x 前做契约与 TLS 回归 |
+| Hilt | `2.60.1`（AndroidX Hilt `1.3.0`） |
+| Retrofit | `3.0.0`（OkHttp `4.12.0` 依赖线） |
+| kotlinx-serialization-json | `1.8.1` |
 | kotlinx-coroutines-test | `1.11.0` |
-| Tink Android | `1.23.0` |
 | 高德 Android 合包 | `com.amap.api:3dmap-location-search:11.2.000_loc11.2.000_sea9.8.0` |
+| 凭证加密 | Android Keystore（平台能力，无第三方库） |
 
-版本依据：
+- 移除旧基线的 Tink（`1.23.0`）：日历签名职责删除。
+- AGP 9.x 使用内置 Kotlin：Android 模块不得再应用 `org.jetbrains.kotlin.android`；Compose 模块应用 `org.jetbrains.kotlin.plugin.compose`；Room 与 Hilt 代码生成统一使用 KSP。
 
-- Android 官方构建示例中的 AGP、Kotlin 和 compileSdk：https://developer.android.com/build
-- AGP 9.3 与 Gradle 9.5.0 兼容性：https://developer.android.com/build/releases/agp-9-3-0-release-notes
-- AGP 9 内置 Kotlin，不再应用 `org.jetbrains.kotlin.android`：https://developer.android.com/build/migrate-to-built-in-kotlin
-- Kotlin 2.3.21 Compose Compiler plugin：https://developer.android.com/develop/ui/compose/setup-compose-dependencies-and-compiler
-- KSP 配置：https://developer.android.com/build/migrate-to-ksp
-- Compose BOM：https://developer.android.com/develop/ui/compose/bom
-- Navigation 2.9.8：https://developer.android.com/jetpack/androidx/releases/navigation
-- Room 2.8.4：https://developer.android.com/jetpack/androidx/releases/room
-- DataStore 1.2.1：https://developer.android.com/jetpack/androidx/releases/datastore
-- WorkManager 2.11.2：https://developer.android.com/jetpack/androidx/releases/work
-- Hilt 2.60.1：https://dagger.dev/hilt/gradle-setup.html
-- AndroidX Hilt 发布记录：https://developer.android.com/jetpack/androidx/releases/hilt
-- Retrofit 3.0.0：https://github.com/square/retrofit/releases
-- OkHttp 当前发布线：https://github.com/square/okhttp
-- kotlinx-coroutines-test 1.11.0：https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-test/
-- Tink Android 1.23.0：https://developers.google.com/tink/setup/java
-- 高德合包官方坐标：https://lbs.amap.com/api/android-sdk/guide/create-project/android-studio-create-project
-- 高德合包 Maven 元数据：https://repo1.maven.org/maven2/com/amap/api/3dmap-location-search/maven-metadata.xml
+### 3.2 第三方 API 固定要点
 
-AndroidX Hilt `1.4.0` 的 AAR 声明 `minCompileSdk=37`，与本项目固定 `compileSdk=36` 不兼容，因此基线锁定 `1.3.0`。
-
-- 1.4.0 AAR：https://dl.google.com/dl/android/maven2/androidx/hilt/hilt-navigation-compose/1.4.0/hilt-navigation-compose-1.4.0.aar
-- 发布记录：https://developer.android.com/jetpack/androidx/releases/hilt
-
-项目必须使用 Gradle version catalog 管理版本；禁止 `+`、`latest.release` 或 `latest.integration`。
-
-AGP 9.3 默认使用内置 Kotlin：Android 模块不得再应用 `org.jetbrains.kotlin.android`。Compose 模块应用 `org.jetbrains.kotlin.plugin.compose` 2.3.21；Room 和 Hilt 代码生成统一使用 KSP，不引入 kapt。
-
-### 3.2 后端
-
-| 项 | 版本/策略 |
+| 项 | 固定值 |
 |---|---|
-| JDK | `21` |
-| Spring Boot | `3.5.16` |
-| API 描述 | OpenAPI `3.1`，`contract/openapi.yaml` 为唯一接口真值 |
-| PostgreSQL | 部署环境固定受支持的小版本 |
-| Redis | 部署环境固定受支持的小版本 |
-| Resilience4j | 使用官方 Spring Boot 3 starter 的当前锁定版本 |
-| Bucket4j | `8.18.0` |
-| 数据迁移 | Flyway，由 Spring Boot dependency management 锁定 |
-| 集成测试 | Spring Boot Testcontainers 支持 |
-
-依据：
-
-- Spring Boot 3.5.16 文档：https://docs.spring.io/spring-boot/3.5/how-to/actuator.html
-- Bucket4j 8.18.0：https://github.com/bucket4j/bucket4j
-- Spring Boot Testcontainers：https://docs.spring.io/spring-boot/reference/testing/testcontainers.html
-
-PostgreSQL、Redis、Resilience4j 和 Flyway 的具体版本在仓库初始化时由部署兼容矩阵及 Spring Boot dependency management 锁定；本规格不猜测未核验的版本。
+| 高德 REST 根 | `https://restapi.amap.com/`（路径规划 v5、POI 搜索 v5、输入提示 v3） |
+| 彩云 REST 根 | `https://api.caiyunapp.com/`（v2.6） |
+| 彩云鉴权 | App Key + App Secret 的 HMAC-SHA256（`x-cy-token` / `x-cy-timestamp` / `x-cy-signature` 请求头），不使用 URL 路径 Token 认证 |
+| 天气单位 | `unit=metric:v2`，`lang=zh_CN` |
+| 坐标基准 | GCJ-02（高德 SDK 内部）；彩云输入坐标基准存在未确认项（见 14 章） |
 
 ## 4. 仓库与模块
 
@@ -210,32 +153,28 @@ weather-traffic-alarm/
 │   ├── core/network/
 │   ├── core/alarm/
 │   ├── core/map/
-│   └── feature/{onboarding,home,plan,place,calendar,history,diagnostics}/
-├── backend/
-│   ├── app/
-│   ├── domain/
-│   ├── provider-amap/
-│   ├── provider-caiyun/
-│   └── persistence/
-├── contract/
-│   ├── openapi.yaml
-│   └── examples/
-├── calendar-data/
-│   ├── sources/
-│   └── generated/
+│   ├── core/security/
+│   └── feature/{onboarding,home,plan,place,calendar,history,credentials,diagnostics}/
 ├── docs/
-└── infra/
+└── scripts/
 ```
 
 依赖方向：
 
 ```text
-Android feature -> core model/data/network/alarm/map
-backend app -> domain -> provider/persistence
-android + backend generated interfaces <- contract/openapi.yaml
+feature/* -> core/{model,data,network,alarm,map,security}
+core/data -> core/model
+core/network -> core/model
+core/alarm -> core/model
+core/map -> core/model
 ```
 
-`core/model` 不依赖 Android UI、Room、Retrofit、高德或彩云类型。高德 DTO 不得跨出 `provider-amap` / `core/map`；彩云 DTO 不得跨出 `provider-caiyun`。
+约束：
+
+- `core/model` 不依赖 Android UI、Room、Retrofit、高德或彩云类型。
+- 高德 DTO 不得跨出 `core/network`（HTTP）与 `core/map`（SDK）；彩云 DTO 不得跨出 `core/network`。
+- `core/security` 只暴露加密/解密与密钥生命周期 API，不得暴露明文凭证给 UI 之外的模块；UI 只允许把明文写回 `core/security`，读取时仅在连接测试等受控路径短暂可见。
+- `feature/credentials` 依赖 `core/security`、`core/network`（连接测试）、`core/data`，不得被其他 feature 依赖。
 
 ## 5. 领域模型
 
@@ -265,11 +204,8 @@ createdAt/updatedAt: Instant
 
 约束：
 
-- `preparationMinutes`：0–240。
-- `maxAdvanceMinutes`：0–180；UI 默认 60。
-- `snoozeMinutes`：1–30；UI 默认 10。
-- `origin != destination`。
-- 驾车以外模式首版不接受途经点。
+- `preparationMinutes`：0–240；`maxAdvanceMinutes`：0–180（UI 默认 60）；`snoozeMinutes`：1–30（UI 默认 10）。
+- `origin != destination`；驾车以外模式首版不接受途经点。
 - `revision` 在任何影响决策或调度的编辑后递增。
 
 ### 5.2 `PlaceRef`
@@ -284,7 +220,7 @@ adcode: String
 citycode: String
 ```
 
-坐标只在本地 Room 中保存，并在一次计算请求中传输；不得进入 Android 诊断日志、后端访问日志、指标标签、追踪属性或 Redis 明文 key。
+坐标只在本地 Room 中保存，参与一次本地评估计算；不得进入诊断日志或任何输出。
 
 ### 5.3 `CommuteMode`
 
@@ -296,36 +232,49 @@ BICYCLING
 ELECTRIC_BICYCLE
 ```
 
-高德 Web 路径规划 v5 提供这些模式的对应接口；未来路径规划只覆盖驾车且属于高级服务。
-
-- 基础路径规划：https://lbs.amap.com/api/webservice/guide/api/newroute
-- 未来驾车：https://developer.amap.com/api/webservice/guide/api-advanced/advanced-path
-
 ### 5.4 工作日
 
 ```text
-CalendarVersion(
-  country, year, version, publishedAt, sourceUrl,
-  payloadSha256, signatureAlgorithm, signature, days
+CalendarYearCache(
+  year: Int,
+  fetchedAt: Instant,
+  sourceUrl: String,
+  papers: List<String>,
+  days: List<CalendarDay(date, name, isOffDay)>
 )
-CalendarDay(date, status: WORKDAY|HOLIDAY, label?)
-WorkdayOverride(planId, date, status)
+CalendarDay(date: LocalDate, name: String, isOffDay: Boolean)
+WorkdayOverride(planId: UUID, date: LocalDate, status: WORKDAY|HOLIDAY)
 ```
 
 工作日状态优先级固定为：
 
 1. 用户单日覆盖。
-2. 已验证签名的官方年度日历。
+2. holiday-cn 当年（必要时合并下一年）数据。
 3. 周一至周五为工作日、周末为休息日的本地兜底。
 
-年度日历由后端生成规范化 JSON，用 Tink `PublicKeySign` 签名；Android 内置公钥并用 `PublicKeyVerify` 验证，签名失败时拒绝覆盖当前有效版本。Tink 的签名原语和 Android 依赖依据：
+判定规则：
 
-- https://developers.google.com/tink/digital-signature
-- https://developers.google.com/tink/setup/java
+- `isOffDay=false` 的日期 → 工作日（调休上班）；`isOffDay=true` → 休息日。
+- 未出现在 `days` 中的日期 → 默认周规则。
+- 目标日期为 12 月时，同时并入下一年缓存中 12 月条目后再判定（holiday-cn 注意事项）。
+- 当年缓存缺失、过期校验失败或解析失败时使用兜底，并在首页与日历页标注原因，不阻塞响铃。
 
-应用随安装包内置当年日历，以保证首次离线运行；后端更新必须包含来源 URL、发布时间、payload hash 和签名。
+### 5.5 `ProviderCredential`
 
-### 5.5 `AlarmDecision`
+```text
+provider: AMAP_WEB | AMAP_SDK | CAIYUN
+fields: Map<String, String>          // 字段名 -> 密文（base64，IV+密文+版本）
+configuredAt: Instant
+lastTestedAt: Instant?
+lastTestResult: TEST_PASSED | TEST_FAILED | NEVER_TESTED
+testFailReason: String?              // 只存错误类别，不存 body
+```
+
+- 明文只允许出现在凭证配置页输入框与连接测试执行线程内。
+- 密文存 `filesDir/credentials/` 下按 provider 命名的文件；`core/security` 负责 Keystore 密钥与密文读写。
+- 提供“清除凭证”操作：删除密文文件，可选删除 Keystore 别名。
+
+### 5.6 `AlarmDecision`
 
 ```text
 decisionId: UUID
@@ -344,15 +293,14 @@ weatherProvider: String?
 weatherProviderReportTime: Instant?
 weatherWindowStart: ZonedDateTime?
 weatherWindowEnd: ZonedDateTime?
+evaluationOutcome: SUCCESS | FAILED    // 决定是否允许注册/替换一次性提前闹钟
 fallbackReason: FallbackReason?
 insufficientAdvance: Boolean
 generatedAt: Instant
 expiresAt: Instant
 ```
 
-客户端只接受 `planId`、`planRevision`、`targetDate` 均与当前计划和待调度日期一致且未过期的响应。
-
-### 5.6 `AlarmOccurrence`
+### 5.7 `AlarmOccurrence`（一次性提前闹钟）
 
 ```text
 occurrenceId: UUID
@@ -360,14 +308,15 @@ planId: UUID
 planRevision: Long
 targetDate: LocalDate
 scheduledWakeAt: Instant
-state: DEFAULT_REGISTERED|ADVANCED|FIRING|SNOOZED|DISMISSED|MISSED|CANCELLED
+state: ARMED|FIRING|SNOOZED|DISMISSED|MISSED|CANCELLED
 decisionId?: UUID
 updatedAt: Instant
 ```
 
-每个启用计划只注册其下一次 occurrence；所有系统闹钟均为一次性闹钟，不使用重复 Alarm。多个计划可以各自拥有一个下一次 occurrence。
-
-设备保护存储保存 `NextAlarmSnapshot` 列表，而不是包含地点的完整计划：
+- 本 App 的 occurrence 只表示**一次性提前闹钟**：正常起床闹钟由系统时钟 App 持有，不在本 App 数据模型内。
+- 每个启用计划对同一目标日期最多存在一个待触发的 occurrence；所有系统闹钟均为一次性，不使用重复 Alarm。
+- 正常起床闹钟的引导时间（默认起床时间）保存在计划上（`defaultWakeLocalTime`），供首页展示与“系统闹钟已设置”核对提示使用。
+- 设备保护存储保存 `NextTempAlarmSnapshot` 列表（不含地点），仅用于重启后恢复未触发的提前闹钟：
 
 ```text
 occurrenceId, planId, planRevision, triggerAt,
@@ -380,21 +329,21 @@ soundUri, vibrationPattern, snoozeMinutes
 
 1. 用户完成名称、时间、地点、方式、天气规则和工作日规则配置。
 2. 保存事务先写 Room，再递增 `revision`。
-3. 调度器计算下一工作日，并立即以默认起床时间创建 occurrence。
-4. 将最小 Direct Boot 快照写入设备保护存储。
-5. 注册一次性 `setAlarmClock()`。
-6. 19:00 后保存时，除基础闹钟外立即请求一次评估。
+3. 调度器计算下一工作日并落库；**不注册任何闹钟**（正常起床闹钟由用户在系统时钟 App 中按默认起床时间设置，App 只做引导）。
+4. 更新系统闹钟引导状态（记录期望的系统闹钟时间与最近核对结果）。
+5. 19:00 后保存时立即请求一次评估（评估规则见 FR-006），评估成功且需要提前时才注册一次性提前闹钟。
 
-验收：断网保存后，系统“下一闹钟”仍显示基础闹钟。
+验收：断网保存后，本 App 不产生任何系统闹钟；系统“下一闹钟”完全由系统时钟 App 决定；网络不可用、凭证未配置或 Provider 失败均不影响正常起床闹钟。
 
 ### FR-002 工作日计算
 
-- 按计划 `zoneId` 计算日期，禁止以服务端默认时区替代。
-- 按第 5.4 节优先级逐日查找下一个工作日。
-- 用户覆盖的修改即时取消旧 occurrence 并注册新 occurrence。
-- 年度日历不可用、过期或签名失败时使用本地兜底并展示原因。
+- 按计划 `zoneId` 计算日期，禁止以系统默认时区替代。
+- 按 5.4 节优先级逐日查找下一个工作日。
+- 用户覆盖的修改后重算下一次工作日；目标日期已注册但未触发的临时 occurrence 立即取消（该日期改为休息日时不再提前响铃）。
+- holiday-cn 数据不可用、校验失败或过期时使用兜底并在 UI 展示原因。
+- 打开日历相关页面时执行 FR-015 的刷新策略，但工作日判定本身不得等待网络。
 
-### FR-003 闹钟计算
+### FR-003 提前闹钟计算
 
 统一使用目标日期的计划时区：
 
@@ -403,14 +352,19 @@ calculatedWake = estimatedDeparture - preparation - weatherBuffer
 earliestAllowed = defaultWake - maxAdvance
 clampedWake = max(earliestAllowed, calculatedWake)
 recommendedWake = min(defaultWake, clampedWake)
-finalWake = min(alreadyScheduledWake, recommendedWake)
+finalWake = min(existingTempWake?, recommendedWake)
 ```
+
+判定与注册：
+
+- `finalWake < defaultWake` 时注册（或替换）一次性提前闹钟；`finalWake == defaultWake`（无需提前）时不注册，并取消该目标日期待触发的临时 occurrence（若有）。
+- `existingTempWake` 为同一目标日期已注册且未触发的临时闹钟时间；替换后的时间不得晚于已注册时间。
 
 不变量：
 
 - 自动结果不得晚于默认起床时间。
 - 同一 `occurrenceId + planRevision` 的自动更新不得晚于已注册时间。
-- 只有用户主动编辑计划并生成新 `revision`，才允许把闹钟推迟。
+- 任何自动过程都不得把已注册的提前闹钟推后；正常起床闹钟（系统时钟 App）不参与任何计算。
 - 结果早于 `earliestAllowed` 时取 `earliestAllowed`，并设置 `insufficientAdvance=true`。
 - 所有分钟运算先转为 `ZonedDateTime` / `Instant`，禁止只对 `LocalTime` 做跨日减法。
 
@@ -423,35 +377,26 @@ finalWake = min(alreadyScheduledWake, recommendedWake)
 | 0 | 晴、多云、阴 | 0 分钟 |
 | 1 | 小雨、小雪 | 10 分钟 |
 | 2 | 中到大雨雪、雾、沙尘、强风 | 20 分钟 |
-| 3 | 暴雨、暴雪；冻雨仅在已开通的预警数据明确返回时 | 30 分钟 |
+| 3 | 暴雨、暴雪；冻雨仅在预警数据明确返回时 | 30 分钟 |
 
 - 用户可把等级 1–3 的缓冲分别设置为 0–60 分钟。
-- 天气提供方固定为彩云天气 v2.6；Android 不直接调用彩云 API。
-- 后端分别查询家庭地和工作地，从 `[defaultWake-maxAdvance, arrivalTime]` 小时窗口内取最高严重等级，再取两地中较严重的一端。
-- 使用小时级接口，并按当前时间到 `arrivalTime` 动态计算 `hourlysteps`；允许范围为 1–360 小时。请求固定使用 `unit=metric:v2` 和 `lang=zh_CN`。
-- 彩云请求路径坐标顺序为 `{longitude},{latitude}`，响应 `location` 数组示例顺序为 `[latitude, longitude]`；Provider DTO 必须用命名字段转换，禁止在领域层传播裸数组。
-- 规则输入至少包括 `skycon`、逐小时降水概率/强度、风速和能见度；天气现象映射以 `skycon` 枚举为主，不解析自然语言描述。
+- 天气提供方固定为彩云天气 v2.6，App 内直连，凭证来自本机凭证存储。
+- 分别查询家庭地和工作地，从 `[defaultWake-maxAdvance, arrivalTime]` 小时窗口内取最高严重等级，再取两地中较严重的一端。
+- 使用小时级接口，按当前时间到 `arrivalTime` 动态计算 `hourlysteps`；请求固定使用 `unit=metric:v2` 和 `lang=zh_CN`。
+- 彩云请求路径坐标顺序为 `{longitude},{latitude}`；响应 `location` 数组为 `[latitude, longitude]`；DTO 必须用命名字段转换，禁止传播裸数组。
+- 规则输入至少包括 `skycon`、逐小时降水概率/强度、风速和能见度；映射以 `skycon` 枚举为主，不解析自然语言描述。
 - `CLEAR_*`、`PARTLY_CLOUDY_*`、`CLOUDY` 为等级 0；`LIGHT_RAIN`、`LIGHT_SNOW` 为等级 1；`MODERATE_*`、`HEAVY_*`、`FOG`、`DUST`、`SAND`、`WIND` 为等级 2；`STORM_RAIN`、`STORM_SNOW` 为等级 3。未知代码不默认视为晴天，返回 `WEATHER_UNKNOWN_CODE` 并使用 0 分钟缓冲。
-- 严重等级映射必须带 `weatherRuleVersion`，每个彩云枚举都必须有契约测试。
-- 保存响应顶层 `server_time` 为 `weatherProviderReportTime`，保存参与决策的小时数据时间范围，不保存完整 Provider 响应。
+- 严重等级映射带 `weatherRuleVersion`，每个彩云枚举必须有契约测试。
+- 保存响应顶层 `server_time` 为 `weatherProviderReportTime`，保存参与决策的小时数据时间范围，不保存完整响应。
 - 彩云预警数据属于增值能力，首版核心计算不得依赖 `alert=true`；开通后只能作为等级上调信号。
 - 彩云 v2.6 官方 `skycon` 表未提供独立冻雨代码，信息不足，无法仅凭常规小时数据可靠识别冻雨；不得自行用温度和降水组合推断。只有增值预警返回明确冰冻类预警时才能上调为等级 3。
-- 目标工作日超过 360 小时、Provider 无对应小时数据或响应过期时，返回 `WEATHER_HORIZON_UNAVAILABLE` 和 0 分钟天气缓冲；后续每日评估进入预报范围后只能提前。
-- 彩云 v2.6 使用 App Key + App Secret 的 HMAC-SHA256 鉴权；App Secret 只存在于后端密钥管理系统，禁止使用 URL 路径 Token 认证。
-- 彩云文档只明确“彩云天气 App 使用 GCJ-02”，未明确一般 v2.6 天气查询接口接受的坐标基准。信息不足，无法验证高德 GCJ-02 坐标能否无转换用于生产；实现任务必须以官方书面确认或已知控制点对照测试关闭该门禁。
-
-依据：
-
-- v2.6 为稳定推荐版本：https://docs.caiyunapp.com/weather-api/version-guide.html
-- v2.6 App Key + App Secret 鉴权：https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html
-- 小时预报范围、字段和 `hourlysteps`：https://docs.caiyunapp.com/weather-api/v2/v2.6/3-hourly.html
-- 天气现象枚举：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html
-- 降水强度和 `unit=metric:v2`：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/precip.html
-- 坐标系现有说明：https://docs.caiyunapp.com/weather-api/q.html
+- 目标工作日超出 360 小时、Provider 无对应小时数据或响应过期时，返回 `WEATHER_HORIZON_UNAVAILABLE` 和 0 分钟天气缓冲；后续每日评估进入预报范围后只能提前。
+- 彩云 v2.6 使用 App Key + App Secret 的 HMAC-SHA256 鉴权；App Secret 只存在于 Keystore 加密的本地凭证存储，禁止写入源码、构建产物或日志。
+- 彩云文档只明确“彩云天气 App 使用 GCJ-02”，未明确一般 v2.6 天气查询接口接受的坐标基准；实现必须保留坐标基准门禁（见 14 章），未关闭前不得进入生产发布。
 
 ### FR-005 路线计算
 
-统一接口：
+统一接口（`core/model` 定义，`core/network` 实现高德适配）：
 
 ```kotlin
 interface RouteProvider {
@@ -461,75 +406,49 @@ interface RouteProvider {
 
 实现规则：
 
-- 驾车：优先未来路径规划；从到岗前 180 分钟起按 15 分钟步长生成候选，一次请求获取时间序列，选择可准时到达的最晚出发点。
+- 驾车：使用高德路径规划 v5 驾车接口查询；可选高级能力“未来路径规划”首版不作为依赖。从到岗前 180 分钟起按 15 分钟步长生成候选，选择可准时到达的最晚出发点。
 - 未来驾车服务未开通、目标超出服务时间范围、配额耗尽或调用失败时，退化为基础驾车耗时并标记 `CURRENT_TRAFFIC_FALLBACK`。
 - 公交：传入目标日期和时间；以历史缓存或 90 分钟为初始估算，最多向前重试三次，每次 15 分钟，选择可准时到达的最晚方案。
 - 步行、骑行、电动车：查询一次静态路径耗时，不声明未来拥堵预测。
 - Provider 必须设置连接、读取和总超时；只对可重试错误执行有限重试。
-- 每种方式使用独立缓存 key、配额和熔断器，模式间不得相互拖垮。
+- 每种方式使用独立缓存 key 与失败统计，模式间不得相互拖垮。
+- 高德返回 `ROUTE_NOT_FOUND`（如 20801/20802/20803）、超时或配额错误时按错误码归类并停止本轮（FR-006）。
 
-高德 Web API 的模式、日期/时间参数及未来驾车约束依据：
+### FR-006 夜间评估与“成功才注册提前闹钟”不变量
 
-- https://lbs.amap.com/api/webservice/guide/api/newroute
-- https://developer.amap.com/api/webservice/guide/api-advanced/advanced-path
+- 保存或启用计划**不注册任何闹钟**；正常起床闹钟由系统时钟 App 提供（FR-001）。
+- 使用唯一 `OneTimeWorkRequest` 计算下一次本地 19:00，并增加 0–15 分钟抖动；Worker 完成后安排下一天任务，不使用长时间常驻服务。
+- 网络约束为 `CONNECTED`；失败后分别在 15、30、60 分钟重试；本地 23:30 后停止主动重试。
+- Worker 输入只含计划 ID；执行时读取最新 `revision`；每个计划使用幂等键 `planId:revision:targetDate`。
+- 评估流水线：工作日判定 → 路线估算 → 天气缓冲 → 计算 `recommendedWake`。
+- **核心不变量：只有流水线完全成功（`evaluationOutcome=SUCCESS`）才允许注册或替换一次性提前闹钟；任一步失败（网络、超时、配额、凭证无效、数据校验失败、`ROUTE_NOT_FOUND`、`WEATHER_HORIZON_UNAVAILABLE` 等）时，本轮不产生任何调度修改，已注册的同日临时 occurrence 保持原样。**
+- 成功时按 FR-003 判定并执行：需要提前 → 按 FR-007 原子注册/替换；无需提前 → 取消该目标日期待触发的临时 occurrence。
+- 每次评估无论成败都写一条 `AlarmDecision`（`evaluationOutcome` 区分），供决策历史页展示。
+- WorkManager 不承担精确响铃职责，只负责提前的数据刷新；提前响铃必须交给 AlarmManager，正常起床闹钟由系统时钟 App 负责。
+- App 被清理（后台回收）或强制停止后：评估不再发生、已注册的提前闹钟被清除（强制停止场景），但系统时钟 App 的正常起床闹钟始终生效；此边界见 FR-010 与第 12 章验收。
 
-### FR-006 夜间评估
+### FR-007 一次性提前闹钟注册
 
-- 保存或启用计划时立即安排基础闹钟。
-- 使用唯一 `OneTimeWorkRequest` 计算下一次本地 19:00，并增加 0–15 分钟抖动。
-- Worker 完成后安排下一天任务，不使用长时间常驻服务。
-- 网络约束为 `CONNECTED`。
-- 失败后分别在 15、30、60 分钟重试；本地 23:30 后停止主动重试。
-- Worker 输入只含计划 ID；执行时读取最新 `revision`。
-- 每个计划使用幂等键 `planId:revision:targetDate`。
-- 过期响应不得修改调度。
-
-WorkManager 不能保证精确执行时间，因此只承担提前数小时的数据刷新，最终响铃必须交给 AlarmManager。Android 16 对 WorkManager/JobScheduler 运行额度有额外约束，Worker 必须保持为短任务。
-
-- https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work
-- https://developer.android.com/about/versions/16/behavior-changes-all
-
-### FR-007 精确闹钟注册
-
-- 使用 `AlarmManager.setAlarmClock()` 注册用户可见的一次性精确闹钟。
-- 每个 occurrence 使用显式、不可变 `PendingIntent`。
-- PendingIntent 身份不得只依赖 extras；使用唯一 request code，并把 occurrence ID 放入唯一 data URI。
+- 使用 `AlarmManager.setAlarmClock()` 注册用户可见的一次性精确闹钟，仅用于提前提醒。
+- 每个 occurrence 使用显式、不可变 `PendingIntent`；身份不得只依赖 extras，使用唯一 request code，并把 occurrence ID 放入唯一 data URI。
 - 注册前写入 occurrence 和 Direct Boot 快照；注册成功后更新状态。
-- 重新计算时先注册新 PendingIntent，确认无异常后取消旧 PendingIntent，再提交新状态；异常时保留旧闹钟。
+- 重新计算（成功评估后提前）时先注册新 PendingIntent，确认无异常后取消旧 PendingIntent，再提交新状态；异常时保留旧闹钟。
 - Receiver 收到 Intent 后必须按 occurrence ID、计划 revision、状态和触发时间窗口重新校验。
-
-`PendingIntent` 的匹配不比较 extras，显式且不可变的 Intent 可减少被篡改风险：
-
-- https://developer.android.com/reference/android/app/PendingIntent
-- https://developer.android.com/privacy-and-security/risks/pending-intent
+- 取消语义：只有“用户主动修改计划/覆盖工作日”“成功评估且无需提前”和“响铃结束”允许取消待触发或已触发的临时 occurrence。
 
 ### FR-008 响铃服务
 
 - `AlarmReceiver` 只完成校验和启动 `AlarmRingingService`，不得进行网络请求。
-- `AlarmRingingService` 为前台服务，声明 `foregroundServiceType="systemExempted"`。
-- Manifest 声明 `FOREGROUND_SERVICE` 和 `FOREGROUND_SERVICE_SYSTEM_EXEMPTED`。
-- API 34+ 使用 `FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED` 启动；API 29–33 使用兼容的无类型 `startForeground` 路径。
+- `AlarmRingingService` 为前台服务，声明 `foregroundServiceType="systemExempted"`；Manifest 声明 `FOREGROUND_SERVICE` 和 `FOREGROUND_SERVICE_SYSTEM_EXEMPTED`。
 - 使用 `RingtoneManager.TYPE_ALARM` 解析声音；自定义 URI 失效时依次回退到系统 alarm、notification，再到应用内置声音。
 - 使用 `AudioAttributes.USAGE_ALARM`，循环播放并按计划振动。
-- 通知提供停止和贪睡；操作 Intent 同样显式、不可变且带 occurrence 身份。
-- 停止或贪睡必须幂等；重复点击不会创建多个 occurrence。
+- 通知提供停止和贪睡；操作 Intent 显式、不可变且带 occurrence 身份；停止或贪睡必须幂等。
 - 贪睡创建新的 `SNOOZED` occurrence，并仍使用 `setAlarmClock()`。
-
-Android 14+ 要求声明前台服务类型。持有 `SCHEDULE_EXACT_ALARM` 或 `USE_EXACT_ALARM` 的闹钟应用符合 `systemExempted` 的平台条件；精确闹钟回调也属于从后台启动前台服务的例外：
-
-- https://developer.android.com/develop/background-work/services/fgs/service-types
-- https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
-- https://developer.android.com/reference/android/content/pm/ServiceInfo
-
-闹铃音频平台 API：
-
-- https://developer.android.com/reference/android/media/RingtoneManager
-- https://developer.android.com/reference/android/media/Ringtone
-- https://developer.android.com/reference/android/media/AudioAttributes
+- 响铃内容为提前提醒（如“天气/通勤导致今日需提前出发”）；正常起床响铃由系统时钟 App 完成，不在本 App 范围。
 
 ### FR-009 通知、全屏和能力诊断
 
-Manifest：
+Manifest 权限：
 
 ```text
 android.permission.USE_EXACT_ALARM
@@ -545,381 +464,289 @@ android.permission.ACCESS_COARSE_LOCATION
 android.permission.ACCESS_FINE_LOCATION
 ```
 
-- 应用核心功能属于闹钟，采用 `USE_EXACT_ALARM`，发布前完成 Google Play 对应声明。
-- Android 13+ 请求通知运行时权限。
-- 全屏 Intent 只用于正在响铃的 occurrence。
-- 精确闹钟能力或通知能力缺失时，不允许启用新计划，并提供系统设置入口。
-- 全屏能力缺失时允许启用，但在 UI 明确标记“锁屏界面可能不自动展开”，并降级为高优先级通知。
+- 应用核心功能属于闹钟（提前闹钟为闹钟类型），采用 `USE_EXACT_ALARM`，发布前完成 Google Play 对应声明。
+- Android 13+ 请求通知运行时权限；全屏 Intent 只用于正在响铃的 occurrence。
+- 能力诊断只约束本 App 的提前闹钟：精确闹钟能力或通知能力缺失时，提前闹钟不可用并在 UI 标记降级（正常起床闹钟由系统时钟 App 提供，不受影响）；不因能力缺失阻止计划启用。
 - 每次回到前台和启用计划前重新诊断，不能只依赖首次启动结果。
-
-依据：
-
-- 精确闹钟及权限选择：https://developer.android.com/develop/background-work/services/alarms
-- Google Play 精确闹钟政策：https://support.google.com/googleplay/android-developer/answer/17105854
-- 全屏 Intent 政策：https://support.google.com/googleplay/android-developer/answer/16965181
-- 通知：https://developer.android.com/develop/ui/compose/notifications
 
 ### FR-010 重启、时间变化和强制停止
 
-监听：
+监听：`LOCKED_BOOT_COMPLETED`、`BOOT_COMPLETED`、`TIME_CHANGED`、`TIMEZONE_CHANGED`、`LOCALE_CHANGED`、`MY_PACKAGE_REPLACED`、`ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED`。
 
-```text
-LOCKED_BOOT_COMPLETED
-BOOT_COMPLETED
-TIME_CHANGED
-TIMEZONE_CHANGED
-LOCALE_CHANGED
-MY_PACKAGE_REPLACED
-ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED
-```
-
-- Direct Boot receiver 标记 `directBootAware=true`，只访问设备保护存储。
-- `LOCKED_BOOT_COMPLETED` 后恢复快照中的一次性闹钟，不启动响铃前台服务。
+- Direct Boot receiver 标记 `directBootAware=true`，只访问设备保护存储；`LOCKED_BOOT_COMPLETED` 后从快照恢复**未触发的提前闹钟**，不启动响铃前台服务。
 - 用户解锁后读取 Room，校验 revision 并完整重算。
-- 系统时间被调到触发点之后：10 分钟宽限期内立即响铃；超过 10 分钟记录 `MISSED` 并安排下一次。
+- 系统时间被调到触发点之后：10 分钟宽限期内立即响铃；超过 10 分钟记录 `MISSED` 并取消该次提前闹钟（正常起床闹钟仍由系统时钟 App 负责，无需本 App 补位）。
 - 时区变化后以计划 `zoneId` 重算。
-- 强制停止会取消待处理 Intent，应用无法自启动恢复；下次用户主动打开时重建调度并在帮助页说明限制。
-
-依据：
-
-- Direct Boot：https://developer.android.com/privacy-and-security/direct-boot
-- Android 15 强制停止后的 PendingIntent 行为：https://developer.android.com/about/versions/15/behavior-changes-all
-- 隐式广播例外：https://developer.android.com/develop/background-work/background-tasks/broadcasts/broadcast-exceptions
+- 强制停止会取消本 App 待处理的 PendingIntent 与 Worker，应用无法自启动恢复；此时提前闹钟与评估均失效，但**系统时钟 App 的正常起床闹钟不受影响**，仍能保证响铃；下次用户主动打开时重建调度并在帮助页说明限制。
+- 应用覆盖安装（`MY_PACKAGE_REPLACED`）不丢失 Room 数据、凭证密文与日历缓存；凭证密文格式升级由 `core/security` 的密文版本字段驱动迁移。
 
 ### FR-011 地点与地图
 
-- 高德 SDK 在用户同意隐私政策前不得初始化或调用任何 API。
-- 同意后先调用 `updatePrivacyShow` 和 `updatePrivacyAgree`，再创建地图或定位客户端。
+- 高德 SDK 在用户同意隐私政策前不得初始化或调用任何 API；同意后先调用 `updatePrivacyShow` 和 `updatePrivacyAgree`，再创建地图或定位客户端。
 - 地图使用 `AndroidView` 包装官方 `MapView`，适配层完整转发生命周期。
+- 地图渲染与“使用当前位置”需要高德 Android SDK Key（凭证页配置，可选）；未配置时隐藏地图与定位入口，地点选择退化为 POI 搜索 + 输入提示（仅需 Web Key）。
 - “使用当前位置”由用户点击触发，只请求前台粗略/精确定位。
-- POI 搜索经 `/v1/places/search` 走后端，Android Web API key 不落客户端。
-- Android 地图 SDK key 由渠道配置注入，并按包名和签名限制；不得提交生产 key。
-- 隐私政策列出高德 SDK、用途和可能处理的数据。
+- POI 搜索与输入提示走高德 Web 服务 API（需 Web Key），密钥来自凭证存储。
+- Android SDK Key 绑定包名与签名，泄露面受 Keystore 与备份排除保护。
 
-依据：
+### FR-012 凭证配置与连接测试
 
-- 高德隐私合规初始化：https://lbs.amap.com/api/compliance-center/check-and-reference/sdkhgsy
-- 高德定位开发注意事项：https://lbs.amap.com/api/android-location-sdk/guide/create-project/dev-attention
-- `AndroidView`：https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
+凭证配置页（`feature/credentials`）分两个区块：
 
-## 7. 后端 API 契约
+1. **高德**：
+   - Web 服务 Key（必填，用于路线、POI、输入提示）。
+   - Android SDK Key（可选，用于地图选点与定位；若未配置，FR-011 相关功能隐藏）。
+   - “测试连接”：用 Web Key 调用一次轻量接口（输入提示或地理编码），按返回码判定：`10000 OK` 通过；`10001` key 无效；`10003/10044` 配额超限；网络错误单独提示。SDK Key 无 HTTP 探活，测试项显示“保存后在地点页验证”。
+2. **彩云天气**：
+   - App Key（必填）与 App Secret（必填，HMAC 签名用）。
+   - “测试连接”：构造一次带签名的 v2.6 天气查询（家庭地坐标），校验签名正确性、`status=ok` 与响应解析；失败时按类别提示（鉴权失败/网络/解析/配额）。
+3. 通用规则：
+   - 保存前必须完成一次成功的连接测试，或用户显式跳过并确认风险。
+   - 任一 Provider 未配置或测试失败时，评估流水线（FR-006）跳过对应步骤，不注册/不修改提前闹钟；正常起床闹钟由系统时钟 App 提供，不受影响。
+   - 输入框使用密码掩码；页面设置 `FLAG_SECURE` 禁止截图与录屏；粘贴与输入值不进入任何日志。
+   - 提供“清除凭证”。
 
-`contract/openapi.yaml` 使用 OpenAPI 3.1，并作为客户端、服务端和测试的唯一接口真值。
+### FR-013 凭证加密存储与防泄露
 
-### 7.1 `POST /v1/installations/attest`
+- 密钥生成：`KeyGenParameterSpec` 在 Android Keystore 中生成 AES-256-GCM 对称密钥，`setKeyPurpose(ENCRYPT|DECRYPT)`，**不设置任何可导出标志**；别名固定如 `wtalarm_credentials_v1`。API 36 下无需用户凭据绑定（首版不要求锁屏认证门槛）。
+- 加密：每次写入使用随机 12 字节 IV；密文文件格式为 `[版本号 1B][IV 12B][AES-GCM 密文+tag]`，base64 存储。
+- 存储位置：`Context.filesDir/credentials/`（应用私有目录），文件名与 provider 对应；明文不落 Room、不落 SharedPreferences/DataStore、不落系统日志。
+- 备份排除：声明 `android:allowBackup` 与 `dataExtractionRules`（API 31+）/ `fullBackupContent`（API 29–30 兼容路径），排除 `filesDir/credentials/` 与任何含密文或明文的路径；同时排除凭证相关 SharedPreferences 路径。验收必须包含“备份/恢复后凭证不存在且应用不崩溃”的测试。
+- 防泄露四原则：
+  1. 日志：OkHttp 拦截器与全局日志对 Authorization 头、URL 中的 key/token 参数、`x-cy-*` 头做强制脱敏；诊断环形记录不含凭证字段。
+  2. 截图：凭证配置页 `FLAG_SECURE`。
+  3. 崩溃：不接入第三方崩溃采集；系统崩溃报告不含私有文件内容；本地诊断不记录凭证。
+  4. 导出：任何“导出数据”功能不得包含凭证明文或密文。
+- 密钥轮换：提供“清除凭证并重置密钥”操作；密文版本字段支持将来换密钥格式。
 
-请求：
+### FR-015 工作日日历抓取与刷新（holiday-cn）
 
-```text
-installationId, platform, appVersion, integrityToken?
-```
+触发时机：打开日历相关页面（日历覆盖页、计划编辑中的工作日预览）时执行一次刷新；评估流水线（FR-006）只读取缓存，不触发网络。
 
-响应：
-
-```text
-installationToken, quotaTier, expiresAt
-```
-
-- Play/GMS 渠道可以校验 Play Integrity standard request。
-- 无 GMS、校验不可用或用户从非 Play 渠道安装时，签发短期低配额匿名令牌。
-- 闹钟基础功能不得依赖证明成功。
-
-Play Integrity standard request 需要服务端验证；非 GMS 路径必须保留：
-
-- https://developer.android.com/google/play/integrity/standard
-- https://developer.android.com/google/play/integrity/classic
-
-Play Integrity 客户端库的精确版本须在实施时从官方发布记录锁定；当前检索信息不足，无法在本规格中可靠固定版本：
-
-- https://developer.android.com/google/play/integrity/reference/com/google/android/play/core/release-notes
-
-### 7.2 `GET /v1/calendars/CN/{year}`
-
-响应：
+刷新算法（单次进入日历页执行，全部失败不阻塞页面渲染）：
 
 ```text
-country, year, version, publishedAt, sourceUrl,
-payloadSha256, signatureAlgorithm, signature, days[]
+1. 清理：删除本地所有 year < 当前年份 的 CalendarYearCache（含陈旧文件缓存）。
+2. 目标年份：今天 < 10月1日 → [当前年]；今天 ≥ 10月1日 → [当前年, 当前年+1]。
+3. 对每个目标年份 y：
+   a. 若本地已有 y 的缓存且校验通过（见 4）→ 跳过（不产生网络请求）。
+   b. 否则按源顺序抓取：raw.githubusercontent.com → cdn.jsdelivr.net → fastly.jsdelivr.net；
+      前一个失败（网络/超时/HTTP 错误/校验失败）自动切换下一个。
+4. 校验（每份数据必须全部通过，否则丢弃本次数据、保留旧缓存并记录原因）：
+   - JSON 可解析；顶层含 year（整数）、papers（字符串数组）、days（数组）。
+   - year 必须等于请求年份 y。
+   - days 每项：date 为合法 ISO 日期且 `date.year == y`（12 月合并场景允许跨年，见 5.4）；
+     isOffDay 为布尔；name 为非空字符串。
+   - days 数量 ≥ 5（法定假日最少 5 个休息日的下界）。
+   - papers 非空（保留官方来源 URL）。
+5. 覆盖：校验通过后原子覆盖 y 的缓存（更新 fetchedAt、sourceUrl、papers），不合并旧数据。
+6. 兜底：目标年份缓存全部缺失时，工作日判定使用周规则；首页与日历页标注“日历数据不可用，使用默认规则”。
+7. 记录：每次刷新写入本地诊断（success/failed、失败类别、耗时），不写 body。
 ```
 
-- 支持 `ETag` / `If-None-Match`。
-- 日历发布流水线需要双人复核来源和调休日期。
-- 历史版本不可覆盖同年更高版本。
+边界处理：
 
-### 7.3 `POST /v1/places/search`
+- 长时间未打开/跨年：步骤 1 清理去年数据；步骤 2 按打开时的当前年份重新计算目标集合；旧年份残留数据由清理步骤兜底。
+- 网络失败：保留旧缓存；连续失败计数写入诊断；下次打开日历页重试；不阻塞响铃与工作日兜底。
+- 数据校验失败：丢弃新数据、保留旧数据、记录原因；同源多次失败后仍保留旧数据（只要旧数据通过校验）。
+- 版本覆盖：新数据总是覆盖同一年旧数据（fetch 到更新版本时）；App 覆盖安装不触发强制重抓，依赖步骤 3a 的“已通过校验即跳过”与 12 月合并语义。
+- 12 月语义：判定 12 月日期时合并当年与次年缓存（holiday-cn 注意事项）；若次年数据缺失，仅用当年数据并接受官方“可能受次年文件影响”的已知窗口。
+- 并发：刷新与评估可能并发读取，写入采用单事务覆盖；同一年份的重复抓取以最后成功者为准。
+- 请求节制：单日对同一数据源失败超过 3 次后，当天不再重试该源（避免无限重试），次日自动恢复。
 
-请求：
+## 7. 第三方 API 契约要点
+
+### 7.1 高德 Web 服务 API（App 内直连）
+
+| 用途 | 接口 | 关键参数 |
+|---|---|---|
+| 驾车/步行/骑行/公交路径 | v5 `direction/{driving,walking,cycling,transit}` | `origin,destination,waypoints,strategy,date,time`（公交） |
+| POI 搜索 | v5 `place/text` | `keywords,region,citycode,offset,page` |
+| 输入提示 | v3 `assist/inputtips` | `keywords,city,location` |
+| 连接测试 | v3 输入提示或 v3 地理编码 | 固定测试用例，不记录输入值 |
+
+- 全部请求携带 `key`（来自凭证存储）；响应顶层 `status`/`info`/`infocode` 三字段错误模型。
+- 已知错误码归类：`10001` key 无效；`10003/10044` 日/账号配额超限；`10019/10020/10021` QPS 超限；`20800–20803` 路线不可用；其余按 `info` 归类为失败。
+
+### 7.2 彩云天气 v2.6 API（App 内直连）
+
+| 用途 | 接口 | 关键参数 |
+|---|---|---|
+| 天气实况+小时预报 | `v2.6/{lng},{lat}/weather` 及 `hourly` 视图 | `hourlysteps,unit=metric:v2,lang=zh_CN` |
+| 连接测试 | 同上（家庭地坐标或固定测试坐标） | 同上 |
+
+- 鉴权：App Key + App Secret，HMAC-SHA256 生成 `x-cy-signature`，配合 `x-cy-token`、`x-cy-timestamp` 请求头；App Secret 只存在于 Keystore 加密凭证。
+- 响应含 `status`、`api_version`、`location`、`server_time`、`result`；`skycon` 枚举映射见 FR-004。
+- 套餐与 QPS 以账号后台为准（免费版 10000 次等介绍见第 2 章依据）。
+- 数据来源标注：天气展示区域必须显著标注“数据来自彩云天气”（彩云开放平台条款要求）。
+
+### 7.3 错误模型（App 内部）
 
 ```text
-query, cityCode?, pageToken?
+ProviderError(
+  category: NETWORK | TIMEOUT | HTTP | AUTH | QUOTA | NOT_FOUND | PARSE | UNKNOWN,
+  providerCode: String?,
+  retryable: Boolean
+)
 ```
 
-响应：
-
-```text
-items[{poiId,name,address,longitudeGcj02,latitudeGcj02,adcode,citycode}],
-nextPageToken?
-```
-
-- `query` 长度限制为 1–80。
-- 返回数量上限 20。
-- 禁止记录原始 query、地址或坐标。
-
-### 7.4 `POST /v1/alarm-evaluations`
-
-请求：
-
-```text
-requestId, planId, planRevision, targetDate, timezone,
-defaultWakeTime, arrivalTime,
-preparationMinutes, maxAdvanceMinutes,
-commuteMode, origin, destination,
-waypoints, routePolicy, weatherRuleVersion
-```
-
-响应：
-
-```text
-decisionId, planId, planRevision, targetDate,
-workdayStatus, estimatedDepartureAt, commuteSeconds,
-weatherSeverity, weatherBufferMinutes, weatherRuleVersion,
-recommendedWakeAt, routeProvider, routeProviderReportTime,
-weatherProvider, weatherProviderReportTime,
-weatherWindowStart, weatherWindowEnd,
-fallbackReason, insufficientAdvance, generatedAt, expiresAt
-```
-
-错误模型：
-
-```text
-code, message, retryable, retryAfterSeconds?, correlationId
-```
-
-标准 `fallbackReason`：
-
-```text
-NONE
-CURRENT_TRAFFIC_FALLBACK
-FUTURE_ROUTE_NOT_ENTITLED
-ROUTE_HORIZON_UNAVAILABLE
-ROUTE_PROVIDER_TIMEOUT
-ROUTE_PROVIDER_QUOTA
-ROUTE_NOT_FOUND
-WEATHER_HORIZON_UNAVAILABLE
-WEATHER_PROVIDER_TIMEOUT
-WEATHER_PROVIDER_AUTH
-WEATHER_PROVIDER_QUOTA
-WEATHER_UNKNOWN_CODE
-CALENDAR_FALLBACK
-STALE_RESPONSE
-```
-
-### 7.5 后端隐私和安全
-
-- 高德 Web API key、彩云 App Key 和彩云 App Secret 只存在于服务端密钥管理系统。
-- 访问日志不记录请求/响应 body。
-- 日志、指标和 trace 不记录令牌、地址、POI、坐标或完整缓存 key。
-- 需要关联请求时使用随机 `correlationId`。
-- Redis key 对规范化输入使用服务端 HMAC 摘要，不拼接明文地点。
-- 安装令牌只用于限流，不建立用户画像。
-- Provider 错误正文先清洗再写日志。
-- 限流至少区分安装令牌、来源 IP、接口和第三方 Provider 配额。
-- 后端向彩云传输家庭地和工作地坐标只用于当次天气查询，不持久化 Provider 请求或响应。
-- 天气展示必须标注“数据来自彩云天气”。彩云开放平台条款要求在应用显著位置标注数据来源：
-  - https://platform.caiyunapp.com/user/user_agreement/
+- `QUOTA`（高德 10003/10044 等、彩云限流错误）与 `AUTH` 视为不可重试；本轮评估直接结束且不注册/不修改提前闹钟。
+- 所有请求超时、`HTTP != 200` 或解析失败时按错误类别结束本轮评估。
 
 ## 8. UI 规格
 
 ### 8.1 首次启动
 
-1. 展示隐私政策和高德 SDK 披露。
-2. 用户同意前不初始化高德。
-3. 隐私政策同时说明：计算天气时，后端会把家庭地和工作地坐标临时传给彩云天气，但 Android 不直接连接彩云天气。
-4. 依次完成通知、精确闹钟和全屏 Intent 能力诊断。
-5. 可跳过地点和计划创建进入只读首页。
+1. 展示隐私政策（高德 SDK 披露、彩云数据来源披露）。
+2. 用户同意前不初始化高德 SDK。
+3. 依次完成通知、精确闹钟和全屏 Intent 能力诊断（缺失只影响提前闹钟，不阻止计划启用）。
+4. 引导进入凭证配置页（可跳过）；未配置凭证不阻塞计划创建与系统闹钟引导。
+5. 展示“正常起床闹钟请在系统时钟 App 中设置”的引导（计划创建页再次展示）。
+6. 可跳过地点和计划创建进入只读首页。
 
 ### 8.2 首页
 
-- 下一次响铃日期和时间。
-- 默认起床时间、实际提前分钟数。
-- 工作日、通勤、天气三项计算分解。
-- 路线 Provider、彩云天气数据时间和降级原因。
-- 天气区域显著显示“数据来自彩云天气”。
-- 权限或调度异常横幅。
+- 下一次响铃信息：默认起床时间（系统时钟 App 引导时间）与系统闹钟核对状态；已注册的一次性提前闹钟时间与实际提前分钟数（若有）。
+- “系统闹钟核对”为启发式：`AlarmManager.getNextAlarmClock()` 的全局下一闹钟落在计划默认起床时间 ±10 分钟内时提示“已确认”；无法确认时显示“请确认已在系统时钟 App 设置 X:XX 闹钟”的常驻提醒，不假设已设置。
+- 工作日、通勤、天气三项计算分解；评估失败时展示原因与“正常闹钟不受影响，本次无提前提醒”的说明。
+- 路线 Provider、彩云数据时间与降级原因；天气区域显著显示“数据来自彩云天气”。
+- 权限、凭证缺失或调度异常横幅。
 
 ### 8.3 计划编辑
 
 - 名称、启用状态、到岗时间、默认起床、准备时长、最大提前量。
-- 家庭/工作地点、通勤方式和驾车路线策略。
-- 天气等级缓冲。
-- 工作日规则、声音、振动和贪睡。
-- 保存前展示“基础闹钟”和当前可计算的“建议闹钟”。
+- 家庭/工作地点、通勤方式和驾车路线策略；天气等级缓冲；工作日规则、声音、振动和贪睡（贪睡仅作用于本 App 的提前闹钟）。
+- 保存前展示“系统闹钟引导时间”（默认起床时间，需用户在系统时钟 App 设置）与当前可计算的“建议提前闹钟”（建议值来自最近一次成功评估，不实时联网）。
 
 ### 8.4 地点选择
 
-- POI 搜索。
-- 地图点选。
-- 用户触发的当前位置。
+- POI 搜索与输入提示（Web Key）；已配置 SDK Key 时提供地图选点与“使用当前位置”。
 - 展示坐标系为 GCJ-02 的内部约束，不向用户显示技术字段。
 
 ### 8.5 日历覆盖
 
-- 月历显示官方工作日、官方休息日、普通工作日和普通周末。
-- 用户可将任意日期覆盖为上班或休息。
-- 提供“恢复官方规则”操作。
+- 月历显示官方休息日、调休上班日、普通工作日和普通周末（区分数据来源：holiday-cn / 兜底规则）。
+- 顶部显示数据状态（最后抓取时间、来源 URL、本次刷新结果）。
+- 用户可将任意日期覆盖为上班或休息；提供“恢复官方规则”操作。
 
-### 8.6 决策历史
+### 8.6 凭证配置
 
-- 本地保存最近 30 天决策。
-- 展示计算分解、数据时间、fallback 和 occurrence 最终状态。
-- 不显示或导出完整坐标和安装令牌。
+- 高德/彩云两个区块，字段、掩码输入、保存、连接测试（FR-012）、清除凭证。
+- 页面 `FLAG_SECURE`。
 
-### 8.7 可靠性诊断
+### 8.7 决策历史
 
-- 通知、精确闹钟、全屏 Intent 状态。
-- 通知渠道是否被关闭。
-- 闹钟音量和选定铃声可读性。
-- 最后一次基础注册、自动提前、Worker、响铃和重启恢复结果。
-- 强制停止不可自动恢复说明。
+- 本地保存最近 30 天决策；展示计算分解、数据时间、`evaluationOutcome`、fallback 与提前闹钟 occurrence 最终状态。
+- 不显示或导出完整坐标与凭证。
 
-## 9. 可观测性
+### 8.8 可靠性诊断
 
-### 9.1 Android
+- 通知、精确闹钟、全屏 Intent 状态；通知渠道状态；闹钟音量与铃声可读性。
+- 系统闹钟引导与核对状态（期望时间、最近一次 `getNextAlarmClock()` 结果）；最后一次提前闹钟注册/替换/取消、Worker、响铃、重启恢复和日历刷新结果。
+- 凭证配置状态（是否已配置、上次测试时间与结果，不显示任何密钥）。
+- 强制停止不可自动恢复说明（提前闹钟失效，正常闹钟不受影响）。
 
-本地环形诊断记录最多 200 条：
+## 9. 隐私与安全
+
+- 本地优先：所有数据（计划、决策、日历缓存）只存本机，无任何网络上传路径。
+- 凭证：Android Keystore 不可导出密钥加密，密文存应用私有目录，备份排除（FR-013）；明文只存在于输入框与测试执行线程。
+- 防泄露四原则（日志脱敏、截图禁止、崩溃信息隔离、导出排除）见 FR-013。
+- 日志：本地环形诊断记录最多 200 条，字段限定为事件类型/结果码/版本/哈希 ID/耗时/时间戳；禁止写入地址、POI、坐标、凭证、铃声 URI 或请求/响应 body。
+- 高德 SDK 隐私合规：同意前不初始化；隐私政策列出高德 SDK 与彩云数据来源。
+- 数据来源标注：天气区域“数据来自彩云天气”。
+- 发布渠道使用 Android vitals 查看崩溃与 ANR；不接入第三方采集 SDK。
+
+## 10. 可观测性
+
+- 本地环形诊断（最多 200 条）：
 
 ```text
 eventType, resultCode, appVersion, sdkInt,
 planIdHash, occurrenceIdHash, durationMs, timestamp
 ```
 
-禁止写入地址、POI、坐标、令牌、铃声 URI 或请求/响应 body。
+- 不设置任何远端上报通道。
 
-发布后使用 Android vitals 查看崩溃和 ANR；其可提供崩溃率、ANR 率及受影响设备信息：
+## 11. 测试规格
 
-- https://support.google.com/googleplay/android-developer/answer/9859174
-- https://support.google.com/googleplay/android-developer/answer/9844486
+### 11.1 纯单元测试
 
-### 9.2 后端
+- 工作日判定：holiday-cn 语义（调休上班日、未列出日期周规则）、三层优先级、12 月跨年合并、缓存缺失/校验失败兜底。
+- 日历刷新算法：10 月 1 日分界、去年清理、目标年份集合、源切换顺序、重复抓取跳过、连续失败节制、原子覆盖。
+- 提前闹钟计算：跨日、跨时区、夏令时边界、最大提前、只提前不推迟、`insufficientAdvance`、无需提前时取消待触发 occurrence。
+- occurrence 状态机与 PendingIntent 身份；系统闹钟引导核对逻辑（`getNextAlarmClock()` 窗口判定）。
+- 彩云 `skycon` 全枚举、降水/风速/能见度、两地取高、时间窗口、规则版本、360 小时范围、签名向量（HMAC 固定测试向量）。
+- Provider 错误分类：高德错误码表全量、网络/超时/解析。
+- 凭证存储：加解密往返、密文版本迁移、密钥别名缺失恢复、损坏密文拒绝。
+- Worker：重试、23:30 截止、重复执行、幂等键、评估失败不注册/不改提前闹钟的不变量测试（用 fake provider 强制失败验证 occurrence 不变）。
 
-指标：
+### 11.2 仪器和系统测试
 
-```text
-http_server_duration
-provider_request_duration{provider,operation,outcome}
-provider_quota_remaining{provider}
-cache_hit{provider,operation}
-circuit_state{provider,operation}
-evaluation_fallback{reason}
-rate_limit_rejected{endpoint,tier}
-```
-
-使用 Actuator/Micrometer 导出指标；部署环境通过 OpenTelemetry Java Agent 采集 trace，业务代码只在确有缺口时添加自定义 span。
-
-- https://docs.spring.io/spring-boot/reference/actuator/metrics.html
-- https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/
-
-## 10. 测试规格
-
-### 10.1 Android 单元测试
-
-- 工作日三层优先级、年度跨越和签名失败。
-- 跨日、跨时区、夏令时边界和系统时区变化。
-- 最大提前、只提前不推迟、用户 revision 允许推迟。
-- 彩云 `skycon` 全枚举、降水/风速/能见度、两地取高、时间窗口、规则版本和超出 360 小时范围。
-- 各 Provider fallback。
-- PendingIntent identity 和旧 occurrence 拒绝。
-- Worker 重试、23:30 截止、重复执行和 stale response。
-
-使用 JUnit、`kotlinx-coroutines-test` 和与 OkHttp 版本一致的 MockWebServer。协程测试依赖依据：
-
-- https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-test/
-- https://square.github.io/okhttp/3.x/mockwebserver/okhttp3/mockwebserver/MockWebServer.html
-
-### 10.2 Android 仪器和系统测试
-
-设备矩阵：API 29、31、33、34、35、36。
+设备矩阵：API 36（当前 minSdk 单版本；若下探见 14 章）。
 
 场景：
 
 - 进程被杀、锁屏、Doze、省电模式、无网、弱网。
 - 通知权限、全屏能力、精确闹钟能力撤销。
-- 重启后未解锁、解锁后完整重算。
-- 修改系统时间、时区、语言和应用升级。
+- 重启后未解锁、解锁后完整重算；修改系统时间、时区、语言和应用升级。
+- 凭证页截图被阻止（`FLAG_SECURE` 生效）、备份恢复后凭证不存在。
 - 静音、不同闹钟音量、蓝牙耳机、来电占用、损坏的自定义铃声。
 - 停止、连续停止、贪睡、重复 Intent 和同分钟多计划。
-- `adb shell dumpsys deviceidle force-idle`。
+- 日历页断网/脏数据/跨年场景的 UI 状态。
 
-Robolectric 只用于有限的本地 Android 行为测试，不能替代真实设备/模拟器上的系统调度、Doze、重启和音频测试：
+### 11.3 契约与回归
 
-- https://developer.android.com/training/testing/local-tests/robolectric
-- https://developer.android.com/training/testing/instrumented-tests
+- 彩云/高德 MockWebServer fixture 与错误码用例。
+- Room 与 DataStore 迁移测试；日志与导出隐私测试（扫描关键词：key、secret、坐标、地址）。
+- 响铃回归必须覆盖“评估失败后已注册提前闹钟时间未变化”与“评估成功且无需提前时待触发提前闹钟被取消”的断言。
 
-### 10.3 后端测试
+## 12. 验收标准
 
-- OpenAPI schema、兼容性和生成代码无 diff。
-- PostgreSQL/Redis Testcontainers 集成测试。
-- 高德路线/POI：成功、超时、空路线、错误码、配额、企业权限不足和跨城公交。
-- 彩云天气：签名向量、成功、过期时间戳、重复 nonce、未知 `skycon`、缺失小时、超时、鉴权失败、配额和缓存。
-- 缓存隔离、HMAC key、限流、熔断、半开恢复和并发。
-- 年度日历规范化、hash、签名、验签、降级和版本回滚拒绝。
-- 日志、trace、指标及数据库导出无敏感数据。
-
-Testcontainers 依据：https://docs.spring.io/spring-boot/reference/testing/testcontainers.html
-
-## 11. 验收标准
-
-- 保存计划后，即使断网，也能在系统下一闹钟中看到基础闹钟。
-- 正常联网时，首页能解释工作日、通勤、天气和最终提前量。
-- 任一第三方接口失败时，已注册基础闹钟不被取消或推迟。
-- 后续自动刷新不会推迟同一 revision 的同一次闹钟。
-- 多个计划各自保有一个下一次一次性 occurrence。
-- API 29–36 在进程不存在、锁屏和 Doze 条件下通过响铃测试。
-- 重启后未首次解锁时能从设备保护存储恢复下一次响铃。
+- 保存计划后，本 App 不注册任何闹钟；系统“下一闹钟”完全由系统时钟 App 决定，不受本 App 影响。
+- 正常联网且凭证有效时，首页能解释工作日、通勤、天气和最终提前量；提前闹钟只在需要提前时注册。
+- 任一第三方接口失败（超时/配额/凭证无效/解析失败）时，已注册的一次性提前闹钟不被取消或推迟，且不会新注册。
+- 后续自动刷新不会推迟同一 revision 的已注册提前闹钟；只有成功评估才能提前；成功评估且无需提前时取消待触发提前闹钟。
+- 每个启用计划对同一目标日期最多保有一个待触发的一次性提前闹钟；正常起床闹钟由系统时钟 App 持有。
+- 重启后未首次解锁时能从设备保护存储恢复待触发的提前闹钟；正常起床闹钟不受重启影响（系统时钟 App 负责）。
 - 首次隐私同意前，高德 SDK 未初始化且无高德网络请求。
-- 天气详情显著显示“数据来自彩云天气”，Android 安装包中不存在彩云 App Secret。
-- Android 和后端日志均不包含明文地址、坐标、令牌或完整 body。
-- 强制停止列为平台不可恢复边界，不计入自动恢复通过条件。
-- 精确闹钟、全屏 Intent、隐私政策和 Google Play 数据安全材料完成后才允许公开发布。
+- 凭证页不可截图；应用备份/迁移后设备上不存在凭证；日志、崩溃与导出内容不含凭证。
+- 日历页按 10 月 1 日分界正确拉取年份；断网或脏数据时不阻塞页面，工作日兜底可用。
+- 天气详情显著显示“数据来自彩云天气”；Android 安装包内不存在任何硬编码密钥。
+- 强制停止下列为平台不可恢复边界：提前闹钟与夜间评估失效，但系统时钟 App 的正常起床闹钟仍然生效，UI 帮助页明示该边界。
 
-## 12. 里程碑
+## 13. 里程碑
 
-以下为工程估算，不是外部标准；按 2 名 Android/后端开发和 1 名兼职 QA，目标 12 周。
+以下为工程估算，不是外部标准；按 2 名 Android 开发，目标 8 周。
 
-1. 第 1 周：仓库、CI、version catalog、OpenAPI、Android/后端骨架。
-2. 第 2–3 周：本地计划、工作日引擎、基础精确闹钟、Direct Boot。
-3. 第 4–5 周：Compose 页面、能力诊断、地点和地图。
-4. 第 6–7 周：后端、日历发布、彩云天气 Provider 及高德基础路线 Provider。
-5. 第 8–9 周：未来驾车、公交迭代、多方式计算和决策解释。
-6. 第 10 周：响铃服务、全屏通知、贪睡和异常恢复。
-7. 第 11 周：系统矩阵、隐私合规、配额和性能测试。
-8. 第 12 周：封闭测试、Play 审核材料、灰度发布和回滚演练。
+1. 第 1 周：仓库清理、构建基线、version catalog 锁定、验证脚本。
+2. 第 2 周：领域模型、工作日引擎（holiday-cn 语义）、闹钟纯计算、occurrence 状态机。
+3. 第 3 周：数据层（Room/DataStore/快照）与一次性提前闹钟（注册、响铃、贪睡、Direct Boot、系统闹钟引导与核对）。
+4. 第 4 周：凭证安全（Keystore、密文存储、备份排除、脱敏）与凭证配置页（连接测试）。
+5. 第 5 周：日历抓取与刷新策略（FR-015）、日历覆盖页。
+6. 第 6 周：高德 Provider（路线/POI/输入提示）、彩云 Provider（HMAC、天气规则）、地点与地图。
+7. 第 7 周：统一评估与 WorkManager 夜间任务、首页/决策历史/诊断页。
+8. 第 8 周：系统矩阵、隐私合规、发布门禁。
 
-## 13. 实施前置项和未决外部条件
+## 14. 实施前置项和未决外部条件
 
 以下事项不阻塞本规格落地，但阻塞对应功能或公开发布：
 
-- 高德企业未来路径规划的账号资格、配额、费用和生产授权；未开通时必须使用已定义 fallback。
-- 高德 Android SDK 与 Web API 的正式 key、包名/签名限制和密钥轮换流程。
-- 彩云开放平台正式 App Key/App Secret、套餐配额、商用授权、数据来源标注和密钥轮换流程。
-- 彩云 v2.6 天气查询输入坐标系的官方确认或控制点对照验证；关闭前不得进入生产。
-- 是否购买彩云预警增值能力；未购买时核心天气等级必须完整工作。
-- 后端生产域名、TLS 证书、PostgreSQL/Redis 受支持版本及备份策略。
-- 日历签名私钥的保管和轮换方案；私钥不得进入仓库或 Android 客户端。
-- Android 正式签名证书和 Google Play App Signing 配置。
-- 隐私政策正式 URL、数据安全表、精确闹钟和全屏 Intent 声明。
-- Play Integrity 是否启用及其正式依赖版本；无 GMS fallback 必须始终可用。
+- **彩云输入坐标基准（未确认项）**：彩云文档只明确 App 使用 GCJ-02，未明确一般 v2.6 天气查询接口接受的坐标基准；实现必须以官方书面确认或已知控制点对照测试关闭门禁，未关闭前不得进入生产发布。
+- **minSdk 收窄（待确认）**：当前代码基线为 minSdk 36（Android 16 专属），旧规格为 API 29–36；是否支持更早版本由发布目标决定，若需下探需补充兼容矩阵与回归。
+- **holiday-cn 数据为社区维护（确认的取舍）**：数据真值在国务院公告，holiday-cn 负责抓取整理（MIT 许可）；本项目以 `papers` 保留官方来源并接受其维护节奏（通常 10 月底/11 月发布次年安排，故 10 月 1 日后预拉次年允许“文件暂未发布”的失败并回退）。
+- **高德 Web Key 直连客户端（已知风险）**：Web 服务 Key 只能绑定 IP 白名单，客户端直连（移动网络 IP 不固定）无法启用；风险由 Keystore 加密 + 备份排除 + 用户自持 Key 承担，文档与 UI 需明确提示。
+- **高德 Android SDK Key 与正式签名**：SDK Key 绑定包名+签名；正式签名证书未配置前 SDK Key 只能用于 debug 签名。
+- **彩云套餐**：正式 App Key/App Secret、套餐配额、商用授权与数据来源标注；未购买预警增值能力时核心天气等级必须完整工作。
+- **Google Play 声明材料**：精确闹钟、全屏 Intent、隐私政策、数据安全表；完成前不允许公开发布。
+- **系统闹钟核对为启发式（确认的取舍）**：Android 无公开 API 读取系统时钟 App 的闹钟列表；`AlarmManager.getNextAlarmClock()` 只返回全局下一个 alarm clock，且 `ACTION_NEXT_ALARM_CLOCK_CHANGED` 为系统独占发送（第三方应用仅能注册 receiver 接收）。因此“已确认设置了系统闹钟”只能基于时间窗口匹配做启发式判断，存在其他应用闹钟误匹配的可能；UI 一律以“请确认”而非“已设置”措辞表达，且不依赖该核对做任何调度。
 
-## 14. 发布门禁
+## 15. 发布门禁
 
-- 依赖版本全部锁定且无动态版本。
-- OpenAPI 重新生成无未提交 diff。
-- Room 和 DataStore 迁移测试通过。
-- API 29–36 核心响铃矩阵通过。
-- 第三方断网/超时/配额/无权限 fallback 通过。
+- 依赖版本全部锁定且无动态版本；无 `backend`、`contract`、`calendar-data`、`infra` 等遗留目录。
+- Room 和 DataStore 迁移测试通过；API 36 核心响铃矩阵通过。
+- “评估失败不注册/不改提前闹钟”与“断网保存不产生任何系统闹钟（正常闹钟由系统时钟 App 提供）”验收通过。
 - Direct Boot、系统时间/时区变化、升级恢复通过。
-- 隐私自动化扫描和人工导出检查通过。
-- 高德隐私初始化顺序通过网络抓包验证。
-- 彩云鉴权、坐标控制点、配额降级和“数据来自彩云天气”标注通过验收。
-- Google Play 相关声明和政策材料完成。
-- 发布包不包含开发 key、后端密钥、调试日志开关或测试服务器地址。
+- 凭证安全四项验收（日志/截图/崩溃/导出无凭证）与备份排除测试通过。
+- 高德隐私初始化顺序通过网络抓包验证；彩云签名向量与坐标控制点验证通过。
+- 日历刷新算法（10 月 1 日分界、去年清理、源切换、兜底）单元与仪器测试通过。
+- Google Play 相关声明和政策材料完成；发布包不包含任何密钥、调试开关或测试端点。

@@ -1,24 +1,27 @@
-# Configuration Guide
+# Configuration Guide（纯 Android 本地优先）
 
-## Key Hierarchy
+## 密钥层级
 
-- **Android**: keys injected via manifest placeholders from `local.properties` or CI
-- **Backend**: keys read from environment variables or mounted secrets
+- 所有第三方凭证（高德、彩云）由用户在应用内「凭证配置」页输入，**不通过构建注入，不进 manifest，不进源码**。
+- 明文只存在于凭证页输入框与连接测试执行线程；持久化为 Android Keystore 加密密文（`core/security`）。
 
-## Variables
+## 凭证变量
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `AMAP_ANDROID_KEY` | Yes (release) | High德 Android SDK key |
-| `AMAP_WEB_KEY` | Yes (release) | High德 Web API key |
-| `CAIYUN_APP_KEY` | Yes (release) | 彩云天气 App Key |
-| `CAIYUN_APP_SECRET` | Yes (release) | 彩云天气 App Secret |
-| `POSTGRES_PASSWORD` | Yes | Database password |
-| `REDIS_PASSWORD` | Yes | Redis password |
+| 变量 | 必填 | 用途 | 连接测试 |
+|---|---|---|---|
+| 高德 Web 服务 Key | 是（路线/POI/输入提示功能） | 路径规划、POI 搜索、输入提示 | 调用一次输入提示探活 |
+| 高德 Android SDK Key | 否 | 地图渲染、地图选点、前台定位 | 无 HTTP 探活，保存后在地点页验证 |
+| 彩云 App Key | 是（天气功能） | v2.6 API 请求身份（`x-cy-token`） | 构造签名调用一次天气查询 |
+| 彩云 App Secret | 是（天气功能） | HMAC-SHA256 签名（`x-cy-signature`） | 同上 |
 
-## Security
+说明：
 
-- No production key or secret is committed to the repository.
-- Android release builds inject keys via CI secrets into manifest placeholders.
-- Backend secrets are never logged, exposed in error messages, or included in trace/span attributes.
-- URL, exception, and log filters must clear Caiyun App Key from URL paths and all three `x-cy-*` headers.
+- 未配置的 Provider 不会阻塞计划保存与正常起床闹钟（由系统时钟 App 提供）；评估流水线跳过对应步骤且不注册/不修改提前闹钟。
+- 高德 Web Key 只能绑定 IP 白名单，客户端直连无法启用，风险由 Keystore 加密 + 备份排除 + 用户自持 Key 承担。
+
+## 安全
+
+- 仓库中不提交任何生产密钥或 secret（配合 `scripts/scan-secrets.sh`）。
+- 密钥永不进入日志、错误信息、诊断环形记录、崩溃堆栈或导出内容。
+- URL、异常与日志过滤器必须清除 URL 中的 `key`/`scode` 参数与 `x-cy-*` 头。
+- 凭证存储排除系统备份；凭证页禁止截图。
