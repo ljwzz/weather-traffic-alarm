@@ -76,8 +76,8 @@ flowchart LR
 
 技术基线：
 
-- AGP 9.3.0 配合 Gradle 9.5.0 与 `compileSdk 36`，使用内置 Kotlin（AGP 9 不再应用 `org.jetbrains.kotlin.android`）。
-- Kotlin 2.3.21 的 Compose 模块应用 `org.jetbrains.kotlin.plugin.compose`；Room 与 Hilt 代码生成统一使用 KSP。
+- AGP 9.3.0 配合 Gradle 9.6.1 与 `compileSdk 37`，使用内置 Kotlin（AGP 9 不再应用 `org.jetbrains.kotlin.android`）。
+- Kotlin 2.4.10 的 Compose 模块应用 `org.jetbrains.kotlin.plugin.compose`；Room 与 Hilt 代码生成统一使用 KSP。
 - 版本全部锁定在 `android/gradle/libs.versions.toml`。
 
 ### [ ] T000 清理遗留后端目录
@@ -136,7 +136,7 @@ test -f docs/environment.md
 实施：
 
 1. 核对 modules：`app`、`core/{model,data,network,alarm,map}`、`feature/{onboarding,home,plan,place,calendar,history,diagnostics}`；新增 `core/security` 与 `feature/credentials`（本轮只加入 settings 与空骨架，实现见 P4/P5）。
-2. 核对版本基线：AGP 9.3.0、Kotlin 2.3.21、KSP 2.3.10、Compose BOM 2026.06.00、Room 2.8.4、DataStore 1.2.1、Work 2.11.2、Hilt 2.60.1（androidx-hilt 1.3.0）、Retrofit 3.0.0、OkHttp 4.12.0、kotlinx-serialization-json 1.8.1、AMap 合包 11.2.000。
+2. 核对版本基线：AGP 9.3.0、Kotlin 2.4.10、KSP 2.3.11、Compose BOM 2026.06.00、Room 3.0.1（androidx.room3 新坐标）、DataStore 1.2.1、Work 2.11.2、Hilt 2.60.1（androidx-hilt 1.4.0）、Retrofit 3.0.0、OkHttp 5.4.0、kotlinx-serialization-json 1.11.0、AMap 合包 11.2.000；`compileSdk = 37`（Room 3.0.1 / androidx-hilt 1.4.0 要求）、`targetSdk = 36`。
 3. 移除 Tink（`tink-android`）依赖：日历签名职责已删除，从 version catalog 与所有模块删除。
 4. 确认 `minSdk = 36`（与 SPEC 第 14 章未确认项一致，变更需在 SPEC 记录）。
 
