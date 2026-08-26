@@ -57,7 +57,7 @@ class PendingIntentFactory @Inject constructor(
     fun alarmPendingIntent(occurrenceId: String, componentClass: Class<*>): PendingIntent {
         val intent = createAlarmIntent(occurrenceId, componentClass)
         val requestCode = generateRequestCode(occurrenceId, AlarmAction.ALARM)
-        return PendingIntent.getActivity(
+        return PendingIntent.getBroadcast(
             context,
             requestCode,
             intent,
@@ -98,17 +98,32 @@ class PendingIntentFactory @Inject constructor(
         )
     }
 
-    fun cancelPendingIntent(occurrenceId: String, action: AlarmAction) {
+    fun findPendingIntent(
+        occurrenceId: String,
+        action: AlarmAction,
+        componentClass: Class<*>,
+    ): PendingIntent? {
         val requestCode = generateRequestCode(occurrenceId, action)
-        val intent = Intent().apply {
-            data = Uri.parse("alarm://occurrences/$occurrenceId?action=${action.path}")
+        val intent = when (action) {
+            AlarmAction.ALARM -> createAlarmIntent(occurrenceId, componentClass)
+            AlarmAction.DISMISS -> createDismissIntent(occurrenceId, componentClass)
+            AlarmAction.SNOOZE -> createSnoozeIntent(occurrenceId, componentClass)
+            AlarmAction.FULL_SCREEN -> createFullScreenIntent(occurrenceId, componentClass)
         }
-        when (action) {
-            AlarmAction.ALARM, AlarmAction.FULL_SCREEN ->
-                PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE).cancel()
-            AlarmAction.DISMISS, AlarmAction.SNOOZE ->
-                PendingIntent.getBroadcast(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE).cancel()
+        // Identity flags must match creation; looking up a missing token must not create one.
+        val flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE or when (action) {
+            AlarmAction.DISMISS, AlarmAction.SNOOZE -> PendingIntent.FLAG_ONE_SHOT
+            else -> 0
         }
+        return when (action) {
+            AlarmAction.FULL_SCREEN ->
+                PendingIntent.getActivity(context, requestCode, intent, flags)
+            else -> PendingIntent.getBroadcast(context, requestCode, intent, flags)
+        }
+    }
+
+    fun cancelPendingIntent(occurrenceId: String, action: AlarmAction, componentClass: Class<*>) {
+        findPendingIntent(occurrenceId, action, componentClass)?.cancel()
     }
 
     companion object {
