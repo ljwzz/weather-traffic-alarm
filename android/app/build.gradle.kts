@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.ljwzz.weathertrafficalarm"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.ljwzz.weathertrafficalarm"

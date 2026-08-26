@@ -11,7 +11,7 @@ ksp {
 
 android {
     namespace = "com.ljwzz.weathertrafficalarm.core.data"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 36
@@ -33,7 +33,6 @@ dependencies {
     implementation(project(":core:model"))
 
     implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.datastore.proto)

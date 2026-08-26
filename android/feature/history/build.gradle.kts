@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.ljwzz.weathertrafficalarm.feature.history"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 36

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.ljwzz.weathertrafficalarm.feature.place"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 36
