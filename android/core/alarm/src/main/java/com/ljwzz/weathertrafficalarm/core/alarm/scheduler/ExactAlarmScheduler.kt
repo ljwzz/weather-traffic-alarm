@@ -10,12 +10,13 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ExactAlarmScheduler @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     private val alarmManager: AlarmManager,
     private val pendingIntentFactory: PendingIntentFactory,
     private val snapshotStore: NextAlarmSnapshotStore,
@@ -79,12 +80,29 @@ class ExactAlarmScheduler @Inject constructor(
     }
 
     /**
-     * Cancels all pending intents and removes snapshots for the given plan.
+     * Cancels the scheduled alarm and related receiver intents before removing the plan snapshot.
      */
     suspend fun cancelForPlan(planId: String) {
-        pendingIntentFactory.cancelPendingIntent(planId, AlarmAction.ALARM)
-        pendingIntentFactory.cancelPendingIntent(planId, AlarmAction.DISMISS)
-        pendingIntentFactory.cancelPendingIntent(planId, AlarmAction.SNOOZE)
+        snapshotStore.get(planId)?.let { snapshot ->
+            pendingIntentFactory.findPendingIntent(
+                snapshot.occurrenceId,
+                AlarmAction.ALARM,
+                AlarmReceiver::class.java,
+            )?.let { pendingIntent ->
+                alarmManager.cancel(pendingIntent)
+                pendingIntent.cancel()
+            }
+            pendingIntentFactory.cancelPendingIntent(
+                snapshot.occurrenceId,
+                AlarmAction.DISMISS,
+                AlarmReceiver::class.java,
+            )
+            pendingIntentFactory.cancelPendingIntent(
+                snapshot.occurrenceId,
+                AlarmAction.SNOOZE,
+                AlarmReceiver::class.java,
+            )
+        }
         snapshotStore.remove(planId)
     }
 
