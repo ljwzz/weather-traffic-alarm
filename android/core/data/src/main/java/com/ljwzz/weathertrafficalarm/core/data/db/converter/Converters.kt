@@ -1,6 +1,6 @@
 package com.ljwzz.weathertrafficalarm.core.data.db.converter
 
-import androidx.room.TypeConverter
+import androidx.room3.ColumnTypeConverter
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
@@ -23,75 +23,75 @@ class Converters {
 
     // --- PlaceRef ---
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromPlaceRef(value: PlaceRef): String = json.encodeToString(PlaceRef.serializer(), value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toPlaceRef(value: String): PlaceRef = json.decodeFromString(PlaceRef.serializer(), value)
 
     // --- List<PlaceRef> ---
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromPlaceRefList(value: List<PlaceRef>): String =
         json.encodeToString(ListSerializer(PlaceRef.serializer()), value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toPlaceRefList(value: String): List<PlaceRef> =
         json.decodeFromString(ListSerializer(PlaceRef.serializer()), value)
 
     // --- AlarmSound ---
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromAlarmSound(value: AlarmSound): String = json.encodeToString(AlarmSound.serializer(), value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toAlarmSound(value: String): AlarmSound = json.decodeFromString(AlarmSound.serializer(), value)
 
     // --- VibrationPattern ---
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromVibrationPattern(value: VibrationPattern): String =
         json.encodeToString(VibrationPattern.serializer(), value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toVibrationPattern(value: String): VibrationPattern =
         json.decodeFromString(VibrationPattern.serializer(), value)
 
     // --- Enums stored as strings ---
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromCommuteMode(value: CommuteMode): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toCommuteMode(value: String): CommuteMode = CommuteMode.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromRoutePolicy(value: RoutePolicy): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toRoutePolicy(value: String): RoutePolicy = RoutePolicy.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromWorkdayStatus(value: WorkdayStatus?): String? = value?.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toWorkdayStatus(value: String?): WorkdayStatus? = value?.let { WorkdayStatus.valueOf(it) }
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromFallbackReason(value: FallbackReason): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toFallbackReason(value: String): FallbackReason = FallbackReason.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromOccurrenceState(value: OccurrenceState): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toOccurrenceState(value: String): OccurrenceState = OccurrenceState.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromDayStatus(value: DayStatus): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toDayStatus(value: String): DayStatus = DayStatus.valueOf(value)
 }

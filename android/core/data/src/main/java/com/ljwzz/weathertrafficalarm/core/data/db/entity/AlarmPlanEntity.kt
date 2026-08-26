@@ -1,9 +1,9 @@
 package com.ljwzz.weathertrafficalarm.core.data.db.entity
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
+import androidx.room3.ColumnInfo
+import androidx.room3.Entity
+import androidx.room3.PrimaryKey
+import androidx.room3.ColumnTypeConverters
 import com.ljwzz.weathertrafficalarm.core.data.db.converter.Converters
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
@@ -12,7 +12,7 @@ import com.ljwzz.weathertrafficalarm.core.model.RoutePolicy
 import com.ljwzz.weathertrafficalarm.core.model.VibrationPattern
 
 @Entity(tableName = "alarm_plans")
-@TypeConverters(Converters::class)
+@ColumnTypeConverters(Converters::class)
 data class AlarmPlanEntity(
     @PrimaryKey @ColumnInfo(name = "id") val id: String,
     @ColumnInfo(name = "revision") val revision: Long,
