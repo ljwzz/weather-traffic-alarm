@@ -7,7 +7,7 @@
 - 中文名称：`通勤闹钟`
 - Android `applicationId` / `namespace`：`com.ljwzz.weathertrafficalarm`
 - `minSdk`：36（与当前构建一致；是否下探至 API 29–35 见第 14 章未确认项）
-- `compileSdk` / `targetSdk`：36
+- `compileSdk`：37（Android 17；依赖基线升级所致，见 3.1）/ `targetSdk`：36
 - 可执行任务清单：[`IMPLEMENTATION_TASKS.md`](./IMPLEMENTATION_TASKS.md)
 
 > 架构变更说明：本规格删除了后端（Spring Boot）、PostgreSQL、Redis、OpenAPI 契约、Play Integrity、Tink 日历签名与全部部署内容。第三方 API（高德、彩云天气）由 App 直接调用，凭证由用户在本机配置；工作日数据改用 holiday-cn 开源数据由 App 抓取缓存。旧的 API 29–36 支持范围改为 minSdk 36 单版本（Android 16 专属），理由与取舍见第 14 章。
@@ -111,20 +111,21 @@
 | 项 | 版本/策略 |
 |---|---|
 | Android Gradle Plugin | `9.3.0` |
-| Gradle Wrapper | `9.5.0` |
-| Kotlin | `2.3.21` |
-| KSP | `2.3.10` |
+| Gradle Wrapper | `9.6.1` |
+| Kotlin | `2.4.10` |
+| KSP | `2.3.11`（KSP 2.3.0 起版本不再与 Kotlin 编译器绑定） |
 | JDK | `21` |
-| `compileSdk` / `targetSdk` | `36` |
+| `compileSdk` | `37`（Android 17；Room 3.0.1 / androidx-hilt 1.4.0 / lifecycle 2.11.0 要求 compileSdk ≥ 37） |
+| `targetSdk` | `36`（Android 16） |
 | `minSdk` | `36`（Android 16 专属，待确认项见 14 章） |
 | Compose BOM | `2026.06.00` |
 | Navigation Compose | `2.9.8` |
-| Room | `2.8.4` |
+| Room | `3.0.1`（`androidx.room3` 新坐标，Kotlin-first；`@TypeConverter/@TypeConverters` 已更名为 `@ColumnTypeConverter/@ColumnTypeConverters`） |
 | DataStore | `1.2.1` |
 | WorkManager | `2.11.2` |
-| Hilt | `2.60.1`（AndroidX Hilt `1.3.0`） |
-| Retrofit | `3.0.0`（OkHttp `4.12.0` 依赖线） |
-| kotlinx-serialization-json | `1.8.1` |
+| Hilt | `2.60.1`（AndroidX Hilt `1.4.0`） |
+| Retrofit | `3.0.0`（OkHttp `5.4.0`，官方确认与 Retrofit 3.x 二进制兼容） |
+| kotlinx-serialization-json | `1.11.0` |
 | kotlinx-coroutines-test | `1.11.0` |
 | 高德 Android 合包 | `com.amap.api:3dmap-location-search:11.2.000_loc11.2.000_sea9.8.0` |
 | 凭证加密 | Android Keystore（平台能力，无第三方库） |
