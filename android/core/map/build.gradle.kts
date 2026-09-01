@@ -28,6 +28,11 @@ android {
 dependencies {
     implementation(project(":core:model"))
 
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.amap.all)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+
     implementation(libs.hilt.android)
     implementation(libs.hilt.core)
     ksp(libs.hilt.compiler)

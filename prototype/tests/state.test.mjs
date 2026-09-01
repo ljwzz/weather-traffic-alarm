@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   defaultAlarmDraft,
+  AMAP_FIXTURE_STATES,
+  amapFixtureState,
   nextAlarmOccurrence,
   normalizeAlarmPlan,
   persistentSettingsSnapshot,
   REPEAT_KINDS,
   repeatLabel,
+  resolveCommute,
   todayIso,
   validateAlarmPlan,
 } from '../state.mjs';
@@ -97,4 +100,17 @@ test('browser persistence excludes credentials but preserves local alarm plans',
 
 test('todayIso uses the device-local calendar day', () => {
   assert.equal(todayIso(at('2026-08-31T01:00:00+08:00')), '2026-08-31');
+});
+
+test('AMap fixture state never needs a real key and exposes explicit unavailable states', () => {
+  assert.equal(amapFixtureState({}), AMAP_FIXTURE_STATES.NO_KEY);
+  assert.equal(amapFixtureState({ amapWebKey: 'runtime-only' }), AMAP_FIXTURE_STATES.SUCCESS);
+  assert.equal(amapFixtureState({}, AMAP_FIXTURE_STATES.DENIED), AMAP_FIXTURE_STATES.DENIED);
+});
+
+test('plan commute override replaces only that plan effective commute', () => {
+  const global = { origin: '全局起点', destination: '全局终点', selectedTransport: 'transit' };
+  assert.equal(resolveCommute(global).origin, '全局起点');
+  const commute = resolveCommute(global, { commuteOverride: { enabled:true, origin:'计划起点', destination:'计划终点', selectedTransport:'walking' } });
+  assert.deepEqual(commute, { enabled:true, origin:'计划起点', originAddress:'', destination:'计划终点', destinationAddress:'', selectedTransport:'walking' });
 });

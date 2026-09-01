@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,8 @@ data class FavoritePlace(
     val id: String,
     val name: String,
     val address: String,
+    /** Optional while migrating legacy text-only favorites to map-backed places. */
+    val placeRef: PlaceRef? = null,
 )
 
 data class WeatherBuffers(
@@ -51,9 +54,13 @@ data class WeatherBuffers(
     }
 }
 
-/** Local-only preferences. Favorite places deliberately contain no coordinates. */
+/** Local-only preferences. Legacy favorites may remain text-only until a map place is selected. */
 data class LocalSettings(
     val privacyAccepted: Boolean = false,
+    /** The AMap consent revision most recently shown to this device user. */
+    val amapConsentPromptedVersion: Int? = null,
+    /** AMap SDK consent for [amapConsentPromptedVersion]; legacy privacyAccepted is unrelated. */
+    val amapConsentGranted: Boolean = false,
     val notificationSummary: Boolean = true,
     val lockScreenSummary: Boolean = true,
     val diagnosticsEnabled: Boolean = false,
@@ -100,6 +107,8 @@ class LocalSettingsStore internal constructor(
             dataStore.edit { preferences ->
                 val updated = transform(decode(preferences)).normalized()
                 preferences[PRIVACY_ACCEPTED] = updated.privacyAccepted
+                updated.amapConsentPromptedVersion.writeNullable(preferences, AMAP_CONSENT_PROMPTED_VERSION)
+                preferences[AMAP_CONSENT_GRANTED] = updated.amapConsentGranted
                 preferences[NOTIFICATION_SUMMARY] = updated.notificationSummary
                 preferences[LOCK_SCREEN_SUMMARY] = updated.lockScreenSummary
                 preferences[DIAGNOSTICS_ENABLED] = updated.diagnosticsEnabled
@@ -118,6 +127,8 @@ class LocalSettingsStore internal constructor(
         val favorites = preferences[FAVORITES].decodeFavorites()
         return LocalSettings(
         privacyAccepted = preferences[PRIVACY_ACCEPTED] ?: false,
+        amapConsentPromptedVersion = preferences[AMAP_CONSENT_PROMPTED_VERSION]?.takeIf { it > 0 },
+        amapConsentGranted = preferences[AMAP_CONSENT_GRANTED] ?: false,
         notificationSummary = preferences[NOTIFICATION_SUMMARY] ?: true,
         lockScreenSummary = preferences[LOCK_SCREEN_SUMMARY] ?: true,
         diagnosticsEnabled = preferences[DIAGNOSTICS_ENABLED] ?: false,
@@ -171,10 +182,19 @@ class LocalSettingsStore internal constructor(
         if (isNullOrBlank()) preferences.remove(key) else preferences[key] = trim()
     }
 
+    private fun Int?.writeNullable(
+        preferences: androidx.datastore.preferences.core.MutablePreferences,
+        key: Preferences.Key<Int>,
+    ) {
+        if (this == null) preferences.remove(key) else preferences[key] = this
+    }
+
     private data class BufferKeys(val serialized: Preferences.Key<String>)
 
     private companion object {
         val PRIVACY_ACCEPTED = PreferencesKeys.PRIVACY_ACCEPTED
+        val AMAP_CONSENT_PROMPTED_VERSION = PreferencesKeys.AMAP_CONSENT_PROMPTED_VERSION
+        val AMAP_CONSENT_GRANTED = PreferencesKeys.AMAP_CONSENT_GRANTED
         val NOTIFICATION_SUMMARY = PreferencesKeys.NOTIFICATION_SUMMARY
         val LOCK_SCREEN_SUMMARY = PreferencesKeys.LOCK_SCREEN_SUMMARY
         val DIAGNOSTICS_ENABLED = PreferencesKeys.LOCAL_DIAGNOSTICS_ENABLED

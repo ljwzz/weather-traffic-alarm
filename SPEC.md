@@ -11,7 +11,7 @@
 - 可执行任务清单：[`IMPLEMENTATION_TASKS.md`](./IMPLEMENTATION_TASKS.md)
 - 设计与原型交接：[`docs/design-handoff.md`](./docs/design-handoff.md)
 
-> 2026-08-31 实施基线覆盖本文早期的“系统时钟参考 + 一次性提前闹钟”语义：本 App 直接创建并响铃本地闹钟。路线、地图与天气尚未接入时不得生成模拟距离、耗时、天气、提前量或连接成功结果；相关接口仅作为后续能力保留。
+> 2026-09-01 高德已接入：Android 已实现首次专项授权、Web Service Key／Android SDK Key的加密运行时存储、输入提示、POI 搜索、地图选点、单次定位、五种路线、最多三条备选、当前路况和计划覆盖。待用户提供两项真实 Key 后完成设备实网验收。`prototype/` 继续使用确定性离线 fixture，不发送请求、不使用真实 Key、不显示坐标。天气与提前计算仍未接入。
 >
 > 当前 Figma 设计稿决定页面级需求；开发和界面验收参照本地 [`prototype/`](./prototype/) 的页面结构、布局、组件、文案与交互。除非用户明确要求修改，不得自行调整原型或另行设计。非视觉业务与安全规则以本规格为准；两者冲突时先向用户确认。页面和节点见 [`docs/design-handoff.md`](./docs/design-handoff.md)。
 
@@ -30,8 +30,8 @@
 
 ### 0.2 明确留白
 
-- 首页天气、天气页和路线页保留原型容器，并显示“暂未接入”；不显示模拟地图、距离、耗时、路况、预报或提前量。
-- 高德和彩云凭据可以本地加密保存和清除；连接测试显示“服务暂未接入，未发送请求”，不得生成成功结果。Android Keystore 可将密钥材料保持在应用进程外，并限制密钥的授权用途。https://developer.android.com/privacy-and-security/keystore
+- 天气页和提前计算仍显示“暂未接入”；高德地图与路线页展示授权、Key、加载、成功、拒绝和错误状态。
+- 高德运行时凭据在原型仅保留当前页面会话；Android 已使用本地加密保存和清除。原型验证 fixture 时不得发送请求。Android Keystore 可将密钥材料保持在应用进程外，并限制密钥的授权用途。https://developer.android.com/privacy-and-security/keystore
 - 权限与诊断页在 Android 应用中读取通知、精确闹钟、全屏提醒和闹钟音量等本机状态并提供设置入口；Web 原型只说明该行为，不读取系统状态。
 
 ### 0.3 领域与调度边界
@@ -65,9 +65,9 @@ enum class AlarmArmedState {
 - 工作日由本地 `WorkdayCalendarRepository` 读取 holiday-cn 缓存并结合每计划每日期覆盖判定；缓存缺失或刷新失败时按星期规则兜底。
 - Figma 的 21 个页面是视觉素材基线；当前 Android 范围为 12 个主页面及路线／日历功能整合，不得将设计素材数等同于原生实现页面数。
 - 无用户账号；计划、决策与日历缓存全部保存在本机，不上传任何服务端。
-- 只在用户主动点击“使用当前位置”时请求前台定位。
+- 首次启动要求用户选择同意高德授权或仅用基础功能；只在用户主动点击“使用当前位置”时请求前台定位。
 - 保存或启用闹钟按实际能力注册下一次本地实例；注册失败保留失败原因和可重新检查入口。
-- 高德与彩云凭证由用户在本机凭证配置页加密保存或清除；服务未接入时不执行网络测试。
+- 高德 Web Service Key 与 Android SDK Key由用户在凭证页配置；Android 已实现加密保存和连接测试，待用户提供两项真实 Key 后完成设备实网验收。原型仅使用运行时 fixture。彩云未接入且不执行网络测试。
 
 ### 1.2 非目标
 
@@ -76,7 +76,7 @@ enum class AlarmArmedState {
 - 不承诺绕过用户“强制停止”后的 Android 平台限制。
 - 首版不自动选择或切换通勤方式。
 - 不提供服务器端聚合、限流代理或任何形式的密钥托管服务。
-- 不接入高德或彩云，不展示模拟 Provider 数据，不使用路线或天气推导提前时间。
+- 不接入彩云，不使用路线或天气推导提前时间。
 
 ## 2. 依赖复用结论
 
@@ -96,8 +96,8 @@ enum class AlarmArmedState {
 | 响铃前台服务 | `systemExempted` foreground service | occurrence 校验、通知、停止和贪睡 | 采用平台能力 |
 | 响铃音频 | 平台 `RingtoneManager` / `Ringtone` | 音源回退、循环、振动和停止 | 采用平台 API |
 | HTTP | Retrofit + Kotlin Serialization converter + OkHttp | 后续 DTO、脱敏拦截器和错误分类 | 预留，不发 Provider 请求 |
-| 地图/选点/前台定位 | 高德 Android SDK | 后续 Compose 适配层和隐私闸门 | 预留，不初始化 |
-| 路线、POI、输入提示 | 高德 Web 服务 API | 后续请求构造、缓存、错误码与降级 | 预留，不发 Provider 请求 |
+| 地图/选点/前台定位 | 高德 Android SDK | Compose 适配层、首次授权和隐私闸门 | 已实现；待真实 Key 设备实网验收 |
+| 路线、POI、输入提示 | 高德 Web 服务 API | 请求构造、缓存、错误码与降级 | 已实现；待真实 Key 设备实网验收 |
 | 天气 | 彩云天气 v2.6 API | 后续鉴权、天气规则、缓存与降级 | 预留，不发 Provider 请求 |
 | 年度工作日 | holiday-cn 年度 JSON，App 抓取缓存 | 拉取策略、schema 校验、合并与兜底 | 采用（数据源见 2.1 评估） |
 | 凭证加密 | Android Keystore AES-GCM（密钥不可导出） | 密钥管理、密文格式、备份排除 | 采用平台能力 |
@@ -108,7 +108,6 @@ enum class AlarmArmedState {
 - holiday-cn 数据格式、数据地址与注意事项：https://github.com/NateScarlet/holiday-cn/blob/master/README.md
 - holiday-cn 2025 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2025.json
 - holiday-cn 2026 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2026.json
-- 高德 Web 服务 API 错误码说明（10001/10003/10019–10021/10044 等）：https://lbs.amap.com/api/webservice/guide/tools/info
 - 彩云天气 API 计费与套餐（按量/包月/企业，QPS 差异）：https://docs.caiyunapp.com/weather-api/billing.html
 - 彩云天气 API 数据与价目介绍（免费版调用量、套餐构成）：https://caiyunapp.com/api/weather_intro.html
 - 彩云天气 API 官网入口：https://caiyunapp.com/api/weather
@@ -167,7 +166,7 @@ enum class AlarmArmedState {
 | Retrofit | `3.0.0`（OkHttp `5.4.0`，官方确认与 Retrofit 3.x 二进制兼容） |
 | kotlinx-serialization-json | `1.11.0` |
 | kotlinx-coroutines-test | `1.11.0` |
-| 高德 Android 合包 | `com.amap.api:3dmap-location-search:11.2.000_loc11.2.000_sea9.8.0` |
+| 高德 Android 合包 | `com.amap.api:3dmap-location-search:11.2.100_loc11.2.100_sea9.8.1` |
 | 凭证加密 | Android Keystore（平台能力，无第三方库） |
 
 - 移除旧基线的 Tink（`1.23.0`）：日历签名职责删除。
@@ -463,7 +462,7 @@ finalWake = min(existingTempWake?, recommendedWake)
 - 彩云 v2.6 使用 App Key + App Secret 的 HMAC-SHA256 鉴权；App Secret 只存在于 Keystore 加密的本地凭证存储，禁止写入源码、构建产物或日志。
 - 彩云文档只明确“彩云天气 App 使用 GCJ-02”，未明确一般 v2.6 天气查询接口接受的坐标基准；实现必须保留坐标基准门禁（见 14 章），未关闭前不得进入生产发布。
 
-### FR-005 路线计算
+### FR-005 高德路线计算契约
 
 统一接口（`core/model` 定义，`core/network` 实现高德适配）：
 
@@ -548,17 +547,20 @@ android.permission.ACCESS_FINE_LOCATION
 
 ### FR-011 地点与地图
 
-- 当前只保存常用地点文字和出行方式；地点无需坐标，不阻塞闹钟创建。
-- 地图、定位、POI 和输入提示为后续高德接入能力。未接入时页面保留空白容器和“暂未接入”说明，不展示模拟地图、距离、耗时或路况。
+- 全局通勤保存起点、终点和五种出行方式；单个计划可选择继承全局通勤或保存自身覆盖。
+- 高德能力在同意授权后初始化：输入提示与 POI 搜索使用 Web Service Key；地图选点与单次定位使用 Android SDK Key。定位只在点击“使用当前位置”时请求前台权限，禁止后台持续定位。
+- 路线支持驾车、公交、步行、骑行和电动车；每次最多显示三条候选路线并显示当前路况。
+- Android 模拟器使用 `goldfish`／`ranchu` 等虚拟图形栈时不得创建高德原生地图容器；页面显示渲染不可用状态，地点搜索与路线结果继续可用。真机仍使用 `TextureMapView` 并执行完整生命周期。容器规则：https://lbs.amap.com/api/maps-sdk-for-android/guide/create-map/show-map ；模拟器图形配置：https://developer.android.com/studio/run/emulator-acceleration
+- 原型必须展示成功、加载、无 Key、定位拒绝和服务错误 fixture，不得发送请求、使用真实 Key 或输出坐标。
 
 ### FR-012 凭证配置与连接测试
 
-凭证配置页分两个区块，当前仅提供本地保存与清除：
+凭证配置页分两个区块：
 
 1. **高德**：
    - Web 服务 Key（必填，用于路线、POI、输入提示）。
    - Android SDK Key（可选，用于地图选点与定位；若未配置，FR-011 相关功能隐藏）。
-   - 连接测试显示“服务暂未接入，未发送请求”。
+   - 原型“验证 fixture”显示离线状态且不发送请求；Android 连接测试使用固定用例且不记录输入值。
 2. **彩云天气**：
    - App Key（必填）与 App Secret（必填，HMAC 签名用）。
    - 连接测试显示“服务暂未接入，未发送请求”。
@@ -620,11 +622,16 @@ android.permission.ACCESS_FINE_LOCATION
 
 ### 7.1 高德 Web 服务 API（App 内直连）
 
+官方路径规划 v5（含电动车与 `alternative_route`）说明：https://lbs.amap.com/api/webservice/guide/api/newroute
+
+官方输入提示路径说明：https://lbs.amap.com/api/cooperation/jkd
+
 | 用途 | 接口 | 关键参数 |
 |---|---|---|
 | 驾车/步行/骑行/公交路径 | v5 `direction/{driving,walking,cycling,transit}` | `origin,destination,waypoints,strategy,date,time`（公交） |
+| 电动车路径 | v5 `direction/electrobike` | `origin,destination,alternative_route=1..3` |
 | POI 搜索 | v5 `place/text` | `keywords,region,citycode,offset,page` |
-| 输入提示 | v3 `assist/inputtips` | `keywords,city,location` |
+| 输入提示 | `/v3/assistant/inputtips` | `keywords,city,location` |
 | 连接测试 | v3 输入提示或 v3 地理编码 | 固定测试用例，不记录输入值 |
 
 - 全部请求携带 `key`（来自凭证存储）；响应顶层 `status`/`info`/`infocode` 三字段错误模型。
@@ -672,19 +679,19 @@ ProviderError(
 ### 8.2 首页（页面 01）
 
 - 展示下一次有效本地闹钟及 `NEEDS_PERMISSION`、`SCHEDULED`、`FAILED`、`COMPLETED` 等真实状态。
-- 首次安装显示本地闹钟空态和添加入口；天气与路线区域仅显示未接入说明。
+- 首次安装显示本地闹钟空态和添加入口；天气区域显示未接入说明，路线区域按高德授权、Key 与 fixture 状态显示。
 - 权限、调度异常和恢复结果以本机诊断为准；不展示 Provider 数据时间或提前计算。
 
 ### 8.3 计划与规则（页面 05–07）
 
 - 名称、启用状态、日期、时间、单次／每周／工作日规则、铃声、振动和贪睡。
 - 保存合法草稿会注册下一次本地实例；取消编辑不写入。保存后界面显示实际注册状态或失败原因。
-- 常用地点文字、出行方式和天气缓冲是本地设置；它们不产生模拟路线、天气或提前量。
+- 全局通勤和计划覆盖是本地设置。
 
 ### 8.4 路线与地点选择（页面 03–04 + 地点选择子状态）
 
-- 当前支持常用地点文字管理和驾车、公交、步行、骑行、电动车的本地选择；保存后不自动切换方式。
-- POI 搜索、输入提示、地图选点和当前位置是高德接入后的能力。未接入时隐藏相应操作，不显示模拟结果。
+- 当前支持全局通勤、计划覆盖和驾车、公交、步行、骑行、电动车的选择；保存后不自动切换方式。
+- 同意授权并配置相应运行时 Key 后，地点页显示 POI 搜索／输入提示，路线编辑页显示地图选点和单次当前位置。无 Key、拒绝、加载和错误状态必须明确展示；原型以确定性 fixture 验收，不发网络请求。
 
 ### 8.5 工作日日历与单日加班（页面 15–17、20）
 
@@ -694,9 +701,9 @@ ProviderError(
 
 ### 8.6 凭证配置（页面 19）
 
-- 高德/彩云两个区块，字段掩码输入、本地加密保存和清除；首次引导和设置页均可进入。
+- 高德区块提供 Web Service Key、Android SDK Key和 fixture 状态；原型仅会话保存，Android 已实现加密持久化。彩云仍为未接入区块；首次引导和设置页均可进入。
 - 页面 `FLAG_SECURE`。
-- 测试固定显示未接入且不发送请求；“清空凭据”先进入确认覆盖层，取消不改变输入，确认只清除凭据且不得修改闹钟、日期覆盖、地点或出行方式。
+- 高德原型验证固定不发送请求；“清空凭据”先进入确认覆盖层，取消不改变输入，确认只清除凭据且不得修改闹钟、日期覆盖、地点或出行方式。
 
 ### 8.7 闹钟记录与异常（页面 13–14）
 
@@ -741,7 +748,7 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 - 实例与调度：唯一 PendingIntent 身份、注册成功后替换、注册失败保留旧实例、多个计划隔离、重复触发幂等、停止幂等、贪睡子实例和单次完成。
 - 恢复：重启、解锁、时间／时区变化、覆盖安装、10 分钟迟到窗口和 `MISSED`。
 - 日历：holiday-cn 缓存校验、刷新源回退、失效缓存、周规则兜底和覆盖变化后重算。
-- 凭证：Keystore 加解密、密文损坏、清除、备份排除和日志脱敏；Provider 未接入时测试不发请求。
+- 凭证：Keystore 加解密、密文损坏、清除、备份排除和日志脱敏；高德 fixture 与天气未接入状态均不发请求。
 
 ### 11.2 仪器和系统测试
 
@@ -749,7 +756,7 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 
 - 到点响铃、锁屏通知、停止、贪睡、多个同分钟计划、进程回收、重启恢复和无网响铃。
 - 通知、精确闹钟、全屏提醒和音量状态变化后从设置返回重新检查。
-- 日期时间校验、空态、启停、删除、日历覆盖、Provider 未接入留白与凭据测试不发请求。
+- 日期时间校验、空态、启停、删除、日历覆盖、天气未接入留白、高德 fixture 状态与凭据验证不发请求。
 - 真机与模拟器结果分开记录；未执行的场景不得标记通过。
 
 ### 11.3 契约与回归
@@ -764,7 +771,7 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 - 注册失败、权限撤销、恢复失败与迟到窗口均显示真实状态和原因，不显示已注册。
 - 重启、解锁、时间／时区变化和覆盖安装后恢复或重算有效实例；强制停止是明示的不可自动恢复边界。
 - 日历刷新失败不阻塞工作日计算，保留有效缓存或按周规则兜底；日期覆盖只影响指定计划与日期。
-- Provider 未接入时无网络请求、无模拟地图／天气／路线／提前量／连接成功；本地闹钟仍可工作。
+- 高德 fixture 与天气未接入状态均无网络请求；fixture 不得被标注为 Android 实网成功。
 - 凭证密文不进入备份、日志、截图、崩溃或导出；应用包不含硬编码密钥。
 
 ## 13. 里程碑
@@ -796,7 +803,7 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 
 - 依赖版本全部锁定且无动态版本；无 `backend`、`contract`、`calendar-data`、`infra` 等遗留目录。
 - Room 和 DataStore 迁移测试通过；API 36 核心响铃矩阵通过。
-- 本地闹钟在无网和 Provider 未接入时仍完成注册、触发、停止、贪睡和恢复验收；未来评估能力必须独立验证，不得取代该门禁。
+- 高德错误／无 Key、成功、加载和拒绝状态均须完成 UI 与设备实网验收；天气能力另行验收。
 - Direct Boot、系统时间/时区变化、升级恢复通过。
 - 凭证安全四项验收（日志/截图/崩溃/导出无凭证）与备份排除测试通过。
 - 高德隐私初始化顺序通过网络抓包验证；彩云签名向量与坐标控制点验证通过。

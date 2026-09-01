@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 
 object PreferencesKeys {
-    val PRIVACY_CONSENT_AMAP = booleanPreferencesKey("privacy_consent_amap")
     val PRIVACY_CONSENT_CAIYUN_DISCLOSURE = booleanPreferencesKey("privacy_consent_caiyun_disclosure")
     val WEATHER_BUFFER_LEVEL_1_MINUTES = intPreferencesKey("weather_buffer_level_1_minutes")
     val WEATHER_BUFFER_LEVEL_2_MINUTES = intPreferencesKey("weather_buffer_level_2_minutes")
@@ -13,6 +12,8 @@ object PreferencesKeys {
     val DIAGNOSTICS_ENABLED = booleanPreferencesKey("diagnostics_enabled")
 
     val PRIVACY_ACCEPTED = booleanPreferencesKey("local_privacy_accepted")
+    val AMAP_CONSENT_PROMPTED_VERSION = intPreferencesKey("amap_consent_prompted_version")
+    val AMAP_CONSENT_GRANTED = booleanPreferencesKey("amap_consent_granted")
     val NOTIFICATION_SUMMARY = booleanPreferencesKey("notification_summary")
     val LOCK_SCREEN_SUMMARY = booleanPreferencesKey("lock_screen_summary")
     val LOCAL_DIAGNOSTICS_ENABLED = booleanPreferencesKey("local_diagnostics_enabled")

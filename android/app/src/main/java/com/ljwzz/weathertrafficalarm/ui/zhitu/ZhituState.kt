@@ -1,5 +1,6 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
@@ -9,6 +10,13 @@ import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
+import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
+import com.ljwzz.weathertrafficalarm.core.map.AmapSdkController
+import com.ljwzz.weathertrafficalarm.core.map.AmapSdkInitialization
+import com.ljwzz.weathertrafficalarm.core.map.MapLocationResult
+import com.ljwzz.weathertrafficalarm.core.map.isAmapNativeRendererSupported
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
@@ -16,6 +24,12 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
+import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
+import com.ljwzz.weathertrafficalarm.core.model.ProviderError
+import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
+import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
+import com.ljwzz.weathertrafficalarm.core.network.amap.AmapWebProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +40,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.update
 import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
@@ -35,12 +52,17 @@ import javax.inject.Inject
  * delegated to LocalAlarmCoordinator by the feature-specific integration layer.
  */
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class ZhituViewModel @Inject constructor(
     private val coordinator: LocalAlarmCoordinator,
     private val calendar: WorkdayCalendarRepository,
     private val settingsStore: LocalSettingsStore,
     private val overrideRepository: WorkdayOverrideRepository,
     private val credentials: com.ljwzz.weathertrafficalarm.core.data.local.CredentialStore,
+    private val planCommuteOverrideRepository: PlanCommuteOverrideRepository,
+    private val effectiveCommuteResolver: EffectiveCommuteResolver,
+    private val amapSdk: AmapSdkController,
+    private val amapProvider: AmapWebProvider,
 ) : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
@@ -80,6 +102,19 @@ class ZhituViewModel @Inject constructor(
     val calendarState = calendar.state
     val settings = settingsStore.settings
     val credentialStatus = credentials.state
+    private val _mapStatus = MutableStateFlow<MapStatus>(MapStatus.NotInitialized)
+    val mapStatus: StateFlow<MapStatus> = _mapStatus
+    private val _routeState = MutableStateFlow(RouteUiState())
+    val routeState: StateFlow<RouteUiState> = _routeState
+    private val _placePickerState = MutableStateFlow(PlacePickerUiState())
+    val placePickerState: StateFlow<PlacePickerUiState> = _placePickerState
+    private val _planCommuteEditor = MutableStateFlow(PlanCommuteEditorState())
+    val planCommuteEditor: StateFlow<PlanCommuteEditorState> = _planCommuteEditor
+    val planCommuteOverrides: StateFlow<Map<String, PlanCommuteOverride>> = plans.flatMapLatest { current ->
+        if (current.isEmpty()) flowOf(emptyMap()) else combine(current.map { plan ->
+            planCommuteOverrideRepository.observeByPlanId(plan.id).map { plan.id to it }
+        }) { pairs -> pairs.mapNotNull { (id, override) -> override?.let { id to it } }.toMap() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun save(draft: EditorDraft, onSuccess: () -> Unit) {
         viewModelScope.launch {
@@ -131,16 +166,255 @@ class ZhituViewModel @Inject constructor(
     fun clearCredentialsWithCompletion(onComplete: (String?) -> Unit) = viewModelScope.launch {
         runCatching { credentials.clear() }.onSuccess { onComplete(null) }.onFailure { onComplete(it.message ?: "凭据清空失败") }
     }
+    fun setAmapConsent(granted: Boolean, version: Int = AMAP_CONSENT_VERSION) = safe {
+        settingsStore.update { it.copy(amapConsentPromptedVersion = version, amapConsentGranted = granted) }
+        _mapStatus.value = MapStatus.NotInitialized
+    }
+
+    fun initializeAmap(context: Context) = viewModelScope.launch {
+        val serviceCredentials = credentials.credentialsForServiceUse()
+        val initialization = amapSdk.initialize(context, serviceCredentials?.amapSdkKey.orEmpty(), settings.value.amapConsentGranted)
+        _mapStatus.value = when (initialization) {
+            AmapSdkInitialization.Ready -> if (isAmapNativeRendererSupported()) MapStatus.Ready else MapStatus.RendererUnavailable
+            AmapSdkInitialization.ConsentRequired -> MapStatus.ConsentRequired
+            AmapSdkInitialization.MissingApiKey -> MapStatus.MissingAndroidKey
+            AmapSdkInitialization.Failed -> MapStatus.Failed
+        }
+        if (initialization == AmapSdkInitialization.Ready) refreshRoute()
+    }
+
+    fun setRouteMode(mode: CommuteMode) = viewModelScope.launch {
+        settingsStore.update { it.copy(commuteMode = mode) }
+        refreshRoute()
+    }
+
+    /** Refreshes the global route, or the persisted effective commute for [planId]. */
+    fun refreshRoute(planId: String? = null) = viewModelScope.launch {
+        val current = settings.value
+        if (!current.amapConsentGranted) {
+            _routeState.value = RouteUiState(message = "请先完成高德地图专项授权")
+            return@launch
+        }
+        val commute = if (planId == null) effectiveCommuteResolver.resolveGlobal(current)
+        else effectiveCommuteResolver.resolveForPlan(planId, current)
+        if (commute == null) {
+            _routeState.value = RouteUiState(message = "请选择带坐标的起点和终点")
+            return@launch
+        }
+        _routeState.update { it.copy(loading = true, message = null) }
+        estimateRoute(commute.origin, commute.destination, commute.commuteMode).onSuccess { estimate ->
+            _routeState.value = RouteUiState(
+                alternatives = estimate.alternatives.take(3),
+                selectedRouteId = estimate.alternatives.firstOrNull()?.id,
+            )
+        }.onFailure { failure ->
+            _routeState.value = RouteUiState(message = providerMessage(failure))
+        }
+    }
+
+    private suspend fun estimateRoute(origin: PlaceRef, destination: PlaceRef, mode: CommuteMode) = runCatching {
+        amapProvider.estimate(
+            RouteRequest(
+                origin = GeoPoint(origin.longitudeGcj02, origin.latitudeGcj02),
+                destination = GeoPoint(destination.longitudeGcj02, destination.latitudeGcj02),
+                mode = mode,
+                originCity = origin.citycode.takeIf(String::isNotBlank),
+                destinationCity = destination.citycode.takeIf(String::isNotBlank),
+                departureAt = java.time.LocalDateTime.now(),
+            ),
+        )
+    }
+
+    fun selectRoute(routeId: String) { _routeState.update { it.copy(selectedRouteId = routeId) } }
+    fun setTrafficEnabled(enabled: Boolean) { _routeState.update { it.copy(trafficEnabled = enabled) } }
+
+    fun beginPlaceSelection() { _placePickerState.value = PlacePickerUiState() }
+    fun updatePlaceQuery(query: String) {
+        _placePickerState.update { it.copy(query = query, loading = query.isNotBlank(), message = null, candidates = emptyList(), selected = null) }
+        viewModelScope.launch {
+            delay(300)
+            if (query != _placePickerState.value.query || query.isBlank()) return@launch
+            if (!settings.value.amapConsentGranted) {
+                _placePickerState.update { it.copy(loading = false, message = "请先完成高德地图专项授权") }
+                return@launch
+            }
+            runCatching {
+                (amapProvider.inputTips(query) + amapProvider.search(query)).distinctBy { it.poiId ?: "${it.longitudeGcj02},${it.latitudeGcj02}" }
+            }.onSuccess { matches ->
+                if (query == _placePickerState.value.query) _placePickerState.value = PlacePickerUiState(query = query, candidates = matches, selected = matches.firstOrNull())
+            }.onFailure { failure ->
+                if (query == _placePickerState.value.query) _placePickerState.value = PlacePickerUiState(query = query, message = providerMessage(failure))
+            }
+        }
+    }
+
+    fun selectPlace(place: PlaceRef) { _placePickerState.update { it.copy(selected = place) } }
+    fun selectMapPoint(point: GeoPoint) = viewModelScope.launch {
+        _placePickerState.update { it.copy(loading = true, message = null) }
+        runCatching { amapProvider.reverseGeocode(point) }
+            .onSuccess { place -> _placePickerState.update { it.copy(loading = false, candidates = listOf(place), selected = place) } }
+            .onFailure { failure -> _placePickerState.update { it.copy(loading = false, message = providerMessage(failure)) } }
+    }
+
+    fun locateCurrentPlace(context: Context) = viewModelScope.launch {
+        _placePickerState.update { it.copy(loading = true, message = null) }
+        when (val location = amapSdk.locateOnce(context)) {
+            is MapLocationResult.Success -> selectMapPoint(location.point)
+            MapLocationResult.PermissionDenied -> _placePickerState.update { it.copy(loading = false, message = "未获得位置权限") }
+            MapLocationResult.Timeout -> _placePickerState.update { it.copy(loading = false, message = "定位超时") }
+            MapLocationResult.InitializationRequired -> _placePickerState.update { it.copy(loading = false, message = "地图尚未初始化") }
+            MapLocationResult.Unavailable -> _placePickerState.update { it.copy(loading = false, message = "当前位置不可用") }
+        }
+    }
+
+    fun startPlanCommuteEditor(planId: String) = viewModelScope.launch {
+        val current = settings.value
+        val override = planCommuteOverrideRepository.getByPlanId(planId)
+        val effective = effectiveCommuteResolver.resolveForPlan(planId, current)
+        _planCommuteEditor.value = PlanCommuteEditorState(
+            planId = planId,
+            origin = override?.origin ?: effective?.origin,
+            destination = override?.destination ?: effective?.destination,
+            mode = override?.commuteMode ?: effective?.commuteMode ?: current.commuteMode,
+            useGlobal = override == null,
+        )
+        refreshPlanCommutePreview()
+    }
+
+    fun setPlanCommuteUseGlobal(useGlobal: Boolean) {
+        _planCommuteEditor.update { it.copy(useGlobal = useGlobal) }
+        if (useGlobal) refreshPlanCommutePreview()
+    }
+
+    fun setPlanCommuteMode(mode: CommuteMode) {
+        _planCommuteEditor.update { it.copy(mode = mode, useGlobal = false) }
+        refreshPlanCommutePreview()
+    }
+
+    fun setPlanCommutePlace(target: PlaceSelectionTarget, place: PlaceRef) {
+        _planCommuteEditor.update {
+            when (target) {
+                PlaceSelectionTarget.PLAN_ORIGIN -> it.copy(origin = place, useGlobal = false)
+                PlaceSelectionTarget.PLAN_DESTINATION -> it.copy(destination = place, useGlobal = false)
+                else -> it
+            }
+        }
+        refreshPlanCommutePreview()
+    }
+
+    /** Shows the draft route while editing, or the resolver-selected commute in global mode. */
+    fun refreshPlanCommutePreview() = viewModelScope.launch {
+        val editor = _planCommuteEditor.value
+        if (editor.planId == null) return@launch
+        if (!settings.value.amapConsentGranted) {
+            _planCommuteEditor.update { it.copy(route = RouteUiState(message = "请先完成高德地图专项授权")) }
+            return@launch
+        }
+        val effective = if (editor.useGlobal) effectiveCommuteResolver.resolveGlobal(settings.value) else null
+        val draft = if (editor.useGlobal) null else editor.origin?.let { origin -> editor.destination?.let { destination -> PlanCommuteDraft(origin, destination, editor.mode) } }
+        if (effective == null && draft == null) {
+            _planCommuteEditor.update { it.copy(route = RouteUiState(message = "请选择计划专属起点和终点")) }
+            return@launch
+        }
+        val origin = draft?.origin ?: effective!!.origin
+        val destination = draft?.destination ?: effective!!.destination
+        val mode = draft?.mode ?: effective!!.commuteMode
+        _planCommuteEditor.update { it.copy(route = it.route.copy(loading = true, message = null)) }
+        estimateRoute(origin, destination, mode).onSuccess { estimate ->
+            _planCommuteEditor.update { it.copy(route = RouteUiState(estimate.alternatives.take(3), estimate.alternatives.firstOrNull()?.id)) }
+        }.onFailure { failure ->
+            _planCommuteEditor.update { it.copy(route = RouteUiState(message = providerMessage(failure))) }
+        }
+    }
+
+    fun selectPlanCommuteRoute(routeId: String) { _planCommuteEditor.update { it.copy(route = it.route.copy(selectedRouteId = routeId)) } }
+    fun setPlanCommuteTraffic(enabled: Boolean) { _planCommuteEditor.update { it.copy(route = it.route.copy(trafficEnabled = enabled)) } }
+
+    fun savePlanCommute() = viewModelScope.launch {
+        val editor = _planCommuteEditor.value
+        val planId = editor.planId ?: return@launch
+        runCatching {
+            if (editor.useGlobal) planCommuteOverrideRepository.deleteByPlanId(planId)
+            else {
+                val origin = editor.origin ?: error("请选择计划专属起点")
+                val destination = editor.destination ?: error("请选择计划专属终点")
+                planCommuteOverrideRepository.save(PlanCommuteOverride(planId, origin, destination, editor.mode, System.currentTimeMillis()))
+            }
+        }.onSuccess {
+            startPlanCommuteEditor(planId)
+        }.onFailure { _error.value = it.message ?: "保存计划通勤失败" }
+    }
+
+    fun testAmapWebKey(onComplete: (String?) -> Unit) = viewModelScope.launch {
+        if (!settings.value.amapConsentGranted) { onComplete("请先完成高德地图专项授权"); return@launch }
+        runCatching { amapProvider.inputTips("北京") }.onSuccess { onComplete(null) }.onFailure { onComplete(providerMessage(it)) }
+    }
     fun clearError() { _error.value = null }
+    fun showError(message: String) { _error.value = message }
     private fun safe(block: suspend () -> Unit) = viewModelScope.launch { runCatching { block() }.onFailure { _error.value = it.message ?: "操作失败" } }
+
+    private fun providerMessage(failure: Throwable): String = when (failure) {
+        is ProviderError -> when (failure.category) {
+            ProviderError.Category.MISSING_KEY -> "请先配置高德 Web Key"
+            ProviderError.Category.INVALID_KEY -> "高德 Web Key 无效或未授权"
+            ProviderError.Category.QUOTA_EXCEEDED -> "高德服务配额不足"
+            ProviderError.Category.RATE_LIMITED -> "请求过于频繁，请稍后重试"
+            ProviderError.Category.ROUTE_NOT_FOUND -> "未找到可用路线"
+            ProviderError.Category.NETWORK -> "网络不可用，请检查连接"
+            else -> "高德服务暂不可用"
+        }
+        else -> "请求失败，请稍后重试"
+    }
+
+    private companion object { const val AMAP_CONSENT_VERSION = 1 }
 }
 
 enum class ZhituDestination {
     HOME, PLANS, EDITOR, ROUTE, CALENDAR, SETTINGS, CREDENTIALS,
-    DIAGNOSTICS, HISTORY, WEATHER, RINGING, ONBOARDING,
+    DIAGNOSTICS, HISTORY, WEATHER, RINGING, ONBOARDING, PLACE_PICKER, PLAN_COMMUTE,
 }
 
 data class UpcomingPlan(val plan: AlarmPlan, val nextWakeAt: Long)
+
+sealed interface MapStatus {
+    data object NotInitialized : MapStatus
+    data object Ready : MapStatus
+    data object RendererUnavailable : MapStatus
+    data object ConsentRequired : MapStatus
+    data object MissingAndroidKey : MapStatus
+    data object Failed : MapStatus
+}
+
+data class RouteUiState(
+    val alternatives: List<RouteAlternative> = emptyList(),
+    val selectedRouteId: String? = null,
+    val trafficEnabled: Boolean = false,
+    val loading: Boolean = false,
+    val message: String? = null,
+)
+
+data class PlacePickerUiState(
+    val query: String = "",
+    val candidates: List<PlaceRef> = emptyList(),
+    val selected: PlaceRef? = null,
+    val loading: Boolean = false,
+    val message: String? = null,
+)
+
+private data class PlanCommuteDraft(
+    val origin: PlaceRef,
+    val destination: PlaceRef,
+    val mode: CommuteMode,
+)
+
+data class PlanCommuteEditorState(
+    val planId: String? = null,
+    val origin: PlaceRef? = null,
+    val destination: PlaceRef? = null,
+    val mode: CommuteMode = CommuteMode.DRIVING,
+    val useGlobal: Boolean = true,
+    val route: RouteUiState = RouteUiState(),
+)
 
 data class EditorDraft(
     val id: String? = null,

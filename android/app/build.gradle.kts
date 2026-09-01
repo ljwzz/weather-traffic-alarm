@@ -68,6 +68,8 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:data"))
     implementation(project(":core:alarm"))
+    implementation(project(":core:network"))
+    implementation(project(":core:map"))
 
     // Testing
     testImplementation(libs.junit)

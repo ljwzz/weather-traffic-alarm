@@ -27,16 +27,11 @@ class PreferencesStore @Inject constructor(
             .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
             .map { it[key] ?: defaultValue }
 
-    val privacyConsentAmap: Flow<Boolean> = safeGet(PreferencesKeys.PRIVACY_CONSENT_AMAP, false)
     val privacyConsentCaiyunDisclosure: Flow<Boolean> = safeGet(PreferencesKeys.PRIVACY_CONSENT_CAIYUN_DISCLOSURE, false)
     val weatherBufferLevel1Minutes: Flow<Int> = safeGet(PreferencesKeys.WEATHER_BUFFER_LEVEL_1_MINUTES, 10)
     val weatherBufferLevel2Minutes: Flow<Int> = safeGet(PreferencesKeys.WEATHER_BUFFER_LEVEL_2_MINUTES, 20)
     val weatherBufferLevel3Minutes: Flow<Int> = safeGet(PreferencesKeys.WEATHER_BUFFER_LEVEL_3_MINUTES, 30)
     val diagnosticsEnabled: Flow<Boolean> = safeGet(PreferencesKeys.DIAGNOSTICS_ENABLED, false)
-
-    suspend fun setPrivacyConsentAmap(granted: Boolean) {
-        dataStore.edit { it[PreferencesKeys.PRIVACY_CONSENT_AMAP] = granted }
-    }
 
     suspend fun setPrivacyConsentCaiyunDisclosure(granted: Boolean) {
         dataStore.edit { it[PreferencesKeys.PRIVACY_CONSENT_CAIYUN_DISCLOSURE] = granted }

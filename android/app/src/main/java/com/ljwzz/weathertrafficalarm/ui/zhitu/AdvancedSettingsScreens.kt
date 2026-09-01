@@ -58,6 +58,7 @@ fun CredentialSettingsScreen(
     status: CredentialStatus,
     onSave: (CredentialInput, onComplete: (String?) -> Unit) -> Unit,
     onClear: (onComplete: (String?) -> Unit) -> Unit,
+    onTestAmapWebKey: (((String?) -> Unit) -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -113,7 +114,7 @@ fun CredentialSettingsScreen(
                     text = if (status.storageError) {
                         "本机凭据无法读取，请清空后重新输入。"
                     } else {
-                        "凭据仅加密保存在本机。地图与天气服务尚未接入，连接测试不可用。"
+                        "凭据仅加密保存在本机。高德 Web Key 可在保存后单独测试；Android SDK Key 用于地图与定位。"
                     },
                     background = if (status.storageError) ZhituColors.AmberBackground else ZhituColors.Sky,
                     foreground = if (status.storageError) ZhituColors.Amber else ZhituColors.Blue,
@@ -121,22 +122,22 @@ fun CredentialSettingsScreen(
             }
             item {
                 AdvancedCard {
-                    Text("路线与地点 · 高德", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                    Text("地图、地点与路线 · 高德", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
                     Spacer(Modifier.height(14.dp))
                     CredentialField(
                         value = amapWebKey,
                         onValueChange = { amapWebKey = it; message = null },
-                        label = "高德 Web Key",
+                        label = "高德 Web 服务 Key",
                         placeholder = status.amapWebKeyMask ?: "未配置",
-                        supporting = "用于路线与地点搜索",
+                        supporting = "用于地点搜索、逆地理和路线规划",
                     )
                     Spacer(Modifier.height(10.dp))
                     CredentialField(
                         value = amapSdkKey,
                         onValueChange = { amapSdkKey = it; message = null },
-                        label = "高德 SDK Key",
+                        label = "高德 Android SDK Key",
                         placeholder = status.amapSdkKeyMask ?: "未配置",
-                        supporting = "仅地图与主动定位需要",
+                        supporting = "用于地图展示和单次定位",
                     )
                     Spacer(Modifier.height(18.dp))
                     Text("天气评估 · 彩云", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
@@ -156,11 +157,24 @@ fun CredentialSettingsScreen(
                     )
                     Spacer(Modifier.height(14.dp))
                     Button(
-                        onClick = {},
-                        enabled = false,
+                        onClick = {
+                            message = null
+                            if (!status.hasAmapWebKey) {
+                                message = "请先保存高德 Web Key，再测试已保存的凭据。"
+                            } else if (onTestAmapWebKey == null) {
+                                message = "地图服务正在初始化，请完成专项授权后重试。"
+                            } else {
+                                pending = true
+                                onTestAmapWebKey { error ->
+                                    pending = false
+                                    message = error ?: "高德 Web Key 可用"
+                                }
+                            }
+                        },
+                        enabled = !pending,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                    ) { Text("测试连接（暂未接入）") }
+                    ) { Text(if (pending) "处理中" else "测试已保存的高德 Web Key") }
                 }
             }
             message?.let { result ->
@@ -179,7 +193,7 @@ fun CredentialSettingsScreen(
         AlertDialog(
             onDismissRequest = { clearConfirmation = false },
             title = { Text("清空本机凭据？") },
-            text = { Text("清空后不能恢复，路线和天气服务仍保持未接入状态。") },
+            text = { Text("清空后不能恢复；地图、地点、路线和天气功能需要重新配置凭据。") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -204,7 +218,7 @@ private fun ScaffoldWithCredentialFooter(
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) = androidx.compose.material3.Scaffold(
     containerColor = ZhituColors.Background,
-    topBar = { ZhituTopBar("数据与凭据", subtitle = "由你提供凭据，状态清晰可见", navigation = onBack) },
+    topBar = { ZhituTopBar("数据与凭据", subtitle = "本机加密保存，状态清晰可见", navigation = onBack) },
     bottomBar = {
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp),

@@ -104,8 +104,8 @@
 
 - Retrofit 官方文档：https://square.github.io/retrofit/
 - OkHttp 官方文档：https://square.github.io/okhttp/
-- 高德 Web 服务路径规划 v5：https://lbs.amap.com/api/webservice/guide/api/direction
-- 高德错误码：https://lbs.amap.com/api/web-service/tools/info
+- 高德 Web 服务路径规划 v5（含电动车）：https://lbs.amap.com/api/webservice/guide/api/newroute
+- 高德输入提示路径：https://lbs.amap.com/api/cooperation/jkd
 - 彩云 v2.6 文档入口：https://docs.caiyunapp.com/weather-api/ （重点看 auth、ratelimit、billing、v2/v2.6/tables/skycon.html）
 - 彩云官网入口：https://caiyunapp.com/api/weather
 - holiday-cn：https://github.com/NateScarlet/holiday-cn/blob/master/README.md

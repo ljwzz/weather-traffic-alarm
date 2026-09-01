@@ -1,5 +1,9 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -38,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,11 +57,15 @@ import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
+import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
+import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
+import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import com.ljwzz.weathertrafficalarm.core.map.AmapMap
+import com.ljwzz.weathertrafficalarm.core.map.AmapMapUiState
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 
 /**
  * Per-plan calendar editor. Changes are held in Compose state until Save calls
@@ -182,40 +191,39 @@ fun LocalCalendarScreen(
     )
 }
 
-/** Local-only place and commute-mode editor. It persists as one settings draft. */
+/**
+ * Global commute configuration. Network and map effects deliberately remain in
+ * the owner so this composable can keep rendering while a provider is loading
+ * or unavailable.
+ */
 @Composable
 fun LocalRouteScreen(
     settings: LocalSettings,
+    routeState: RouteUiState,
+    mapStatus: MapStatus,
     onSave: (LocalSettings, onComplete: (String?) -> Unit) -> Unit,
     onBack: () -> Unit,
+    onModeChange: (CommuteMode) -> Unit,
+    onRefresh: () -> Unit,
+    onSelectRoute: (String) -> Unit,
+    onTrafficChange: (Boolean) -> Unit,
+    onPickPlace: ((PlaceSelectionTarget) -> Unit)? = null,
+    onConfigurePlan: (() -> Unit)? = null,
 ) {
     var favorites by remember(settings) { mutableStateOf(settings.favorites) }
     var originId by remember(settings) { mutableStateOf(settings.originId) }
     var destinationId by remember(settings) { mutableStateOf(settings.destinationId) }
     var mode by remember(settings) { mutableStateOf(settings.commuteMode) }
-    var editingId by remember { mutableStateOf<String?>(null) }
-    var name by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
     var feedback by remember { mutableStateOf<String?>(null) }
-
-    fun clearForm() { editingId = null; name = ""; address = "" }
-    fun storeFavorite() {
-        val trimmedName = name.trim(); val trimmedAddress = address.trim()
-        if (trimmedName.isEmpty() || trimmedAddress.isEmpty()) { feedback = "地点名称和地点文字不能为空。"; return }
-        val id = editingId ?: UUID.randomUUID().toString()
-        favorites = favorites.filterNot { it.id == id } + FavoritePlace(id, trimmedName, trimmedAddress)
-        clearForm()
-    }
     fun deleteFavorite(id: String) {
         favorites = favorites.filterNot { it.id == id }
         if (originId == id) originId = null
         if (destinationId == id) destinationId = null
-        if (editingId == id) clearForm()
     }
 
     Scaffold(
         containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar("地点与出行方式", "本地文字地点，不请求地图或定位", onBack) },
+        topBar = { ZhituTopBar("通勤路线", "高德地图与实时路况", onBack) },
         bottomBar = {
             Button(
                 onClick = {
@@ -233,14 +241,17 @@ fun LocalRouteScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { LocalMapPlaceholder() }
+            item { RouteMapPanel(routeMapState(settings, routeState), mapStatus) }
             item {
                 LocalCard {
-                    Text("出行方式", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("出行方式", fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onRefresh) { Text("刷新") }
+                    }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         commuteModes.forEach { item ->
-                            FilterChip(selected = mode == item.first, onClick = { mode = item.first }, label = { Text(item.second) })
+                            FilterChip(selected = mode == item.first, onClick = { mode = item.first; onModeChange(item.first) }, label = { Text(item.second) })
                         }
                     }
                 }
@@ -249,22 +260,24 @@ fun LocalRouteScreen(
                 LocalCard {
                     Text("起点与终点", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
                     Spacer(Modifier.height(8.dp))
-                    Text("未选择地点不会影响基础闹钟。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+                    Text("可搜索 POI、使用当前位置或在地图上点选。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(8.dp))
-                    FavoriteSelector("起点", originId, favorites) { id -> originId = id; if (destinationId == id) destinationId = null }
-                    FavoriteSelector("终点", destinationId, favorites) { id -> destinationId = id; if (originId == id) originId = null }
+                    PlaceSummaryRow("起点", favorites.firstOrNull { it.id == originId }?.name ?: "请选择", onClick = { onPickPlace?.invoke(PlaceSelectionTarget.ORIGIN) })
+                    PlaceSummaryRow("终点", favorites.firstOrNull { it.id == destinationId }?.name ?: "请选择", onClick = { onPickPlace?.invoke(PlaceSelectionTarget.DESTINATION) })
                 }
             }
             item {
                 LocalCard {
-                    Text(if (editingId == null) "添加常用地点" else "编辑常用地点", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(name, { name = it }, label = { Text("地点名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(address, { address = it }, label = { Text("地点文字") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        if (editingId != null) TextButton(::clearForm) { Text("取消编辑") }
-                        TextButton(::storeFavorite) { Text(if (editingId == null) "添加地点" else "保存修改") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("候选路线", fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+                        FilterChip(selected = routeState.trafficEnabled, onClick = { onTrafficChange(!routeState.trafficEnabled) }, label = { Text("实时路况") })
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    when {
+                        routeState.loading -> Text("正在查询路线…", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                        routeState.alternatives.isNotEmpty() -> routeState.alternatives.forEach { alternative -> RouteAlternativeRow(alternative, routeState.selectedRouteId == alternative.id) { onSelectRoute(alternative.id) }
+                        }
+                        else -> RouteEmptyState(routeState.message ?: "选择起点和终点后显示最多三条路线、距离、预计时间和实时路况。")
                     }
                 }
             }
@@ -272,10 +285,10 @@ fun LocalRouteScreen(
                 LocalCard {
                     Text("常用地点", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
                     if (favorites.isEmpty()) {
-                        Spacer(Modifier.height(8.dp)); Text("暂无常用地点。", color = ZhituColors.Muted)
+                        Spacer(Modifier.height(8.dp)); Text("暂无常用地点，请选择起点或终点添加。", color = ZhituColors.Muted)
                     } else favorites.forEach { favorite ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f).clickable { editingId = favorite.id; name = favorite.name; address = favorite.address }) {
+                            Column(Modifier.weight(1f).clickable { onPickPlace?.invoke(PlaceSelectionTarget.FAVORITE) }) {
                                 Text(favorite.name, color = ZhituColors.Ink)
                                 Text(favorite.address, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
@@ -284,10 +297,273 @@ fun LocalRouteScreen(
                     }
                 }
             }
+            onConfigurePlan?.let { configure ->
+                item { LocalCard { Text("已保存计划", fontWeight = FontWeight.Bold, color = ZhituColors.Ink); Spacer(Modifier.height(6.dp)); Text("默认使用全局通勤；可为单个计划设置专属起点、终点和方式。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall); TextButton(onClick = configure) { Text("配置专属通勤") } } }
+            }
             feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }
         }
     }
 }
+
+/** Which value receives a confirmed place from [PlacePickerScreen]. */
+enum class PlaceSelectionTarget { ORIGIN, DESTINATION, FAVORITE, PLAN_ORIGIN, PLAN_DESTINATION }
+
+/** UI representation intentionally keeps provider DTOs out of Compose state. */
+data class PlaceCandidateUi(
+    val id: String,
+    val name: String,
+    val address: String,
+    val subtitle: String = "",
+    val placeRef: PlaceRef? = null,
+)
+
+/**
+ * Shared place chooser for the global route and per-plan route editor. The
+ * owner debounces [onQueryChanged], maps provider results, and handles map
+ * clicks/location permission; this screen only exposes the resulting states.
+ */
+@Composable
+fun PlacePickerScreen(
+    target: PlaceSelectionTarget,
+    query: String,
+    candidates: List<PlaceCandidateUi>,
+    loading: Boolean,
+    message: String?,
+    mapStatus: MapStatus,
+    mapState: AmapMapUiState,
+    onQueryChanged: (String) -> Unit,
+    onUseCurrentLocation: () -> Unit,
+    onLocationPermissionDenied: () -> Unit,
+    onMapClick: (GeoPoint) -> Unit,
+    onConfirm: (PlaceCandidateUi) -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    var selected by remember(candidates) { mutableStateOf<PlaceCandidateUi?>(candidates.firstOrNull()) }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true || grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true) onUseCurrentLocation()
+        else onLocationPermissionDenied()
+    }
+    fun requestCurrentLocation() {
+        val permitted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (permitted) onUseCurrentLocation()
+        else locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
+    val title = when (target) {
+        PlaceSelectionTarget.ORIGIN -> "选择起点"
+        PlaceSelectionTarget.DESTINATION -> "选择终点"
+        PlaceSelectionTarget.FAVORITE -> "添加常用地点"
+        PlaceSelectionTarget.PLAN_ORIGIN -> "选择计划起点"
+        PlaceSelectionTarget.PLAN_DESTINATION -> "选择计划终点"
+    }
+    Scaffold(
+        containerColor = ZhituColors.Background,
+        topBar = { ZhituTopBar(title, "搜索、定位或地图点选", onBack) },
+        bottomBar = {
+            Button(
+                onClick = { selected?.let(onConfirm) },
+                enabled = selected != null,
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand),
+            ) { Text("确认地点") }
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("搜索地点") },
+                    singleLine = true,
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = false, onClick = ::requestCurrentLocation, label = { Text("使用当前位置") })
+                }
+            }
+            item {
+                Box(Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp))) {
+                    if (mapStatus == MapStatus.Ready) AmapMap(state = mapState, modifier = Modifier.fillMaxSize(), onMapClick = onMapClick)
+                    else RouteMapPanel(mapState, mapStatus)
+                }
+            }
+            item { Text("在地图上点击即可选点并进行逆地理编码。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) }
+            message?.let { item { LocalInfoCard("地点服务", it, ZhituColors.AmberBackground, ZhituColors.Amber) } }
+            when {
+                loading -> item { LocalInfoCard("正在搜索", "正在获取地点建议。") }
+                candidates.isEmpty() && query.isNotBlank() -> item { LocalInfoCard("未找到地点", "请修改关键词，或在地图上点选位置。") }
+                candidates.isEmpty() -> item { LocalInfoCard("输入地点名称", "可显示输入提示和 POI 搜索结果。") }
+                else -> items(candidates, key = PlaceCandidateUi::id) { candidate ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { selected = candidate },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (selected?.id == candidate.id) ZhituColors.Mint else ZhituColors.Surface),
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(candidate.name, color = ZhituColors.Ink, fontWeight = FontWeight.Medium)
+                            Text(candidate.address, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                            if (candidate.subtitle.isNotBlank()) Text(candidate.subtitle, color = ZhituColors.Subtle, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A plan-specific draft; it never writes global preferences. */
+@Composable
+fun PlanCommuteScreen(
+    plans: List<AlarmPlan>,
+    editor: PlanCommuteEditorState,
+    mapStatus: MapStatus,
+    onBack: () -> Unit,
+    onSelectPlan: (String) -> Unit,
+    onUseGlobal: (Boolean) -> Unit,
+    onModeChange: (CommuteMode) -> Unit,
+    onPickPlace: (PlaceSelectionTarget) -> Unit,
+    onRefresh: () -> Unit,
+    onSelectRoute: (String) -> Unit,
+    onTrafficChange: (Boolean) -> Unit,
+    onSave: () -> Unit,
+) {
+    val selectedPlan = plans.firstOrNull { it.id == editor.planId }
+    val mapState = AmapMapUiState(
+        markers = listOfNotNull(editor.origin?.toMarker("plan-origin", "计划起点"), editor.destination?.toMarker("plan-destination", "计划终点")),
+        routes = editor.route.alternatives,
+        selectedRouteId = editor.route.selectedRouteId,
+        trafficEnabled = editor.route.trafficEnabled,
+    )
+    Scaffold(
+        containerColor = ZhituColors.Background,
+        topBar = { ZhituTopBar("计划通勤", "专属配置优先于全局通勤", onBack) },
+        bottomBar = {
+            Button(onClick = onSave, enabled = selectedPlan != null, modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand)) { Text("保存计划通勤") }
+        },
+    ) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (plans.isEmpty()) item { LocalInfoCard("暂无计划", "创建并保存闹钟后，可为它配置专属通勤。") }
+            else {
+                item {
+                    Text("选择计划", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                        items(plans, key = AlarmPlan::id) { plan -> FilterChip(selected = editor.planId == plan.id, onClick = { onSelectPlan(plan.id) }, label = { Text(plan.name) }) }
+                    }
+                }
+                item {
+                    LocalCard {
+                        Text(selectedPlan?.name.orEmpty(), fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                        Spacer(Modifier.height(10.dp))
+                        FilterChip(selected = editor.useGlobal, onClick = { onUseGlobal(true) }, label = { Text("使用全局通勤") })
+                        Spacer(Modifier.height(8.dp))
+                        FilterChip(selected = !editor.useGlobal, onClick = { onUseGlobal(false) }, label = { Text("使用专属通勤") })
+                    }
+                }
+                if (!editor.useGlobal) {
+                    item {
+                        LocalCard {
+                            Text("专属起点与终点", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                            PlaceSummaryRow("起点", editor.origin?.name ?: "请选择", onClick = { onPickPlace(PlaceSelectionTarget.PLAN_ORIGIN) })
+                            PlaceSummaryRow("终点", editor.destination?.name ?: "请选择", onClick = { onPickPlace(PlaceSelectionTarget.PLAN_DESTINATION) })
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                commuteModes.forEach { (mode, label) -> FilterChip(selected = editor.mode == mode, onClick = { onModeChange(mode) }, label = { Text(label) }) }
+                            }
+                        }
+                    }
+                }
+                item { RouteMapPanel(mapState, mapStatus) }
+                item {
+                    LocalCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (editor.useGlobal) "全局有效路线" else "专属路线预览", fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+                            TextButton(onClick = onRefresh) { Text("刷新") }
+                        }
+                        FilterChip(selected = editor.route.trafficEnabled, onClick = { onTrafficChange(!editor.route.trafficEnabled) }, label = { Text("实时路况") })
+                        when {
+                            editor.route.loading -> Text("正在查询路线…", color = ZhituColors.Muted)
+                            editor.route.alternatives.isNotEmpty() -> editor.route.alternatives.forEach { route -> RouteAlternativeRow(route, editor.route.selectedRouteId == route.id) { onSelectRoute(route.id) } }
+                            else -> RouteEmptyState(editor.route.message ?: "请选择地点后查询路线。")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceSummaryRow(label: String, value: String, onClick: () -> Unit) = Row(
+    Modifier.fillMaxWidth().height(52.dp).clickable(onClick = onClick),
+    verticalAlignment = Alignment.CenterVertically,
+) {
+    Text(label, color = ZhituColors.Ink, modifier = Modifier.width(52.dp))
+    Text(value, color = ZhituColors.Muted, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text("›", color = ZhituColors.Subtle, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+}
+
+@Composable
+private fun RouteMapPanel(state: AmapMapUiState, mapStatus: MapStatus) = Box(
+    Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp)).background(ZhituColors.Mint),
+    contentAlignment = Alignment.Center,
+) {
+    if (mapStatus == MapStatus.Ready) AmapMap(state, Modifier.fillMaxSize())
+    else Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
+        Text("地图未就绪", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(4.dp))
+        Text(mapStatus.label(), color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun RouteEmptyState(message: String) = Card(
+    colors = CardDefaults.cardColors(containerColor = ZhituColors.Sky),
+    shape = RoundedCornerShape(16.dp),
+) { Text(message, Modifier.padding(12.dp), color = ZhituColors.Blue, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
+
+private fun routeMapState(settings: LocalSettings, routeState: RouteUiState): AmapMapUiState {
+    val origin = settings.favorites.firstOrNull { it.id == settings.originId }?.placeRef
+    val destination = settings.favorites.firstOrNull { it.id == settings.destinationId }?.placeRef
+    return AmapMapUiState(
+        markers = listOfNotNull(origin?.toMarker("origin", "起点"), destination?.toMarker("destination", "终点")),
+        routes = routeState.alternatives,
+        selectedRouteId = routeState.selectedRouteId,
+        trafficEnabled = routeState.trafficEnabled,
+    )
+}
+
+private fun PlaceRef.toMarker(id: String, title: String) = com.ljwzz.weathertrafficalarm.core.map.MapMarker(id, GeoPoint(longitudeGcj02, latitudeGcj02), title)
+private fun MapStatus.label(): String = when (this) {
+    MapStatus.NotInitialized -> "正在初始化高德地图。"
+    MapStatus.ConsentRequired -> "请先完成高德地图专项授权。"
+    MapStatus.MissingAndroidKey -> "请在凭据页配置高德 Android Key。"
+    MapStatus.RendererUnavailable -> "当前模拟器图形环境不兼容高德原生地图；路线结果仍可使用，请在真机验收地图。"
+    MapStatus.Failed -> "地图初始化失败，请检查 Key 与网络。"
+    MapStatus.Ready -> ""
+}
+
+@Composable
+private fun RouteAlternativeRow(route: RouteAlternative, selected: Boolean, onClick: () -> Unit) = Card(
+    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable(onClick = onClick),
+    shape = RoundedCornerShape(16.dp),
+    colors = CardDefaults.cardColors(containerColor = if (selected) ZhituColors.Mint else ZhituColors.Surface),
+) {
+    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (selected) "已选" else "备选", color = ZhituColors.Brand, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.width(12.dp))
+        Text("${route.durationSeconds / 60} 分钟 · ${formatDistance(route.distanceMeters)}", color = ZhituColors.Ink)
+    }
+}
+
+private fun formatDistance(meters: Long): String = if (meters >= 1_000) "%.1f km".format(meters / 1_000.0) else "$meters m"
 
 private val commuteModes = listOf(
     CommuteMode.DRIVING to "驾车", CommuteMode.TRANSIT to "公交", CommuteMode.BICYCLING to "骑行",

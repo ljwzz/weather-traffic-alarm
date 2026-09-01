@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,12 +47,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ljwzz.weathertrafficalarm.core.data.preferences.FavoritePlace
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
+import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
+import com.ljwzz.weathertrafficalarm.core.map.AmapMapUiState
+import java.util.UUID
 
 /** The top-level app shell. Service integration is kept outside visual composables. */
 @Composable
@@ -71,17 +75,28 @@ fun ZhituApp(
     val initialPrivacyAccepted by viewModel.initialPrivacyAccepted.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val routeState by viewModel.routeState.collectAsStateWithLifecycle()
+    val placePickerState by viewModel.placePickerState.collectAsStateWithLifecycle()
+    val mapStatus by viewModel.mapStatus.collectAsStateWithLifecycle()
+    val planCommuteEditor by viewModel.planCommuteEditor.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var destination by remember { mutableStateOf(if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING) }
     var initialized by remember { mutableStateOf(false) }
     var editorDraft by remember { mutableStateOf(EditorDraft()) }
+    var placeTarget by remember { mutableStateOf(PlaceSelectionTarget.ORIGIN) }
     val openEditor: (AlarmPlan?) -> Unit = { plan ->
         editorDraft = plan?.toEditorDraft() ?: EditorDraft()
         destination = ZhituDestination.EDITOR
     }
-    LaunchedEffect(settingsReady, initialPrivacyAccepted) {
-        if (settingsReady && !initialized) { initialized = true; if (initialPrivacyAccepted == false && ringingOccurrenceId == null) destination = ZhituDestination.ONBOARDING }
+    LaunchedEffect(settingsReady, initialPrivacyAccepted, localSettings.amapConsentPromptedVersion) {
+        if (settingsReady && !initialized) {
+            initialized = true
+            if ((initialPrivacyAccepted == false || localSettings.amapConsentPromptedVersion == null) && ringingOccurrenceId == null) destination = ZhituDestination.ONBOARDING
+        }
     }
     LaunchedEffect(error) { if (error != null) { delay(4_000); viewModel.clearError() } }
+    LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey) { viewModel.initializeAmap(context) }
+    LaunchedEffect(localSettings.originId, localSettings.destinationId, localSettings.commuteMode, localSettings.amapConsentGranted) { viewModel.refreshRoute() }
     BackHandler(enabled = destination != ZhituDestination.HOME && destination != ZhituDestination.RINGING) {
         destination = if (destination == ZhituDestination.EDITOR) ZhituDestination.PLANS else ZhituDestination.HOME
     }
@@ -93,7 +108,66 @@ fun ZhituApp(
                 ZhituDestination.HOME -> HomeScreen(upcomingPlans, { destination = ZhituDestination.PLANS }, openEditor, { destination = ZhituDestination.ROUTE }, { destination = ZhituDestination.SETTINGS })
                 ZhituDestination.PLANS -> PlansScreen(plans, openEditor, { destination = ZhituDestination.HOME }, viewModel::setEnabled, { destination = it })
                 ZhituDestination.EDITOR -> AlarmEditorScreen(editorDraft, { editorDraft = it }, { destination = ZhituDestination.PLANS }, { viewModel.save(editorDraft) { destination = ZhituDestination.PLANS } }, { editorDraft.id?.let(viewModel::delete); destination = ZhituDestination.PLANS })
-                ZhituDestination.ROUTE -> LocalRouteScreen(localSettings, viewModel::updateSettingsWithCompletion, { destination = ZhituDestination.HOME })
+                ZhituDestination.ROUTE -> LocalRouteScreen(
+                    settings = localSettings,
+                    routeState = routeState,
+                    mapStatus = mapStatus,
+                    onSave = viewModel::updateSettingsWithCompletion,
+                    onBack = { destination = ZhituDestination.HOME },
+                    onModeChange = viewModel::setRouteMode,
+                    onRefresh = viewModel::refreshRoute,
+                    onSelectRoute = viewModel::selectRoute,
+                    onTrafficChange = viewModel::setTrafficEnabled,
+                    onPickPlace = { target -> placeTarget = target; viewModel.beginPlaceSelection(); destination = ZhituDestination.PLACE_PICKER },
+                    onConfigurePlan = { plans.firstOrNull()?.let { viewModel.startPlanCommuteEditor(it.id) }; destination = ZhituDestination.PLAN_COMMUTE },
+                )
+                ZhituDestination.PLACE_PICKER -> PlacePickerScreen(
+                    target = placeTarget,
+                    query = placePickerState.query,
+                    candidates = placePickerState.candidates.map { place -> PlaceCandidateUi(place.poiId ?: "${place.longitudeGcj02},${place.latitudeGcj02}", place.name, place.displayAddress, placeRef = place) },
+                    loading = placePickerState.loading,
+                    message = placePickerState.message,
+                    mapStatus = mapStatus,
+                    mapState = AmapMapUiState(selectedPoint = placePickerState.selected?.let { GeoPoint(it.longitudeGcj02, it.latitudeGcj02) }),
+                    onQueryChanged = viewModel::updatePlaceQuery,
+                    onUseCurrentLocation = { viewModel.locateCurrentPlace(context) },
+                    onLocationPermissionDenied = { viewModel.showError("未获得位置权限") },
+                    onMapClick = viewModel::selectMapPoint,
+                    onConfirm = { candidate ->
+                        val place = candidate.placeRef ?: return@PlacePickerScreen
+                        when (placeTarget) {
+                            PlaceSelectionTarget.PLAN_ORIGIN, PlaceSelectionTarget.PLAN_DESTINATION -> viewModel.setPlanCommutePlace(placeTarget, place)
+                            else -> {
+                                val favorite = FavoritePlace(UUID.randomUUID().toString(), candidate.name, candidate.address, place)
+                                viewModel.updateSettings { current ->
+                                    val updatedFavorites = current.favorites.filterNot { it.name == favorite.name && it.address == favorite.address } + favorite
+                                    when (placeTarget) {
+                                        PlaceSelectionTarget.ORIGIN -> current.copy(favorites = updatedFavorites, originId = favorite.id)
+                                        PlaceSelectionTarget.DESTINATION -> current.copy(favorites = updatedFavorites, destinationId = favorite.id)
+                                        PlaceSelectionTarget.FAVORITE -> current.copy(favorites = updatedFavorites)
+                                        else -> current
+                                    }
+                                }
+                            }
+                        }
+                        destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE
+                    },
+                    onBack = { destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE },
+                )
+                ZhituDestination.PLAN_COMMUTE -> PlanCommuteScreen(
+                    plans = plans,
+                    editor = planCommuteEditor,
+                    mapStatus = mapStatus,
+                    onBack = { destination = ZhituDestination.ROUTE },
+                    onSelectPlan = viewModel::startPlanCommuteEditor,
+                    onUseGlobal = viewModel::setPlanCommuteUseGlobal,
+                    onModeChange = viewModel::setPlanCommuteMode,
+                    onPickPlace = { target -> placeTarget = target; viewModel.beginPlaceSelection(); destination = ZhituDestination.PLACE_PICKER },
+                    onRefresh = viewModel::refreshPlanCommutePreview,
+                    onSelectRoute = viewModel::selectPlanCommuteRoute,
+                    onTrafficChange = viewModel::setPlanCommuteTraffic,
+                    onSave = viewModel::savePlanCommute,
+                )
                 ZhituDestination.CALENDAR -> LocalCalendarScreen(plans, dayOverrides, calendarState, viewModel::saveDayOverride, viewModel::refreshCalendar, { destination = ZhituDestination.SETTINGS })
                 ZhituDestination.SETTINGS -> SettingsScreen(
                     settings = localSettings,
@@ -107,12 +181,26 @@ fun ZhituApp(
                     onWeather = { destination = ZhituDestination.WEATHER },
                     onOnboarding = { destination = ZhituDestination.ONBOARDING },
                 )
-                ZhituDestination.CREDENTIALS -> CredentialSettingsScreen(credentialStatus, viewModel::saveCredentialsWithCompletion, viewModel::clearCredentialsWithCompletion) { destination = ZhituDestination.SETTINGS }
+                ZhituDestination.CREDENTIALS -> CredentialSettingsScreen(
+                    status = credentialStatus,
+                    onSave = { input, onComplete ->
+                        viewModel.saveCredentialsWithCompletion(input) { failure ->
+                            if (failure == null) viewModel.initializeAmap(context)
+                            onComplete(failure)
+                        }
+                    },
+                    onClear = viewModel::clearCredentialsWithCompletion,
+                    onTestAmapWebKey = viewModel::testAmapWebKey,
+                    onBack = { destination = ZhituDestination.SETTINGS },
+                )
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen { destination = ZhituDestination.SETTINGS }
                 ZhituDestination.HISTORY -> HistoryScreen(events) { destination = ZhituDestination.SETTINGS }
                 ZhituDestination.WEATHER -> WeatherEmptyScreen { destination = ZhituDestination.SETTINGS }
                 ZhituDestination.RINGING -> RingingScreen(occurrenceId = ringingOccurrenceId, onDismiss = { ringingOccurrenceId?.let(viewModel::dismiss); destination = ZhituDestination.HOME }, onSnooze = { ringingOccurrenceId?.let(viewModel::snooze); destination = ZhituDestination.HOME })
-                ZhituDestination.ONBOARDING -> OnboardingScreen { viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.HOME }
+                ZhituDestination.ONBOARDING -> OnboardingScreen(
+                    onGrantAmap = { viewModel.setAmapConsent(true); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.CREDENTIALS },
+                    onSkipAmap = { viewModel.setAmapConsent(false); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.HOME },
+                )
             }
         }
         error?.let { message -> androidx.compose.material3.Snackbar(modifier = Modifier.align(Alignment.BottomCenter).padding(20.dp), action = { androidx.compose.material3.TextButton(viewModel::clearError) { Text("关闭") } }) { Text(message) } }
@@ -162,7 +250,7 @@ private fun HomeScreen(
             if (plans.isEmpty()) item { HomeAlarmHero(onAdd) }
             else items(plans.take(3), key = { it.plan.id }) { item -> HomePlanCard(item, { onAdd(item.plan) }) }
             item { SectionTitle("通勤信息") }
-            item { EmptyProviderCard(title = "地图暂未接入", description = "可编辑地点文字和出行方式，但不显示模拟路线或距离。", onClick = onRoute) }
+            item { EmptyProviderCard(title = "通勤路线", description = "配置起终点、出行方式与高德地图路线。", onClick = onRoute) }
             item { SafetyNotice("闹钟由本机注册；是否已注册以计划状态为准。") }
         }
     }
@@ -198,7 +286,7 @@ private fun HomePlanCard(item: UpcomingPlan, onClick: () -> Unit) = Card(
             Text(scheduleLabel(item.plan), color = ZhituColors.Mint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Divider(color = androidx.compose.ui.graphics.Color.White.copy(alpha = .16f))
+        HorizontalDivider(color = androidx.compose.ui.graphics.Color.White.copy(alpha = .16f))
         Spacer(Modifier.height(12.dp))
         Text("下次 ${java.time.Instant.ofEpochMilli(item.nextWakeAt).atZone(java.time.ZoneId.of(item.plan.zoneId)).format(java.time.format.DateTimeFormatter.ofPattern("M月d日 HH:mm"))}", color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
     }

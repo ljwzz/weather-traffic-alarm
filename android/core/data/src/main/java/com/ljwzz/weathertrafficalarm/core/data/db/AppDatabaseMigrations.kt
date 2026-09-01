@@ -81,4 +81,30 @@ object AppDatabaseMigrations {
         db.execSQL("CREATE INDEX IF NOT EXISTS index_alarm_events_created_at ON alarm_events(created_at)")
         db.execSQL("PRAGMA legacy_alter_table = OFF")
     }
+
+    /** Preserves legacy plan-level commute locations as independent overrides. */
+    val V2_TO_V3: Migration = Migration(2, 3) { db ->
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS plan_commute_overrides (
+                plan_id TEXT NOT NULL,
+                origin TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                commute_mode TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY(plan_id),
+                FOREIGN KEY(plan_id) REFERENCES alarm_plans(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_plan_commute_overrides_plan_id ON plan_commute_overrides(plan_id)")
+        db.execSQL(
+            """
+            INSERT INTO plan_commute_overrides (plan_id, origin, destination, commute_mode, updated_at)
+            SELECT id, origin, destination, commute_mode, updated_at
+            FROM alarm_plans
+            WHERE origin IS NOT NULL AND destination IS NOT NULL
+            """.trimIndent(),
+        )
+    }
 }

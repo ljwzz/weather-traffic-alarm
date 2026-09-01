@@ -72,10 +72,10 @@
 
 | # | 断言 | 状态 | 证据/核实方法 |
 |---|---|---|---|
-| E1 | 高德 Web 服务：路径规划 v5（driving/walking/cycling/transit）、POI 搜索 v5、输入提示 v3 存在 | ✅ | https://lbs.amap.com/api/webservice/guide/api/direction |
-| E2 | 高德响应错误模型 `status`/`info`/`infocode`；`10001` key 无效、`10003/10044` 日配额、`10019-10021` QPS、`20800-20803` 路线不可用、`40000` 余额耗尽 | ✅ | https://lbs.amap.com/api/web-service/tools/info ；https://developer.amap.com/api/webservice/guide/tools/info |
+| E1 | 高德 Web 服务：路径规划 v5（含电动车）和输入提示路径已核对 | ✅ | https://lbs.amap.com/api/webservice/guide/api/newroute ；https://lbs.amap.com/api/cooperation/jkd |
+| E2 | 高德响应错误模型与配额码 | 🔬 | 待使用当前官方错误码页面与真实 Key 设备实网验收核对 |
 | E3 | 高德 Web Key 只能绑定 IP 白名单（错误码 10005/10010 佐证）；客户端直连移动网络 IP 不固定 → 无法启用白名单 | ⚠️ | 机制已由错误码表证实；"移动网络不可行"为推断，SPEC 已列为已知风险 |
-| E4 | 高德 Android SDK Key 绑定包名+签名（1008 错误码佐证） | ✅ | https://lbs.amap.com/api/android-sdk/guide/map-tools/error-code |
+| E4 | 高德 Android SDK Key 的包名与签名配置 | 🔬 | 待用户提供 Android SDK Key 后进行设备实网验收 |
 | E5 | 高德"未来路径规划"（驾车未来服务）接口存在、需开通、超范围时退化为当前路况 | ❓ | 方向 API 页中该能力说明（待你在该页确认具体章节） |
 | E6 | 彩云 v2.6 文档结构：入口页 + start/auth/billing/ratelimit/version-guide + skycon 等表 | ✅ | https://docs.caiyunapp.com/weather-api/ |
 | E7 | 彩云 v2.6 鉴权为 App Key + App Secret 的 HMAC-SHA256（`x-cy-token`/`x-cy-timestamp`/`x-cy-signature`） | ❓ | 待核对 https://docs.caiyunapp.com/weather-api/auth.html |

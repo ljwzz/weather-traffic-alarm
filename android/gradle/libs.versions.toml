@@ -9,10 +9,12 @@ datastore = "1.2.1"
 work = "2.11.2"
 hilt = "2.60.1"
 androidx-hilt = "1.4.0"
+lifecycle = "2.11.0"
 retrofit = "3.0.0"
 okhttp = "5.4.0"
 coroutines-test = "1.11.0"
-amap = "11.2.000"
+coroutines = "1.11.0"
+amap = "11.2.100"
 
 [libraries]
 # Compose BOM
@@ -49,6 +51,9 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "androidx-hilt" }
 hilt-work-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "androidx-hilt" }
 
+# Lifecycle
+lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+
 # Retrofit
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-kotlin-serialization = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
@@ -63,12 +68,14 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # Coroutines test
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines-test" }
+coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 
 # AMap
 amap-3dmap = { group = "com.amap.api", name = "3dmap", version.ref = "amap" }
 amap-location = { group = "com.amap.api", name = "location", version.ref = "amap" }
 amap-search = { group = "com.amap.api", name = "search", version.ref = "amap" }
-amap-all = { group = "com.amap.api", name = "3dmap-location-search", version = "11.2.000_loc11.2.000_sea9.8.0" }
+amap-all = { group = "com.amap.api", name = "3dmap-location-search", version = "11.2.100_loc11.2.100_sea9.8.1" }
 
 # Test
 junit = { group = "junit", name = "junit", version = "4.13.2" }

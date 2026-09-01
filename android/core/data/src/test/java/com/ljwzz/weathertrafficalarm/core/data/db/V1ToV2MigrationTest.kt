@@ -31,6 +31,7 @@ class V1ToV2MigrationTest {
         createV1Fixture()
         db = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .addMigrations(AppDatabaseMigrations.V1_TO_V2)
+            .addMigrations(AppDatabaseMigrations.V2_TO_V3)
             .build()
     }
 
@@ -49,6 +50,12 @@ class V1ToV2MigrationTest {
         assertEquals(AlarmArmedState.NEEDS_RULE, plan.armedState)
         assertNull(plan.schedule)
         assertEquals("Home", plan.origin?.name)
+
+        val commuteOverride = db.planCommuteOverrideDao().getByPlanId("plan-v1")
+        assertNotNull(commuteOverride)
+        assertEquals("Home", commuteOverride!!.origin.name)
+        assertEquals("Office", commuteOverride.destination.name)
+        assertEquals(2_000L, commuteOverride.updatedAt)
 
         val decision = db.alarmDecisionDao().getByPlanIdAndDate("plan-v1", "2026-08-31")
         assertNotNull(decision)

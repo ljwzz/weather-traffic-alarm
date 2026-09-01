@@ -11,6 +11,47 @@ export const DAY_KINDS = Object.freeze({
   STATUTORY_HOLIDAY: 'statutoryHoliday',
 });
 
+/** Deterministic, key-free states used by the AMap prototype handoff. */
+export const AMAP_FIXTURE_STATES = Object.freeze({
+  SUCCESS: 'success',
+  LOADING: 'loading',
+  NO_KEY: 'no-key',
+  DENIED: 'denied',
+  ERROR: 'error',
+});
+
+export const AMAP_DEMO_TIPS = Object.freeze([
+  Object.freeze({ id: 'demo-campus-north', name: '示例园区北门', address: '演示地点 · 不含坐标' }),
+  Object.freeze({ id: 'demo-station-east', name: '示例换乘站东口', address: '演示地点 · 不含坐标' }),
+  Object.freeze({ id: 'demo-office', name: '示例办公区', address: '演示地点 · 不含坐标' }),
+]);
+
+export function amapFixtureState(credentials = {}, fixture = AMAP_FIXTURE_STATES.SUCCESS) {
+  if (fixture !== AMAP_FIXTURE_STATES.SUCCESS) return fixture;
+  return credentials.amapWebKey || credentials.amapSdkKey
+    ? AMAP_FIXTURE_STATES.SUCCESS
+    : AMAP_FIXTURE_STATES.NO_KEY;
+}
+
+export function resolveCommute(config = {}, plan = null) {
+  const override = plan?.commuteOverride;
+  return override?.enabled ? {
+    enabled: true,
+    origin: override.origin || '',
+    originAddress: override.originAddress || '',
+    destination: override.destination || '',
+    destinationAddress: override.destinationAddress || '',
+    selectedTransport: override.selectedTransport || 'driving',
+  } : {
+    enabled: false,
+    origin: config.origin || '',
+    originAddress: config.originAddress || '',
+    destination: config.destination || '',
+    destinationAddress: config.destinationAddress || '',
+    selectedTransport: config.selectedTransport || 'driving',
+  };
+}
+
 export const DEFAULT_WEATHER_BUFFERS = Object.freeze({
   [DAY_KINDS.WORKDAY]: Object.freeze([10, 20, 30]),
   [DAY_KINDS.WEEKEND]: Object.freeze([5, 10, 20]),
@@ -302,6 +343,7 @@ export function createDefaultState() {
       caiyunAppKey: '',
       caiyunAppSecret: '',
     },
+    amapConsent: 'pending',
   };
 }
 
@@ -366,6 +408,14 @@ export function normalizeAlarmPlan(plan = {}) {
     zoneId: String(plan.zoneId || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'),
     createdAt: plan.createdAt || new Date().toISOString(),
     updatedAt: plan.updatedAt || new Date().toISOString(),
+    commuteOverride: plan.commuteOverride?.enabled ? {
+      enabled: true,
+      origin: String(plan.commuteOverride.origin || ''),
+      originAddress: String(plan.commuteOverride.originAddress || ''),
+      destination: String(plan.commuteOverride.destination || ''),
+      destinationAddress: String(plan.commuteOverride.destinationAddress || ''),
+      selectedTransport: String(plan.commuteOverride.selectedTransport || 'driving'),
+    } : { enabled: false },
   };
   toMinutes(normalized.time);
   if (normalized.repeat.kind === REPEAT_KINDS.ONCE) assertIsoDate(normalized.repeat.date);
