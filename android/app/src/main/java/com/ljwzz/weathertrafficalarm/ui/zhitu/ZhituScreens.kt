@@ -164,9 +164,9 @@ fun SettingsScreen(settings: com.ljwzz.weathertrafficalarm.core.data.preferences
         item { BufferEditor("工作日天气缓冲", settings.workdayWeatherBuffers) { onSettingsChange(settings.copy(workdayWeatherBuffers = it)) } }
         item { BufferEditor("周末天气缓冲", settings.weekendWeatherBuffers) { onSettingsChange(settings.copy(weekendWeatherBuffers = it)) } }
         item { BufferEditor("法定休息日天气缓冲", settings.holidayWeatherBuffers) { onSettingsChange(settings.copy(holidayWeatherBuffers = it)) } }
-        item { SettingsGroup("数据服务") { SettingRow("地图与天气", "暂未接入", onWeather); SettingRow("接口凭据", "未配置", onCredentials) } }
+        item { SettingsGroup("数据服务") { SettingRow("高德地图与路线", "地点、路线与路况", onRoute); SettingRow("接口凭据", "高德与天气", onCredentials) } }
         item { SettingsGroup("可靠性") { SettingRow("权限与诊断", "查看状态", onDiagnostics); SettingRow("闹钟记录", "本机事件", onHistory) } }
-        item { SettingsGroup("其他") { SettingRow("首次引导", "重新查看", onOnboarding) } }
+        item { SettingsGroup("其他") { SettingRow("高德专项授权", if (settings.amapConsentGranted) "已同意，可重新设置" else "未同意", onOnboarding); SettingRow("首次引导", "重新查看", onOnboarding) } }
     }
 }
 }
@@ -200,7 +200,27 @@ fun RingingScreen(occurrenceId: String?, alarmName: String = "本地闹钟", ala
 }
 
 @Composable
-fun OnboardingScreen(onFinish: () -> Unit) = Scaffold { padding -> Column(Modifier.fillMaxSize().padding(padding).padding(28.dp), verticalArrangement = Arrangement.SpaceBetween) { Column { Text("知途", style = MaterialTheme.typography.displayMedium, color = ZhituColors.Ink); Spacer(Modifier.height(18.dp)); Text("本地闹钟，按你选择的日期和时间响铃。", style = MaterialTheme.typography.headlineSmall, color = ZhituColors.Ink); Spacer(Modifier.height(12.dp)); Text("地图与天气服务尚未接入，不会影响基础闹钟。", color = ZhituColors.Muted) }; Column { Button(onFinish, Modifier.fillMaxWidth().height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand), shape = RoundedCornerShape(16.dp)) { Text("开始使用") }; TextButton(onFinish, Modifier.fillMaxWidth()) { Text("仅浏览") } } } }
+fun OnboardingScreen(
+    onGrantAmap: () -> Unit,
+    onSkipAmap: () -> Unit,
+) = Scaffold { padding ->
+    Column(Modifier.fillMaxSize().padding(padding).padding(28.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column {
+            Text("知途", style = MaterialTheme.typography.displayMedium, color = ZhituColors.Ink)
+            Spacer(Modifier.height(18.dp))
+            Text("本地闹钟，按你选择的日期和时间响铃。", style = MaterialTheme.typography.headlineSmall, color = ZhituColors.Ink)
+            Spacer(Modifier.height(18.dp))
+            FormCard {
+                Text("高德地图专项授权", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                Spacer(Modifier.height(8.dp))
+                Text("同意后才会初始化地图、定位、地点搜索和路线服务。你可稍后在设置中重新授权。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(10.dp))
+                TextButton(onClick = onSkipAmap) { Text("暂不授权") }
+            }
+        }
+        Button(onClick = onGrantAmap, modifier = Modifier.fillMaxWidth().height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand), shape = RoundedCornerShape(16.dp)) { Text("同意并配置高德") }
+    }
+}
 
 @Composable
 private fun FormCard(content: @Composable ColumnScope.() -> Unit) = Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.fillMaxWidth().padding(16.dp), content = content) }

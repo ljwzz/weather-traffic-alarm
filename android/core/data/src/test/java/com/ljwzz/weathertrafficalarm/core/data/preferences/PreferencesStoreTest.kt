@@ -23,24 +23,12 @@ class PreferencesStoreTest {
         store = PreferencesStore(RuntimeEnvironment.getApplication())
         // Reset to defaults to prevent state leaking between tests
         runBlocking {
-            store.setPrivacyConsentAmap(false)
             store.setPrivacyConsentCaiyunDisclosure(false)
             store.setWeatherBufferMinutes(1, 10)
             store.setWeatherBufferMinutes(2, 20)
             store.setWeatherBufferMinutes(3, 30)
             store.setDiagnosticsEnabled(false)
         }
-    }
-
-    @Test
-    fun defaultPrivacyConsentAmapIsFalse() = runTest {
-        assertFalse(store.privacyConsentAmap.first())
-    }
-
-    @Test
-    fun setPrivacyConsentAmap() = runTest {
-        store.setPrivacyConsentAmap(true)
-        assertTrue(store.privacyConsentAmap.first())
     }
 
     @Test

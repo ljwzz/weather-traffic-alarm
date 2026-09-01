@@ -1,5 +1,5 @@
 /* Local interaction prototype. Android owns alarm registration, ringing and permissions. */
-import { createDefaultState, defaultAlarmDraft, loadSettings, nextAlarmOccurrence, normalizeAlarmPlan, persistSettings, REPEAT_KINDS, todayIso, validateAlarmPlan } from './state.mjs';
+import { AMAP_DEMO_TIPS, createDefaultState, defaultAlarmDraft, loadSettings, nextAlarmOccurrence, normalizeAlarmPlan, persistSettings, REPEAT_KINDS, todayIso, validateAlarmPlan } from './state.mjs';
 import { createTravelScreens } from './screens-travel.mjs';
 import { createAlarmScreens } from './screens-alarm.mjs';
 import { createSettingsScreens } from './screens-settings.mjs';
@@ -17,15 +17,21 @@ const overlayAction = (label, name, value = '') => `<button type="button" class=
 const asset = (file, alt = '', className = '') => `<img class="${className}" src="./assets/figma-svg/${file}" alt="${esc(alt)}">`;
 
 function defaults() {
-  return { ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], notificationsEnabled:true, lockSummaryEnabled:true, onboardingDone:true };
+  return { ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], notificationsEnabled:true, lockSummaryEnabled:true, onboardingDone:false };
 }
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
-let runtime = { route:'home', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未配置', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
+let runtime = { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未配置', amapFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
 let noticeTimer;
 
 function persist() { try { persistSettings(localStorage, STORAGE_KEY, config); } catch { runtime.notice = '浏览器存储不可用；更改仅保留在当前会话。'; } }
 function currentConfig() { return runtime.routeDraft && ['route','route-edit','place-search'].includes(runtime.route) ? runtime.routeDraft : config; }
+function activeCommute() {
+  if (runtime.routeScope !== 'plan') return currentConfig();
+  const plan = alarmDraft();
+  if (!plan.commuteOverride?.enabled) plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport };
+  return plan.commuteOverride;
+}
 function record(type, message, plan) { config.alarmEvents = [{ id:`event-${Date.now()}`, type, message, date:todayIso(), time:plan?.time || '', planId:plan?.id || null }, ...(config.alarmEvents || [])].slice(0, 100); }
 function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
 const travel = createTravelScreens({ action, overlayAction, asset, state });
@@ -39,9 +45,9 @@ function enterRouteDraft() { if (!runtime.routeDraft) runtime.routeDraft = clone
 function navigate(route, { replace = false, fromHistory = false } = {}) {
   if (!ROUTES.includes(route)) return;
   const old = runtime.route;
-  if (old === 'plan-edit' && route !== 'calendar') { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
-  if (old === 'route-edit' && route !== 'place-search') runtime.routeDraft = null;
-  if (route === 'route-edit' || route === 'place-search') enterRouteDraft();
+  if (old === 'plan-edit' && !['calendar','route-edit','place-search'].includes(route)) { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
+  if (old === 'route-edit' && route !== 'place-search' && runtime.routeScope !== 'plan') runtime.routeDraft = null;
+  if ((route === 'route-edit' || route === 'place-search') && runtime.routeScope !== 'plan') enterRouteDraft();
   if (!replace && old !== route) runtime.history.push(old);
   runtime.route = route; closeOverlay();
   if (route === 'calendar') runtime.calendarMonth = runtime.selectedDate.slice(0, 7);
@@ -109,18 +115,22 @@ function handleClick(event) {
     if (op === 'save-override-time') { const plan = config.alarmPlans.find(item => item.id === runtime.calendarPlanId) || alarmDraft(); const key = `${plan.id}:${runtime.selectedDate}`; const overrides = runtime.dateOverridesDraft || (runtime.dateOverridesDraft = clone(config.dateOverrides || {})); overrides[key] = { ...(overrides[key] || { enabled:true }), time:runtime.overrideDraftTime || plan.time }; closeOverlay(); render(); return; }
     if (op === 'save-calendar') return navigate('plan-edit', { replace:true });
     if (op === 'history-filter') { runtime.historyFilter = value; closeOverlay(); render(); return; }
-    if (op === 'save-route') { config = clone(runtime.routeDraft || config); runtime.routeDraft = null; persist(); notice('地点与出行方式已保存。'); return navigate('route', { replace:true }); }
-    if (op === 'mode') { currentConfig().selectedTransport = value; render(); return; }
+    if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); runtime.routeDraft = null; persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
+    if (op === 'mode') { activeCommute().selectedTransport = value; render(); return; }
     if (op === 'open-place') { runtime.placeTarget = value; runtime.selectedPlace = null; return navigate('place-search'); }
-    if (op === 'choose-place') { runtime.selectedPlace = currentConfig().favorites.find(place => place.id === value) || null; render(); return; }
-    if (op === 'use-place') { const place = runtime.selectedPlace; if (!place) throw Error('请先选择一个常用地点。'); const c = currentConfig(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; return navigate('route-edit', { replace:true }); }
+    if (op === 'choose-place') { runtime.selectedPlace = [...AMAP_DEMO_TIPS, ...(currentConfig().favorites || [])].find(place => place.id === value) || null; render(); return; }
+    if (op === 'use-place') { const place = runtime.selectedPlace; if (!place) throw Error('请先选择一个地点。'); const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; return navigate('route-edit', { replace:true }); }
     if (op === 'add-favorite') { runtime.favoriteDraft = { id:`place-${Date.now()}`, name:'', address:'', description:'本机文字地点' }; runtime.overlay = 'favorite'; render(); return; }
     if (op === 'save-favorite') { const place = runtime.favoriteDraft; if (!place?.name?.trim() || !place?.address?.trim()) throw Error('请填写名称和地址文字。'); currentConfig().favorites.push(clone(place)); runtime.favoriteDraft = null; closeOverlay(); render(); return; }
-    if (op === 'finish-onboarding') return navigate(value || 'plans');
-    if (op === 'save-credentials') { runtime.credentialStatus = '已保存 · 仅当前页面会话'; render(); return; }
-    if (op === 'test-credentials') { runtime.credentialStatus = '服务暂未接入，未发送请求'; render(); return; }
+    if (op === 'amap-consent') { config.amapConsent = value === 'approved' ? 'approved' : 'basic'; config.onboardingDone = true; persist(); notice(value === 'approved' ? '已同意高德授权；可配置运行时 Key。' : '仅使用基础功能；高德地图保持未初始化。'); return navigate(value === 'approved' ? 'credentials' : 'home', { replace:true }); }
+    if (op === 'edit-plan-commute') { const plan = alarmDraft(); plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport }; runtime.routeScope = 'plan'; return navigate('route-edit'); }
+    if (op === 'use-global-commute') { alarmDraft().commuteOverride = { enabled:false }; render(); return; }
+    if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
+    if (op === 'locate-once') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); if (runtime.amapFixture === 'denied') throw Error('定位权限被拒绝；可改用搜索或地图选点。'); const place = { id:'demo-current-location', name:'当前位置（演示）', address:'仅本次定位 fixture · 不含坐标' }; if (runtime.route === 'place-search') { runtime.selectedPlace = place; notice('已获取一次性定位 fixture。'); render(); return; } const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; notice('已应用一次性定位 fixture。'); render(); return; }
+    if (op === 'save-credentials') { runtime.credentialStatus = '运行时凭据已保存 · 仅当前页面会话'; render(); return; }
+    if (op === 'test-credentials') { runtime.credentialStatus = '高德离线 fixture 已验证；未发送网络请求'; render(); return; }
     if (op === 'clear-credentials') return openOverlay('clear-credentials');
-    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.credentialStatus = '凭据已清空'; closeOverlay(); render(); return; }
+    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.credentialStatus = '运行时凭据已清空'; closeOverlay(); render(); return; }
     if (op === 'preview-sound') { notice('浏览器原型不播放声音；Android 应用可试听。'); return; }
     if (op === 'recheck-diagnostics') { notice('浏览器原型不读取系统状态，请在 Android 应用中检查。'); return; }
   } catch (error) { notice(error.message); render(); }
@@ -137,9 +147,10 @@ function handleChange(event) {
   const target = event.target;
   if (target.dataset.action === 'toggle-alarm') return toggleAlarm(target.dataset.value, target.checked);
   if (target.dataset.setting) { config[target.dataset.setting] = target.checked; persist(); render(); }
+  if (target.dataset.amapFixture) { runtime.amapFixture = target.value; render(); }
   if (target.dataset.overlayField === 'vibration') handleInput(event);
 }
-function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'home', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, credentials:{}, credentialStatus:'未配置', selectedDate:todayIso(), calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('home', { replace:true }); }
+function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'onboarding', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', credentials:{}, credentialStatus:'未配置', amapFixture:'success', selectedDate:todayIso(), calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
 document.addEventListener('click', handleClick);
 document.addEventListener('input', handleInput);
 document.addEventListener('change', handleChange);
@@ -150,5 +161,5 @@ window.addEventListener('popstate', () => navigate(location.hash.replace(/^#\/?/
 function fitPhone() { document.documentElement.style.setProperty('--phone-scale', String(Math.min(1, (window.innerWidth - 24) / 412))); }
 window.addEventListener('resize', fitPhone); fitPhone();
 window.ZhituPrototype = { ROUTES, navigate, reset };
-navigate(ROUTES.includes(location.hash.replace(/^#\/?/, '')) ? location.hash.replace(/^#\/?/, '') : 'home', { replace:true });
+navigate(config.onboardingDone && ROUTES.includes(location.hash.replace(/^#\/?/, '')) ? location.hash.replace(/^#\/?/, '') : (config.onboardingDone ? 'home' : 'onboarding'), { replace:true });
 document.fonts.ready.then(() => { document.getElementById('render-status').textContent = '412 × 892 · 本地设计字体已加载'; });

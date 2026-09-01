@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertFalse
@@ -49,5 +50,31 @@ class LocalSettingsTest {
         val settings = store.settings.first { !it.notificationSummary && !it.lockScreenSummary }
         assertFalse(settings.notificationSummary)
         assertFalse(settings.lockScreenSummary)
+    }
+
+    @Test
+    fun legacyFavoriteJsonDecodesWithoutMapCoordinates() {
+        val favorite = Json.decodeFromString<FavoritePlace>(
+            """{"id":"home","name":"家","address":"北京市"}""",
+        )
+
+        assertEquals("home", favorite.id)
+        assertEquals(null, favorite.placeRef)
+    }
+
+    @Test
+    fun amapConsentIsIndependentFromLegacyPrivacyAcceptance() = runTest {
+        store.update { it.copy(privacyAccepted = true) }
+
+        val settings = store.settings.first { it.privacyAccepted }
+        assertEquals(null, settings.amapConsentPromptedVersion)
+        assertFalse(settings.amapConsentGranted)
+
+        store.update { it.copy(amapConsentPromptedVersion = 3, amapConsentGranted = true) }
+        val consented = store.settings.first {
+            it.amapConsentPromptedVersion == 3 && it.amapConsentGranted
+        }
+        assertEquals(3, consented.amapConsentPromptedVersion)
+        assertEquals(true, consented.amapConsentGranted)
     }
 }

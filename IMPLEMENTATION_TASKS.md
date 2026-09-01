@@ -4,12 +4,14 @@
 - 起点：仓库已删除后端、contract、calendar-data、infra 与旧草稿；保留 `android/` 工程（app、core/{model,data,network,alarm,map}、feature/*）
 - 目标：从纯 Android 本地优先架构推进到可公开发布的 Android 应用
 - Android 包名：`com.ljwzz.weathertrafficalarm`
-- 当前天气／地图／路线 Provider：未接入。
+- 当前天气 Provider：未接入；高德 Android SDK、Web API、加密运行时 Key、专项授权、地图／定位／POI、五种路线、三条候选、路况和计划覆盖已实现。待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。
 - 后续规划：彩云天气 v2.6；高德 Web 服务 API 与 Android SDK。
 - 工作日数据源：holiday-cn 年度 JSON（App 抓取缓存）
 - 页面与原型交接：见 [`docs/design-handoff.md`](./docs/design-handoff.md)；Figma 的 21 个页面是视觉素材基线，当前 Android 范围为 12 个主页面及路线／日历功能整合。
 
-> 2026-08-31 当前执行线：先完成不依赖高德和彩云的本地闹钟。`P7`–`P9` 中的路线、天气和提前计算保留为后续能力，不得作为本阶段完成条件，也不得用模拟结果替代。下方 `T010`–`T138` 是此前通勤评估路线图，仅作为后续规划，不得与 L 系列当前本地闹钟契约冲突。每个任务是否完成必须以本轮构建、测试和设备记录为准。
+> 2026-08-31 当前执行线先完成本地闹钟；2026-09-01 已完成 `P7` 高德 Provider。天气和提前计算保留为后续能力，不得用模拟结果替代。每个任务是否完成必须以本轮构建、测试和设备记录为准。
+
+> 2026-09-01 高德实现：Android 已完成授权、运行时 Web／SDK Key加密存储、地图、单次定位、地点输入提示／搜索、五种路线、最多三条备选、路况和计划覆盖；原型继续以离线 fixture 验收相同页面状态。待用户提供两项真实 Key 后进行设备实网验收。
 
 ## 1A. 本地闹钟优先执行线
 
@@ -36,7 +38,7 @@
 ### [x] L005 本地页面与真实状态
 
 - 闹钟 CRUD、首页下一次有效闹钟、记录空态／实际事件、日期与结果筛选、真实日历月份和按计划按日期覆盖。
-- 设置持久化、常用地点文字和出行方式保存；天气、路线、地图使用“暂未接入”留白，禁止模拟数据。
+- 设置持久化、全局通勤与计划覆盖、地点与出行方式保存；天气保留“暂未接入”留白，高德地图与路线按 2026-09-01 离线 fixture 契约验收。
 
 ### [x] L006 凭据与能力诊断
 
@@ -179,7 +181,7 @@ test -f docs/environment.md
 实施：
 
 1. 核对 modules：`app`、`core/{model,data,network,alarm,map}`、`feature/{onboarding,home,plan,place,calendar,history,diagnostics}`；新增 `core/security` 与 `feature/credentials`（本轮只加入 settings 与空骨架，实现见 P4/P5）。
-2. 核对版本基线：AGP 9.3.1、Kotlin 2.4.10、KSP 2.3.11、Compose BOM 2026.06.00、Room 3.0.1（androidx.room3 新坐标）、DataStore 1.2.1、Work 2.11.2、Hilt 2.60.1（androidx-hilt 1.4.0）、Retrofit 3.0.0、OkHttp 5.4.0、kotlinx-serialization-json 1.11.0、AMap 合包 11.2.000；`compileSdk = 37`（Room 3.0.1 / androidx-hilt 1.4.0 要求）、`targetSdk = 36`。
+2. 核对版本基线：AGP 9.3.1、Kotlin 2.4.10、KSP 2.3.11、Compose BOM 2026.06.00、Room 3.0.1（androidx.room3 新坐标）、DataStore 1.2.1、Work 2.11.2、Hilt 2.60.1（androidx-hilt 1.4.0）、Retrofit 3.0.0、OkHttp 5.4.0、kotlinx-serialization-json 1.11.0、AMap 合包 11.2.100；`compileSdk = 37`（Room 3.0.1 / androidx-hilt 1.4.0 要求）、`targetSdk = 36`。
 3. 移除 Tink（`tink-android`）依赖：日历签名职责已删除，从 version catalog 与所有模块删除。
 4. 确认 `minSdk = 36`（与 SPEC 第 14 章未确认项一致，变更需在 SPEC 记录）。
 
@@ -704,7 +706,7 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 
 ## 6. P4：凭证安全
 
-### [ ] T050 创建 core/security 模块
+### [x] T050 创建 core/security 模块
 
 依赖：T005、T020。
 
@@ -724,7 +726,7 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 cd android && ./gradlew :core:security:testDebugUnitTest
 ```
 
-### [ ] T051 实现 Keystore 密钥与 AES-GCM 加解密
+### [x] T051 实现 Keystore 密钥与 AES-GCM 加解密
 
 依赖：T050。
 
@@ -743,7 +745,7 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 
 用例：加解密往返、错误密钥/错误 IV 失败、密文版本迁移、别名删除后行为。
 
-### [ ] T052 实现凭证文件存储
+### [x] T052 实现凭证文件存储
 
 依赖：T051。
 
@@ -759,7 +761,7 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 cd android && ./gradlew :core:security:testDebugUnitTest
 ```
 
-### [ ] T053 配置备份排除
+### [x] T053 配置备份排除
 
 依赖：T052。
 
@@ -777,7 +779,7 @@ cd android && ./gradlew :app:assembleDebug
 
 设备验收（API 36）：`adb backup`/云备份恢复后检查 `filesDir/credentials/` 为空。
 
-### [ ] T054 建立日志与崩溃防泄露基线
+### [x] T054 建立日志与崩溃防泄露基线
 
 依赖：T026、T052。
 
@@ -793,7 +795,7 @@ cd android && ./gradlew :app:assembleDebug
 cd android && ./gradlew :core:security:testDebugUnitTest :core:network:testDebugUnitTest
 ```
 
-### [ ] T055 凭证安全验收用例
+### [x] T055 凭证安全验收用例
 
 依赖：T051–T054。
 
@@ -810,7 +812,7 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 
 ## 7. P5：凭证配置与连接测试
 
-### [ ] T060 创建 feature/credentials 模块
+### [x] T060 创建 feature/credentials 模块
 
 依赖：T050。
 
@@ -829,7 +831,7 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 cd android && ./gradlew :feature:credentials:assembleDebug
 ```
 
-### [ ] T061 实现高德 Web Key 连接测试
+### [x] T061 实现高德 Web Key 连接测试
 
 依赖：T026、T060。
 
@@ -861,7 +863,7 @@ cd android && ./gradlew :feature:credentials:testDebugUnitTest
 cd android && ./gradlew :feature:credentials:testDebugUnitTest
 ```
 
-### [ ] T063 实现凭证配置页 UI
+### [x] T063 实现凭证配置页 UI
 
 依赖：T060–T062。
 
@@ -1029,13 +1031,13 @@ grep -riE "tink|payloadSha256|signatureAlgorithm" android/ --include="*.kt" || e
 
 ## 9. P7：高德 Provider
 
-### [ ] T080 建立高德 Web API 客户端
+### [x] T080 建立高德 Web API 客户端
 
 依赖：T026。
 
 实施：
 
-1. Retrofit 接口：v5 `direction/{mode}`、v5 `place/text`、v3 `assist/inputtips`；请求统一携带 `key`（运行时从 `CredentialStore` 读取，禁止硬编码）。
+1. Retrofit 接口：v5 `direction/{mode}`、v5 `place/text`、`/v3/assistant/inputtips` 和 `/v5/direction/electrobike`；请求统一携带 `key`（运行时从 `CredentialStore` 读取，禁止硬编码）。
 2. DTO 用命名字段转换，禁止裸数组传播。
 3. 错误分类：`infocode` → `ProviderError` 映射表（10000/10001/10002/10003/10004/10019/10020/10021/10044/20800–20803 等，SPEC 7.1）。
 
@@ -1045,7 +1047,7 @@ grep -riE "tink|payloadSha256|signatureAlgorithm" android/ --include="*.kt" || e
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T081 实现驾车路线
+### [x] T081 实现驾车路线
 
 依赖：T080。
 
@@ -1060,7 +1062,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T082 实现公交路线
+### [x] T082 实现公交路线
 
 依赖：T080。
 
@@ -1074,13 +1076,13 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T083 实现步行、骑行、电动车路线
+### [x] T083 实现步行、骑行、电动车路线
 
 依赖：T080。
 
 实施：
 
-1. 各模式独立缓存 key 与失败统计；电动车映射为骑行或步行参数（策略记录在文档，不猜测 API 行为）。
+1. 各模式独立缓存 key 与失败统计；电动车使用 `/v5/direction/electrobike`。
 
 验收：
 
@@ -1088,7 +1090,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T084 实现 POI 搜索与输入提示
+### [x] T084 实现 POI 搜索与输入提示
 
 依赖：T080。
 
@@ -1103,7 +1105,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T085 高德连接测试与配额提示
+### [x] T085 高德连接测试与配额提示
 
 依赖：T061、T080。
 
@@ -1116,6 +1118,12 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
+
+### [!] T086 高德真实 Key 设备实网验收
+
+依赖：T080–T085、T111、T114。
+
+待用户提供 Web Service Key 与 Android SDK Key后，在设备验证授权、地图、单次定位、POI／输入提示、五种路线、三条候选、路况和计划覆盖。
 
 ## 10. P8：彩云天气 Provider
 
@@ -1333,7 +1341,7 @@ cd android && ./gradlew :feature:history:assembleDebug
 
 ## 12. P10：完整 Compose UI
 
-### [ ] T110 建立主题、导航和通用状态组件
+### [x] T110 建立主题、导航和通用状态组件
 
 依赖：T005。
 
@@ -1349,7 +1357,7 @@ cd android && ./gradlew :feature:history:assembleDebug
 cd android && ./gradlew :app:assembleDebug
 ```
 
-### [ ] T111 实现首次启动与隐私同意
+### [x] T111 实现首次启动与隐私同意
 
 依赖：T110。
 
@@ -1379,7 +1387,7 @@ cd android && ./gradlew :app:assembleDebug
 cd android && ./gradlew :app:assembleDebug
 ```
 
-### [ ] T113 实现计划列表和编辑
+### [x] T113 实现计划列表和编辑
 
 依赖：T112。
 
@@ -1395,7 +1403,7 @@ cd android && ./gradlew :app:assembleDebug
 cd android && ./gradlew :app:assembleDebug
 ```
 
-### [ ] T114 实现地点选择
+### [x] T114 实现地点选择
 
 依赖：T084、T111。
 
@@ -1635,8 +1643,8 @@ cd android && ./gradlew :app:assembleRelease
 
 | 阻塞项 | 阻塞任务 | 不阻塞内容 |
 |---|---|---|
-| 无高德 Web Key | T085 实网验收 | 日历、彩云 fake、系统闹钟引导、单元测试 |
-| 无高德 Android SDK Key | T114 地图/定位实机验收 | POI 搜索、输入提示、全部核心功能 |
+| 无高德 Web Key | T086 设备实网验收 | 日历、彩云 fake、系统闹钟引导、单元测试 |
+| 无高德 Android SDK Key | T086 设备实网验收 | POI 搜索、输入提示、单元测试 |
 | 无彩云凭证 | T096 实网验收 | 路线、HMAC/DTO/fake 开发、系统闹钟引导 |
 | 彩云坐标基准未确认 | T097 与生产发布 | 全部开发与测试 |
 | 彩云无预警套餐 | 天气等级上调（可选增值） | 普通小时天气与核心功能 |
