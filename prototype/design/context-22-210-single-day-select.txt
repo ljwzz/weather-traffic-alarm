@@ -1,0 +1,438 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 22:210
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/c18701fe-4631-4d3d-8350-569207d0812a.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/cd681e78-982d-443b-a217-83288c567a17.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/92997161-57d7-4677-9a9c-67fa53c079e8.svg";
+const imgIconBack1 = "https://www.figma.com/api/mcp/asset/c6a33602-b968-4e07-884d-3d04405bea7e.svg";
+const imgIconChev = "https://www.figma.com/api/mcp/asset/f7fd569f-70c7-44f1-95a8-5747331d9863.svg";
+const imgIconClock = "https://www.figma.com/api/mcp/asset/f37513a3-8b16-4b09-8994-791287105e59.svg";
+const imgIconChev1 = "https://www.figma.com/api/mcp/asset/aa698c80-82d6-4132-b2f5-963d049a4ccb.svg";
+const imgIconOffice = "https://www.figma.com/api/mcp/asset/9b2b302f-710f-49ee-83b6-2e0e9ccdd2ac.svg";
+const imgIconHome = "https://www.figma.com/api/mcp/asset/70da0528-afec-4e64-aece-0130184749b5.svg";
+const imgIconRain = "https://www.figma.com/api/mcp/asset/e7897f31-a0d4-4123-bd5a-942af0b19abb.svg";
+
+export default function Component16() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="22:210" data-name="16 / 单日加班 · 选择日期">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="22:426" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="22:427" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="22:428" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="22:429" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="22:430" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[64px] items-center overflow-clip px-[24px] relative shrink-0 w-[412px]" data-node-id="22:437" data-name="Header/单日加班">
+        <div className="relative shrink-0 size-[23px]" data-node-id="22:438" data-name="Icon/back">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+        </div>
+        <div className="content-stretch flex flex-[1_0_0] flex-col items-start min-w-px overflow-clip relative" data-node-id="22:440" data-name="Title block">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="22:441">
+            单日加班
+          </p>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[684px] items-start overflow-clip pt-[4px] px-[24px] relative shrink-0 w-[412px]" data-node-id="22:442" data-name="Single day body">
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[260px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="22:443" data-name="Calendar / August 2026">
+          <div className="content-stretch flex gap-[10px] h-[28px] items-center overflow-clip relative shrink-0 w-[340px]" data-node-id="23:420" data-name="Month header">
+            <div className="relative shrink-0 size-[18px]" data-node-id="23:421" data-name="Icon/back">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack1} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[25px] relative shrink-0 text-[17px] text-[color:var(--color\/ink,#172d3c)] text-center w-[282px]" data-node-id="23:423">
+              2026年 8月
+            </p>
+            <div className="relative shrink-0 size-[18px]" data-node-id="23:424" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="[word-break:break-word] content-stretch flex font-['Noto_Sans_SC:Regular'] font-normal gap-[5px] h-[18px] items-start leading-[16px] overflow-clip relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] text-center w-[340px]" data-node-id="23:426" data-name="Week headings">
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:427">
+              一
+            </p>
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:428">
+              二
+            </p>
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:429">
+              三
+            </p>
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:430">
+              四
+            </p>
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:431">
+              五
+            </p>
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:432">
+              六
+            </p>
+            <p className="relative shrink-0 w-[44px]" data-node-id="23:433">
+              日
+            </p>
+          </div>
+          <div className="content-stretch flex flex-col gap-[2px] h-[166px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:434" data-name="Calendar weeks">
+            <div className="content-stretch flex gap-[5px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:435" data-name="Week 1">
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:436" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:437" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  27
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:438" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:439" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  28
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:440" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:441" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  29
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:442" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:443" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  30
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:444" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:445" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  31
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:446" data-name="Date/2026-08-01">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:447" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  1
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:448" data-name="Date/2026-08-02">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:449" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  2
+                </p>
+              </div>
+            </div>
+            <div className="content-stretch flex gap-[5px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:450" data-name="Week 2">
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:451" data-name="Date/2026-08-03">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:452" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  3
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:453" data-name="Date/2026-08-04">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:454" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  4
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:455" data-name="Date/2026-08-05">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:456" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  5
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:457" data-name="Date/2026-08-06">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:458" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  6
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:459" data-name="Date/2026-08-07">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:460" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  7
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:461" data-name="Date/2026-08-08">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:462" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  8
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:463" data-name="Date/2026-08-09">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:464" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  9
+                </p>
+              </div>
+            </div>
+            <div className="content-stretch flex gap-[5px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:465" data-name="Week 3">
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:466" data-name="Date/2026-08-10">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:467" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  10
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:468" data-name="Date/2026-08-11">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:469" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  11
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:470" data-name="Date/2026-08-12">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:471" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  12
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:472" data-name="Date/2026-08-13">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:473" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  13
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:474" data-name="Date/2026-08-14">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:475" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  14
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:476" data-name="Date/2026-08-15">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:477" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  15
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:478" data-name="Date/2026-08-16">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:479" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  16
+                </p>
+              </div>
+            </div>
+            <div className="content-stretch flex gap-[5px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:480" data-name="Week 4">
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:481" data-name="Date/2026-08-17">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:482" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  17
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:483" data-name="Date/2026-08-18">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:484" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  18
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:485" data-name="Date/2026-08-19">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:486" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  19
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:487" data-name="Date/2026-08-20">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:488" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  20
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:489" data-name="Date/2026-08-21">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:490" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  21
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:491" data-name="Date/2026-08-22">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:492" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  22
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:493" data-name="Date/2026-08-23">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:494" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  23
+                </p>
+              </div>
+            </div>
+            <div className="content-stretch flex gap-[5px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:495" data-name="Week 5">
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:496" data-name="Date/2026-08-24">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:497" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  24
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:498" data-name="Date/2026-08-25">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:499" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  25
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:500" data-name="Date/2026-08-26">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:501" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  26
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:502" data-name="Date/2026-08-27">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] text-center whitespace-nowrap" data-node-id="23:503" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  27
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:504" data-name="Date/2026-08-28">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] text-center whitespace-nowrap" data-node-id="23:505" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  28
+                </p>
+              </div>
+              <div className="bg-[var(--color\/brand,#007f78)] content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:506" data-name="Date/2026-08-29">
+                <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/white,white)] text-center whitespace-nowrap" data-node-id="23:507" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  29
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:508" data-name="Date/2026-08-30">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] text-center whitespace-nowrap" data-node-id="23:509" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  30
+                </p>
+              </div>
+            </div>
+            <div className="content-stretch flex gap-[5px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="23:510" data-name="Week 6">
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:511" data-name="Date/2026-08-31">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] text-center whitespace-nowrap" data-node-id="23:512" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  31
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:513" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:514" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  1
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:515" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:516" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  2
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:517" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:518" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  3
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:519" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:520" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  4
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:521" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:522" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  5
+                </p>
+              </div>
+              <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[44px]" data-node-id="23:523" data-name="Outside month">
+                <p className="[word-break:break-word] font-['Roboto:Regular'] font-normal leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/subtle,#8a9aa3)] text-center whitespace-nowrap" data-node-id="23:524" style={{ fontVariationSettings: '"wdth" 100' }}>
+                  6
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex flex-col gap-[6px] h-[74px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="22:444" data-name="Selected date summary">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-center overflow-clip relative shrink-0 w-[340px]" data-node-id="23:525" data-name="Selected date">
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[28px] min-w-px relative text-[19px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="23:526">
+              8月29日 · 周六
+            </p>
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="23:527" data-name="Badge/仅单日">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="23:528">
+                仅单日
+              </p>
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="23:529">
+            家 → 公司 · 沿用上班路线
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col h-[188px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="22:445" data-name="Single date overrides">
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[41px] items-center overflow-clip relative shrink-0 w-full" data-node-id="23:530" data-name="Setting/默认起床参考">
+            <div className="relative shrink-0 size-[20px]" data-node-id="23:531" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="23:534">
+              默认起床参考
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="23:535">
+              07:30
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="23:536" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev1} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[41px] items-center overflow-clip relative shrink-0 w-full" data-node-id="23:538" data-name="Setting/到岗时间">
+            <div className="relative shrink-0 size-[20px]" data-node-id="23:539" data-name="Icon/office">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconOffice} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="23:542">
+              到岗时间
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="23:543">
+              09:00
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="23:544" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev1} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[41px] items-center overflow-clip relative shrink-0 w-full" data-node-id="23:546" data-name="Setting/起床准备">
+            <div className="relative shrink-0 size-[20px]" data-node-id="23:547" data-name="Icon/home">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconHome} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="23:550">
+              起床准备
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="23:551">
+              45 分钟
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="23:552" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev1} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[41px] items-center overflow-clip relative shrink-0 w-full" data-node-id="23:554" data-name="Entry/Single date buffer">
+            <div className="relative shrink-0 size-[20px]" data-node-id="23:555" data-name="Icon/rain">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRain} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="23:558">
+              本日缓冲
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="23:559">
+              周末 5 / 10 / 20 分
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="23:560" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev1} />
+            </div>
+          </div>
+        </div>
+        <div className="[word-break:break-word] bg-[var(--color\/amberbg,#fff1da)] content-stretch flex flex-col gap-[6px] h-[94px] items-start overflow-clip p-[14px] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="22:446" data-name="One day boundary">
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="23:562">
+            仅这个日期有效
+          </p>
+          <div className="font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[336px]" data-node-id="23:563">
+            <p className="leading-[16px] mb-0">8月30日恢复停用，不改变每周安排。</p>
+            <p className="leading-[16px]">正常起床仍需在系统时钟设置并确认。</p>
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col h-[76px] items-start overflow-clip px-[24px] py-[var(--space\/12,12px)] relative shrink-0 w-[412px]" data-node-id="22:447" data-name="Single day footer">
+        <CodeConnectSnippet data-node-id="22:448" data-name="Button/仅开启 8月29日">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="仅开启 8月29日" labelText="仅开启 8月29日" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="22:454" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="22:455" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Body: Font(family: "Noto Sans SC", style: Regular, size: 14, weight: 400, lineHeight: 20, letterSpacing: 0), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

@@ -5,6 +5,7 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WorkdayOverrideDao {
@@ -14,6 +15,9 @@ interface WorkdayOverrideDao {
 
     @Query("SELECT * FROM workday_overrides WHERE plan_id = :planId")
     suspend fun getByPlanId(planId: String): List<WorkdayOverrideEntity>
+
+    @Query("SELECT * FROM workday_overrides WHERE plan_id = :planId ORDER BY date")
+    fun observeForPlan(planId: String): Flow<List<WorkdayOverrideEntity>>
 
     @Query("SELECT * FROM workday_overrides WHERE plan_id = :planId AND date = :date LIMIT 1")
     suspend fun getByPlanIdAndDate(planId: String, date: String): WorkdayOverrideEntity?

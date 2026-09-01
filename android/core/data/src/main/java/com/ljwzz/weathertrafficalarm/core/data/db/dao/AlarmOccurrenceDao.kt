@@ -7,6 +7,7 @@ import androidx.room3.Query
 import androidx.room3.Transaction
 import androidx.room3.Update
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmOccurrenceEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlarmOccurrenceDao {
@@ -30,6 +31,12 @@ interface AlarmOccurrenceDao {
 
     @Query("SELECT * FROM alarm_occurrences WHERE plan_id = :planId ORDER BY target_date DESC")
     suspend fun getByPlanId(planId: String): List<AlarmOccurrenceEntity>
+
+    @Query("SELECT * FROM alarm_occurrences ORDER BY scheduled_wake_at DESC")
+    fun observeAll(): Flow<List<AlarmOccurrenceEntity>>
+
+    @Query("SELECT * FROM alarm_occurrences ORDER BY scheduled_wake_at DESC")
+    suspend fun getAll(): List<AlarmOccurrenceEntity>
 
     @Query("UPDATE alarm_occurrences SET state = :state, updated_at = :updatedAt WHERE occurrence_id = :occurrenceId")
     suspend fun updateState(occurrenceId: String, state: String, updatedAt: Long)

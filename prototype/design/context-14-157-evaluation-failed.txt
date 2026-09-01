@@ -1,0 +1,229 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 14:157
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/3684bb82-95e3-40d5-bf6b-bb1f7e61188e.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/2c22c47a-04ee-4610-9bc6-390e1be76bea.svg";
+const imgIconBell = "https://www.figma.com/api/mcp/asset/e8a9222d-c923-4383-94e4-c7b08f0c7269.svg";
+const imgIconInfo = "https://www.figma.com/api/mcp/asset/633d0a99-a585-4dba-a405-547998f9d87c.svg";
+const imgIconShield = "https://www.figma.com/api/mcp/asset/d07b24b9-9a70-4e57-9887-5d8118e5880c.svg";
+const imgIconCloud = "https://www.figma.com/api/mcp/asset/f1276e3b-e48e-4df6-8b58-83796c2f0585.svg";
+const imgIconSun = "https://www.figma.com/api/mcp/asset/563f9fc3-2583-49e8-a573-94f7619e9702.svg";
+const imgIconRoute = "https://www.figma.com/api/mcp/asset/483a629d-c098-4e80-b404-658d708a69e0.svg";
+const imgIconClock = "https://www.figma.com/api/mcp/asset/65b239be-aff1-429b-9584-079d22709c2e.svg";
+const imgIconSettings = "https://www.figma.com/api/mcp/asset/356b6647-6408-4012-9c32-e3ce1629601e.svg";
+
+export default function Component14() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="14:157" data-name="14 / 异常 · 评估未完成">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="14:229" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="14:230" style={{ fontVariationSettings: '"wdth" 100' }}>
+          21:05
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="14:231" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="14:232" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="14:233" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[88px] items-center overflow-clip px-[24px] relative shrink-0 w-[412px]" data-node-id="14:240" data-name="Header/知途">
+        <div className="[word-break:break-word] content-stretch flex flex-[1_0_0] flex-col gap-[3px] items-start min-w-px overflow-clip relative whitespace-nowrap" data-node-id="14:241" data-name="Title block">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:242">
+            知途
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)]" data-node-id="14:243">
+            8月26日，星期三 · 明日通勤
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 size-[40px]" data-node-id="14:244" data-name="Icon button/bell">
+          <div className="relative shrink-0 size-[21px]" data-node-id="14:245" data-name="Icon/bell">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBell} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/16,16px)] h-[660px] items-start overflow-clip pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="14:247" data-name="Evaluation failure">
+        <div className="bg-[var(--color\/amberbg,#fff1da)] content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[216px] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="14:248" data-name="Evaluation unavailable">
+          <div className="content-stretch flex gap-[10px] h-[38px] items-center overflow-clip relative shrink-0 w-[324px]" data-node-id="14:249" data-name="Failure heading">
+            <div className="bg-[var(--color\/surface,white)] content-stretch flex items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 size-[36px]" data-node-id="14:250" data-name="Icon button/info">
+              <div className="relative shrink-0 size-[21px]" data-node-id="14:251" data-name="Icon/info">
+                <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconInfo} />
+              </div>
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[28px] min-w-px relative text-[19px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:254">
+              本次评估未完成
+            </p>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[22px] relative shrink-0 text-[15px] text-[color:var(--color\/amber,#ad661c)] whitespace-nowrap" data-node-id="14:255">
+            天气服务暂时不可用
+          </p>
+          <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="14:256">
+            <p className="leading-[19px] mb-0">没有新增或调整提前闹钟。</p>
+            <p className="leading-[19px]">请保留并确认系统时钟的正常闹钟。</p>
+          </div>
+          <div className="content-stretch flex gap-[6px] h-[32px] items-center overflow-clip relative shrink-0 w-[324px]" data-node-id="14:257" data-name="Error metadata">
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/amber,#ad661c)] whitespace-nowrap" data-node-id="14:258">
+              21:02 获取失败
+            </p>
+            <div className="flex-[1_0_0] h-px min-w-px relative" data-node-id="14:259" data-name="flex" />
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/amber,#ad661c)] whitespace-nowrap" data-node-id="14:260">
+              查看原因
+            </p>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[10px] h-[170px] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="14:261" data-name="Confirm normal system alarm">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[24px] items-start overflow-clip relative shrink-0 w-[324px]" data-node-id="14:262" data-name="System alarm heading">
+            <div className="relative shrink-0 size-[20px]" data-node-id="14:263" data-name="Icon/shield">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconShield} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="14:266">
+              正常起床仍由系统时钟负责
+            </p>
+          </div>
+          <div className="[word-break:break-word] content-stretch flex gap-[var(--space\/12,12px)] h-[52px] items-center overflow-clip relative shrink-0 w-[324px] whitespace-nowrap" data-node-id="14:267" data-name="Normal time">
+            <p className="font-['Roboto:Light'] font-light leading-[49px] relative shrink-0 text-[43px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:268" style={{ fontVariationSettings: '"wdth" 100' }}>
+              07:30
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/amber,#ad661c)]" data-node-id="14:269">
+              需要你确认
+            </p>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:270">
+            打开系统时钟，检查时间、重复日期和开关。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[92px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="14:271" data-name="Last known weather">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[26px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="14:272" data-name="Stale weather">
+            <div className="relative shrink-0 size-[22px]" data-node-id="14:273" data-name="Icon/cloud">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconCloud} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[19px] min-w-px relative text-[13px] text-[color:var(--color\/muted,#647782)]" data-node-id="14:275">
+              上次天气：多云 24°
+            </p>
+            <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="14:276" data-name="Badge/数据已过期">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:277">
+                数据已过期
+              </p>
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/subtle,#8a9aa3)] whitespace-nowrap" data-node-id="14:278">
+            旧数据仅供查看，不用于新的提前计算。
+          </p>
+        </div>
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[52px] items-start overflow-clip relative shrink-0 w-[364px]" data-node-id="14:279" data-name="Failure actions">
+          <CodeConnectSnippet data-node-id="14:280" data-name="Button/重新评估">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="重新评估" labelText="重新评估" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="14:287" data-name="Button/查看诊断">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="查看诊断" labelText="查看诊断" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:293">
+          如果再次失败，现有闹钟设置保持不变。
+        </p>
+      </div>
+      <div className="bg-[var(--color\/surface,white)] content-stretch flex h-[76px] items-start pb-[4px] pt-[8px] relative shrink-0 w-[412px]" data-node-id="14:294" data-name="知途 / Navigation">
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I14:294;5:4" data-name="Tab/今日">
+          <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I14:294;5:5" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I14:294;5:6" data-name="Icon/sun">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconSun} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="I14:294;5:9">
+            今日
+          </p>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I14:294;5:10" data-name="Tab/路线">
+          <div className="content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I14:294;5:11" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I14:294;5:12" data-name="Icon/route">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRoute} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="I14:294;5:16">
+            路线
+          </p>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I14:294;5:17" data-name="Tab/闹钟">
+          <div className="content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I14:294;5:18" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I14:294;5:19" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="I14:294;5:22">
+            闹钟
+          </p>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I14:294;5:23" data-name="Tab/设置">
+          <div className="content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I14:294;5:24" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I14:294;5:25" data-name="Icon/settings">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconSettings} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="I14:294;5:28">
+            设置
+          </p>
+        </div>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="14:320" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="14:321" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Label: Font(family: "Noto Sans SC", style: Medium, size: 13, weight: 500, lineHeight: 19, letterSpacing: 0), 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+## Active=今日
+**Node ID:** 5:3
+
+知途底部导航。选中项同时以图标底色和标签强调。
+
+## 知途 / Navigation
+**Node ID:** 5:107
+
+四个主要目的地：今日、路线、闹钟、设置。
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

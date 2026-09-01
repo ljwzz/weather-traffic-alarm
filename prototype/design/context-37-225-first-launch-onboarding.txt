@@ -1,0 +1,134 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 37:225
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/d4253e9c-67e8-4ded-a914-52ca8a91a3d4.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/2c009551-55c4-490f-a306-f1d68f69c1d3.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/dbbbe193-1e87-4fe8-b8fc-a21a5192b36b.svg";
+
+export default function Component18() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="37:225" data-name="18 / 首次使用 · 隐私与引导">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="37:226" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="37:227" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="37:228" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="37:229" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="37:230" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[88px] items-start overflow-clip pb-[12px] pt-[8px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="37:237" data-name="Header/开始使用知途">
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center overflow-clip relative shrink-0 w-[364px]" data-node-id="37:238" data-name="Back and title">
+          <div className="relative shrink-0 size-[18px]" data-node-id="37:239" data-name="Icon/back">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="37:241">
+            开始使用知途
+          </p>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="37:242">
+          在需要时提前，正常闹钟保持原样
+        </p>
+      </div>
+      <div className="[word-break:break-word] content-stretch flex flex-col gap-[var(--space\/16,16px)] h-[660px] items-start overflow-x-clip overflow-y-auto pb-[var(--space\/24,24px)] pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="37:243" data-name="Body/onboarding">
+        <div className="bg-[var(--color\/navy,#123f4d)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/24,24px)] relative rounded-[var(--radius\/24,24px)] shrink-0 text-[color:var(--color\/white,white)] w-[364px]" data-node-id="37:319" data-name="Welcome">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[41px] relative shrink-0 text-[28px] whitespace-nowrap" data-node-id="37:320">
+            知途
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] w-[316px]" data-node-id="37:321">
+            让每一次出发，都从容一点。
+          </p>
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] w-[316px]" data-node-id="37:322">
+            天气 × 通勤 × 提前提醒
+          </p>
+        </div>
+        <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="37:323" data-name="正常闹钟，由系统时钟负责">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="37:324">
+            正常闹钟，由系统时钟负责
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="37:325">
+            知途只在评估成功且需要提前时，安排一次提前闹钟。请先在系统时钟设置正常起床闹钟。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="37:326" data-name="你的数据，按需使用">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="37:327">
+            你的数据，按需使用
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="37:328">
+            路线搜索与天气评估会向对应数据服务发送必要的地点信息。仅点按「使用当前位置」时获取定位，不持续定位。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="37:329" data-name="按需完成设置">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="37:330">
+            按需完成设置
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="37:331">
+            接口凭据、通知与精确闹钟权限可稍后配置；未准备就绪时只浏览，不执行评估。
+          </p>
+        </div>
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-start overflow-clip relative shrink-0 w-[364px]" data-node-id="37:332" data-name="Privacy consent">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="37:333">
+            □
+          </p>
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/muted,#647782)] w-[328px]" data-node-id="37:334">
+            我已阅读并同意隐私说明与数据使用规则
+          </p>
+        </div>
+        <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] w-[364px] whitespace-pre-wrap" data-node-id="37:342">{`仅浏览本地演示  →`}</p>
+      </div>
+      <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col h-[76px] items-start overflow-clip pb-[16px] pt-[12px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="37:244" data-name="Footer/onboarding">
+        <CodeConnectSnippet data-node-id="37:335" data-name="Button">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="同意并开始设置" labelText="同意并开始设置" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="37:245" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="37:246" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

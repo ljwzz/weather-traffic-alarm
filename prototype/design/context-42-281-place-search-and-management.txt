@@ -1,0 +1,183 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 42:281
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/2be0e412-c107-4ed8-a403-a9dbff12be4d.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/45bb17d6-1ef0-433a-8356-c8f64410a959.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/6450a041-f09c-4c3b-a8b5-0fa35540458c.svg";
+const imgIconLocate = "https://www.figma.com/api/mcp/asset/26120a5e-723d-45d7-b3cf-d957d6b5d454.svg";
+
+export default function Component() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="42:281" data-name="地点 · 搜索与管理">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="43:295" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="43:296" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="43:297" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="43:298" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="43:299" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[64px] items-center overflow-clip p-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="43:306" data-name="Header/选择地点">
+        <div className="relative shrink-0 size-[18px]" data-node-id="43:307" data-name="Icon/back">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[41px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="43:309">
+          选择地点
+        </p>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/16,16px)] h-[684px] items-start overflow-x-clip overflow-y-auto pb-[var(--space\/24,24px)] pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="43:310" data-name="Places body">
+        <div className="content-stretch flex flex-col h-[76px] items-start relative shrink-0 w-[364px]" data-node-id="46:308" data-name="Text field with support">
+          <CodeConnectSnippet data-node-id="46:309" data-name="Text field">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+            <TextField textSupportingText="地点搜索为演示结果，不发送真实请求" supportingText="地点搜索为演示结果，不发送真实请求" textInputText="滨盛路" inputText="滨盛路" textLabelText="搜索地点" labelText="搜索地点" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={true} showSupportingText={true} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+          </CodeConnectSnippet>
+        </div>
+        <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex gap-[var(--space\/12,12px)] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/16,16px)] shrink-0 w-[364px]" data-node-id="43:321" data-name="Use current location">
+          <div className="relative shrink-0 size-[20px]" data-node-id="52:479" data-name="Icon/locate">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconLocate} />
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="43:326">
+            使用当前位置（模拟）
+          </p>
+        </div>
+        <div className="[word-break:break-word] bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="43:327" data-name="搜索结果">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="43:328">
+            搜索结果
+          </p>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="43:329" data-name="滨盛路 · 示例位置 A">
+            <div className="content-stretch flex flex-col font-['Noto_Sans_SC:Regular'] font-normal gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="43:330" data-name="Label">
+              <p className="leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="43:331">
+                滨盛路 · 示例位置 A
+              </p>
+              <p className="leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[200px]" data-node-id="43:332">
+                杭州市滨江区 · 演示地点
+              </p>
+            </div>
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="43:333">
+              选择 ›
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="43:334" data-name="西兴办公园区 · 示例位置 B">
+            <div className="content-stretch flex flex-col font-['Noto_Sans_SC:Regular'] font-normal gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="43:335" data-name="Label">
+              <p className="leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="43:336">
+                西兴办公园区 · 示例位置 B
+              </p>
+              <p className="leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[200px]" data-node-id="43:337">
+                杭州市滨江区 · 演示地点
+              </p>
+            </div>
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="43:338">
+              选择 ›
+            </p>
+          </div>
+        </div>
+        <div className="[word-break:break-word] bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="43:339" data-name="常用地点">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="43:340">
+            常用地点
+          </p>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="43:341" data-name="家 · 滨盛路">
+            <div className="content-stretch flex flex-col font-['Noto_Sans_SC:Regular'] font-normal gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="43:342" data-name="Label">
+              <p className="leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="43:343">
+                家 · 滨盛路
+              </p>
+              <p className="leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[200px]" data-node-id="43:344">
+                设为起点
+              </p>
+            </div>
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="43:345">
+              编辑 ›
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="43:346" data-name="公司 · 西兴办公园区">
+            <div className="content-stretch flex flex-col font-['Noto_Sans_SC:Regular'] font-normal gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="43:347" data-name="Label">
+              <p className="leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="43:348">
+                公司 · 西兴办公园区
+              </p>
+              <p className="leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[200px]" data-node-id="43:349">
+                设为终点
+              </p>
+            </div>
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="43:350">
+              编辑 ›
+            </p>
+          </div>
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] w-[324px] whitespace-pre-wrap" data-node-id="43:351">{`管理常用地点  ›`}</p>
+        </div>
+        <div className="[word-break:break-word] bg-[var(--color\/sky,#e3f2fa)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="43:352" data-name="已选 · 家 · 滨盛路">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="43:353">
+            已选 · 家 · 滨盛路
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="43:354">
+            仅保存示例地点。点击地图选点、搜索无结果与定位不可用状态，均可在本地原型中切换。
+          </p>
+        </div>
+      </div>
+      <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col h-[76px] items-start overflow-clip px-[var(--space\/24,24px)] py-[12px] relative shrink-0 w-[412px]" data-node-id="43:355" data-name="Use place footer">
+        <CodeConnectSnippet data-node-id="43:356" data-name="Button/使用这个地点">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="使用这个地点" labelText="使用这个地点" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="43:363" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="43:364" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: M3/sys/light/surface: #FEF7FF, M3/sys/light/outline: #79747E.
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Text field
+**Node ID:** 38:911
+
+Use a text field when someone needs to enter text into a UI, such as filling in contact or payment information. 🛠 Additional options Support text - you can toggle supporting text between hide and show.
+
+**Documentation:**
+- [https://m3.material.io/components/text-fields/overview](https://m3.material.io/components/text-fields/overview)
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

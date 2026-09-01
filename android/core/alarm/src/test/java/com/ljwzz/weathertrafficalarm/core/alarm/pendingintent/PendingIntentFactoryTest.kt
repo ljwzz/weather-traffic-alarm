@@ -127,6 +127,21 @@ class PendingIntentFactoryTest {
         assertEquals(intent1.javaClass, intent2.javaClass)
         assertNotNull(intent1.data)
         assertNotNull(intent2.data)
+        assertFalse(intent1.data == intent2.data)
+    }
+
+    @Test
+    fun showAlarmIntentTargetsTheDirectBootSafeRingingActivity() {
+        val pendingIntent = factory.showAlarmPendingIntent("occ-1")
+        val saved = Shadows.shadowOf(pendingIntent).savedIntent
+
+        assertTrue(Shadows.shadowOf(pendingIntent).isImmutable)
+        assertEquals(PendingIntentFactory.ACTION_SHOW_ALARM, saved.action)
+        assertEquals("occ-1", saved.getStringExtra(PendingIntentFactory.EXTRA_OCCURRENCE_ID))
+        assertEquals(
+            "com.ljwzz.weathertrafficalarm.ui.zhitu.AlarmRingingActivity",
+            saved.component?.className,
+        )
     }
 
     @Test

@@ -1,0 +1,219 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 37:297
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/cdbfaf57-64f9-4f6a-9546-c94f8dae6d15.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/6addf098-4cf4-483a-add9-583daa31f372.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/0c3e0a6b-67f4-467c-92f1-036567707395.svg";
+
+export default function Component21() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="37:297" data-name="21 / 诊断 · 提醒可靠性">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="37:298" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="37:299" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="37:300" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="37:301" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="37:302" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[88px] items-start overflow-clip pb-[12px] pt-[8px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="37:309" data-name="Header/可靠性诊断">
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center overflow-clip relative shrink-0 w-[364px]" data-node-id="37:310" data-name="Back and title">
+          <div className="relative shrink-0 size-[18px]" data-node-id="37:311" data-name="Icon/back">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="37:313">
+            可靠性诊断
+          </p>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="37:314">
+          检查权限、数据与最近的评估事件
+        </p>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/16,16px)] h-[660px] items-start overflow-x-clip overflow-y-auto pb-[var(--space\/24,24px)] pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="37:315" data-name="Body/diagnostics">
+        <div className="[word-break:break-word] bg-[var(--color\/amberbg,#fff1da)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="40:271" data-name="正常闹钟仍需手动确认">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="40:272">
+            正常闹钟仍需手动确认
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="40:273">
+            请在系统时钟检查 07:30 的正常闹钟。应用无法保证识别其他时钟的设置。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="40:274" data-name="提醒权限与声音">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="40:275">
+            提醒权限与声音
+          </p>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:276" data-name="通知权限">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:277" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:278">
+                通知权限
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:279">
+              已允许 · 示例
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:280" data-name="精确闹钟">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:281" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:282">
+                精确闹钟
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:283">
+              已允许 · 示例
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:284" data-name="全屏响铃">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:285" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:286">
+                全屏响铃
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:287">
+              去确认 ›
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:288" data-name="铃声与音量">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:289" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:290">
+                铃声与音量
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:291">
+              晨光 ›
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:292" data-name="后台与电池限制">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:293" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:294">
+                后台与电池限制
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:295">
+              查看说明 ›
+            </p>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="40:296" data-name="数据服务">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="40:297">
+            数据服务
+          </p>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:298" data-name="高德 · 路线与地点">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:299" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:300">
+                高德 · 路线与地点
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:301">
+              未配置 ›
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:302" data-name="彩云 · 天气">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:303" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:304">
+                彩云 · 天气
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:305">
+              未配置 ›
+            </p>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="40:306">
+            仅显示配置状态与测试时间，不显示密钥内容。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="40:307" data-name="最近事件 · 本机记录">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="40:308">
+            最近事件 · 本机记录
+          </p>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:309" data-name="21:02 · 明日评估">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:310" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:311">
+                21:02 · 明日评估
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:312">
+              天气请求失败
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:313" data-name="20:00 · 日历刷新">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:314" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:315">
+                20:00 · 日历刷新
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:316">
+              演示缓存
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center justify-between overflow-clip relative shrink-0 w-[324px]" data-node-id="40:317" data-name="08:03 · 出发提醒">
+            <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] items-start overflow-clip relative shrink-0 w-[200px]" data-node-id="40:318" data-name="Label">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/ink,#172d3c)] w-[200px]" data-node-id="40:319">
+                08:03 · 出发提醒
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="40:320">
+              展示模拟
+            </p>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="40:321">
+            不记录密钥、完整地址或经纬度；示例事件不代表真实设备能力。
+          </p>
+        </div>
+      </div>
+      <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col h-[76px] items-start overflow-clip pb-[16px] pt-[12px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="37:316" data-name="Footer/diagnostics">
+        <CodeConnectSnippet data-node-id="40:322" data-name="Button/重新检查（模拟）">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="重新检查（模拟）" labelText="重新检查（模拟）" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="37:317" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="37:318" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

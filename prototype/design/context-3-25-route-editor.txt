@@ -1,0 +1,303 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 3:25
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/12a9876b-a612-4486-8d42-c1904942e975.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/95e90c23-d1c7-4316-9e2e-9bafd2f9a620.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/9ddccdc2-edcb-4477-8b12-13dd69da41b2.svg";
+const imgIconHome = "https://www.figma.com/api/mcp/asset/ff999dff-2950-4747-b872-4f1ac217060e.svg";
+const imgIconSearch = "https://www.figma.com/api/mcp/asset/0374432f-f6d0-4502-b643-e9ca84619b51.svg";
+const imgIconOffice = "https://www.figma.com/api/mcp/asset/cb52e5b1-f8a1-4a96-90c0-bc86379817be.svg";
+const imgIconCar = "https://www.figma.com/api/mcp/asset/8d8c9bab-4a66-4b37-a712-39e379c07671.svg";
+const imgIconBus = "https://www.figma.com/api/mcp/asset/64910430-d3f7-41e6-bdc9-701b6bf7f1b3.svg";
+const imgIconBike = "https://www.figma.com/api/mcp/asset/e1048491-48d7-44b9-b31c-96725b0be31a.svg";
+const imgVector = "https://www.figma.com/api/mcp/asset/ecba5830-86a5-465f-a09a-54fb9fc59805.svg";
+const imgVector1 = "https://www.figma.com/api/mcp/asset/796679ac-8d9d-4b50-95c8-53c14adceb7e.svg";
+const imgIconWalk = "https://www.figma.com/api/mcp/asset/fb694ba1-6add-494e-afd1-91458ef070a9.svg";
+const imgEditableGeography = "https://www.figma.com/api/mcp/asset/6cb5de34-98ff-41dd-8b1d-d1c03b80c649.svg";
+const imgIconHome1 = "https://www.figma.com/api/mcp/asset/a9444794-317b-4e05-bf46-9f11c6dd234a.svg";
+const imgIconOffice1 = "https://www.figma.com/api/mcp/asset/3b9045dc-4d0b-4f3d-be97-0eab23aac650.svg";
+const imgIconPin = "https://www.figma.com/api/mcp/asset/9f2f7d98-0c95-424f-b7da-a3aa52450cd3.svg";
+const imgIconLocate = "https://www.figma.com/api/mcp/asset/225465ba-1b49-4750-ad4b-5996e1af1cff.svg";
+const imgIconClock = "https://www.figma.com/api/mcp/asset/537e12f1-c31c-41b5-84e3-13221b3543a1.svg";
+const imgIconChev = "https://www.figma.com/api/mcp/asset/7b7003b3-1a68-43ce-9e04-fa858249002d.svg";
+const imgIconShield = "https://www.figma.com/api/mcp/asset/16775188-3ccf-4fe3-a430-4aca6cef7663.svg";
+
+export default function Component04() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="3:25" data-name="04 / 路线 · 编辑与选点">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="8:233" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="8:234" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="8:235" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="8:236" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="8:237" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[64px] items-center overflow-clip px-[24px] relative shrink-0 w-[412px]" data-node-id="8:244" data-name="Header/编辑上班路线">
+        <div className="relative shrink-0 size-[23px]" data-node-id="8:245" data-name="Icon/back">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+        </div>
+        <div className="content-stretch flex flex-[1_0_0] flex-col items-start min-w-px overflow-clip relative" data-node-id="8:247" data-name="Title block">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="8:248">
+            编辑上班路线
+          </p>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[14px] h-[684px] items-start overflow-clip pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="8:249" data-name="Route editor">
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[124px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="8:250" data-name="Endpoints">
+          <div className="content-stretch flex gap-[10px] h-[42px] items-center overflow-clip relative shrink-0 w-[332px]" data-node-id="8:251" data-name="起点">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:252" data-name="Icon/home">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconHome} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:255">
+              起点
+            </p>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="8:256">
+              家 · 滨盛路
+            </p>
+            <div className="relative shrink-0 size-[17px]" data-node-id="8:257" data-name="Icon/search">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconSearch} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[10px] h-[42px] items-center overflow-clip relative shrink-0 w-[332px]" data-node-id="8:260" data-name="终点">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:261" data-name="Icon/office">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconOffice} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:264">
+              终点
+            </p>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="8:265">
+              公司 · 西兴办公园区
+            </p>
+            <div className="relative shrink-0 size-[17px]" data-node-id="8:266" data-name="Icon/search">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconSearch} />
+            </div>
+          </div>
+        </div>
+        <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[60px] items-start overflow-clip relative shrink-0 w-[364px]" data-node-id="8:269" data-name="Travel modes">
+          <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[60px] items-center justify-center overflow-clip py-[6px] relative rounded-[var(--radius\/12,12px)] shrink-0 w-[66.4px]" data-node-id="8:270" data-name="Mode/驾车">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:271" data-name="Icon/car">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconCar} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="8:275">
+              驾车
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[60px] items-center justify-center overflow-clip py-[6px] relative rounded-[var(--radius\/12,12px)] shrink-0 w-[66.4px]" data-node-id="8:276" data-name="Mode/公交">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:277" data-name="Icon/bus">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBus} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:282">
+              公交
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[60px] items-center justify-center overflow-clip py-[6px] relative rounded-[var(--radius\/12,12px)] shrink-0 w-[66.4px]" data-node-id="8:283" data-name="Mode/骑行">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:284" data-name="Icon/bike">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBike} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:288">
+              骑行
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[60px] items-center justify-center overflow-clip py-[6px] relative rounded-[var(--radius\/12,12px)] shrink-0 w-[66.4px]" data-node-id="41:275" data-name="Mode/电动车">
+            <div className="overflow-clip relative shrink-0 size-[20px]" data-node-id="41:276" data-name="Icon/electric-bike">
+              <div className="absolute inset-[54.17%_62.5%_12.5%_4.17%]" data-node-id="41:277" data-name="Vector">
+                <div className="absolute inset-[-11.25%]">
+                  <img alt="" className="block max-w-none size-full" src={imgVector} />
+                </div>
+              </div>
+              <div className="absolute inset-[54.17%_4.17%_12.5%_62.5%]" data-node-id="41:278" data-name="Vector">
+                <div className="absolute inset-[-11.25%]">
+                  <img alt="" className="block max-w-none size-full" src={imgVector} />
+                </div>
+              </div>
+              <div className="absolute inset-[16.67%_20.83%_29.17%_20.83%]" data-node-id="41:279" data-name="Vector">
+                <div className="absolute inset-[-6.92%_-6.43%]">
+                  <img alt="" className="block max-w-none size-full" src={imgVector1} />
+                </div>
+              </div>
+              <p className="[word-break:break-word] absolute font-['Roboto:Medium'] font-medium leading-[normal] left-[13px] text-[8px] text-[color:var(--color\/brand,#007f78)] top-[-2px] whitespace-nowrap" data-node-id="41:281" style={{ fontVariationSettings: '"wdth" 100' }}>
+                E
+              </p>
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="41:280">
+              电动车
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[60px] items-center justify-center overflow-clip py-[6px] relative rounded-[var(--radius\/12,12px)] shrink-0 w-[66.4px]" data-node-id="8:289" data-name="Mode/步行">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:290" data-name="Icon/walk">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconWalk} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:293">
+              步行
+            </p>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/map,#e7eeea)] h-[230px] overflow-clip relative rounded-[var(--radius\/16,16px)] shrink-0 w-[364px]" data-node-id="8:294" data-name="Commute / illustrative vector map">
+          <div className="absolute h-[230px] left-0 top-0 w-[364px]" data-node-id="8:295" data-name="Editable geography">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEditableGeography} />
+          </div>
+          <p className="[word-break:break-word] absolute font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] left-[102.49px] text-[12px] text-[color:var(--color\/blue,#4f94c4)] top-[35.55px] whitespace-nowrap" data-node-id="8:373">
+            钱 塘 江
+          </p>
+          <p className="[word-break:break-word] absolute font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] left-[56.54px] text-[14px] text-[color:var(--color\/muted,#647782)] top-[100.36px] whitespace-nowrap" data-node-id="8:374">
+            滨 江 区
+          </p>
+          <p className="[word-break:break-word] absolute font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] left-[229.71px] text-[10px] text-[color:var(--color\/muted,#647782)] top-[167.27px] whitespace-nowrap" data-node-id="8:375">
+            江南大道
+          </p>
+          <p className="[word-break:break-word] absolute font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] left-[21.2px] text-[10px] text-[color:var(--color\/muted,#647782)] top-[82.07px] whitespace-nowrap" data-node-id="8:376">
+            滨盛路
+          </p>
+          <p className="[word-break:break-word] absolute font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] left-[288.9px] text-[11px] text-[color:var(--color\/muted,#647782)] top-[131.73px] whitespace-nowrap" data-node-id="8:377">
+            西兴
+          </p>
+          <div className="absolute bg-[var(--color\/surface,white)] content-stretch flex gap-[var(--space\/4,4px)] h-[30px] items-center justify-center left-[51.24px] overflow-clip rounded-[var(--radius\/12,12px)] top-[183.48px] w-[56px]" data-node-id="8:378" data-name="Map start label">
+            <div className="relative shrink-0 size-[14px]" data-node-id="8:379" data-name="Icon/home">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconHome1} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="8:382">
+              家
+            </p>
+          </div>
+          <div className="absolute bg-[var(--color\/navy,#123f4d)] content-stretch flex gap-[var(--space\/4,4px)] h-[30px] items-center justify-center left-[259.75px] overflow-clip rounded-[var(--radius\/12,12px)] top-[86.25px] w-[68px]" data-node-id="8:383" data-name="Map end label">
+            <div className="relative shrink-0 size-[14px]" data-node-id="8:384" data-name="Icon/office">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconOffice1} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="8:387">
+              公司
+            </p>
+          </div>
+          <div className="absolute bg-[var(--color\/surface,white)] content-stretch flex gap-[5px] h-[28px] items-center justify-center left-[104px] overflow-clip rounded-[var(--radius\/full,999px)] top-[188px] w-[156px]" data-node-id="8:388" data-name="Map edit hint">
+            <div className="relative shrink-0 size-[14px]" data-node-id="8:389" data-name="Icon/pin">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconPin} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="8:392">
+              点按地图调整地点
+            </p>
+          </div>
+          <div className="absolute bg-[var(--color\/surface,white)] content-stretch flex items-center justify-center left-[316px] overflow-clip rounded-[var(--radius\/12,12px)] size-[36px] top-[12px]" data-node-id="8:393" data-name="Icon button/locate">
+            <div className="relative shrink-0 size-[21px]" data-node-id="8:394" data-name="Icon/locate">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconLocate} />
+            </div>
+          </div>
+        </div>
+        <div className="[word-break:break-word] content-stretch flex gap-[var(--space\/8,8px)] h-[90px] items-start overflow-clip relative shrink-0 w-[364px] whitespace-nowrap" data-node-id="8:398" data-name="Route options">
+          <div className="bg-[var(--color\/mint,#def4ec)] border border-[var(--color\/brand,#007f78)] border-solid content-stretch flex flex-col gap-[5px] h-[90px] items-start overflow-clip p-[10px] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[116px]" data-node-id="8:399" data-name="推荐路线">
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)]" data-node-id="8:400">
+              推荐路线
+            </p>
+            <p className="font-['Roboto:Medium'] font-medium leading-[23px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="8:401" style={{ fontVariationSettings: '"wdth" 100' }}>
+              47 分钟
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[13px] relative shrink-0 text-[9px] text-[color:var(--color\/muted,#647782)]" data-node-id="8:402">
+              12.6 km · 更省时
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[5px] h-[90px] items-start overflow-clip p-[10px] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[116px]" data-node-id="8:403" data-name="少红绿灯">
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)]" data-node-id="8:404">
+              少红绿灯
+            </p>
+            <p className="font-['Roboto:Medium'] font-medium leading-[23px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="8:405" style={{ fontVariationSettings: '"wdth" 100' }}>
+              51 分钟
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[13px] relative shrink-0 text-[9px] text-[color:var(--color\/muted,#647782)]" data-node-id="8:406">
+              13.4 km · 更顺畅
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[5px] h-[90px] items-start overflow-clip p-[10px] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[116px]" data-node-id="8:407" data-name="避开拥堵">
+            <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)]" data-node-id="8:408">
+              避开拥堵
+            </p>
+            <p className="font-['Roboto:Medium'] font-medium leading-[23px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="8:409" style={{ fontVariationSettings: '"wdth" 100' }}>
+              54 分钟
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[13px] relative shrink-0 text-[9px] text-[color:var(--color\/muted,#647782)]" data-node-id="8:410">
+              14.8 km · 路况好
+            </p>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col h-[90px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="8:411" data-name="Route preferences">
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[54px] items-center overflow-clip relative shrink-0 w-full" data-node-id="8:412" data-name="Setting/到岗时间">
+            <div className="relative shrink-0 size-[20px]" data-node-id="8:413" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="8:416">
+              到岗时间
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:417">
+              09:00
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="8:418" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[6px] h-[26px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="8:420" data-name="Policy">
+            <div className="relative shrink-0 size-[16px]" data-node-id="8:421" data-name="Icon/shield">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconShield} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="8:424">
+              路线策略：优先省时，自动评估路况
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col h-[76px] items-start overflow-clip px-[var(--space\/24,24px)] py-[12px] relative shrink-0 w-[412px]" data-node-id="8:425" data-name="Save route">
+        <CodeConnectSnippet data-node-id="8:426" data-name="Button/保存路线">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="保存路线" labelText="保存路线" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="8:433" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="8:434" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Body: Font(family: "Noto Sans SC", style: Regular, size: 14, weight: 400, lineHeight: 20, letterSpacing: 0), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

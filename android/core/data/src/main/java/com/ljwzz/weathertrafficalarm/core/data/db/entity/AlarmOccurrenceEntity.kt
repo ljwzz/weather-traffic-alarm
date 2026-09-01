@@ -6,6 +6,7 @@ import androidx.room3.ForeignKey
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 
 @Entity(
     tableName = "alarm_occurrences",
@@ -30,5 +31,7 @@ data class AlarmOccurrenceEntity(
     @ColumnInfo(name = "scheduled_wake_at") val scheduledWakeAt: Long,
     @ColumnInfo(name = "state") val state: OccurrenceState,
     @ColumnInfo(name = "decision_id") val decisionId: String?,
+    @ColumnInfo(name = "kind") val kind: OccurrenceKind = OccurrenceKind.REGULAR,
+    @ColumnInfo(name = "parent_occurrence_id") val parentOccurrenceId: String? = null,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

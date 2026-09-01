@@ -1,0 +1,184 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 14:154
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/e2c7abc5-7720-429e-ab26-efe60a9d0d81.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/2cbd6510-e552-4f9a-9a40-5950b90f9ce2.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/a236981e-86f3-45d8-97ed-ce2b7c1c7494.svg";
+const imgIconCalendar = "https://www.figma.com/api/mcp/asset/5008c619-588d-4c3c-b97c-41cb5447f35e.svg";
+const imgIconInfo = "https://www.figma.com/api/mcp/asset/c1c936d3-8771-4940-85f6-fa7bef8f2a50.svg";
+
+export default function Component13() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="14:154" data-name="13 / 查看 · 决策记录">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="14:158" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="14:159" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="14:160" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="14:161" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="14:162" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[64px] items-center overflow-clip px-[24px] relative shrink-0 w-[412px]" data-node-id="14:169" data-name="Header/决策记录">
+        <div className="relative shrink-0 size-[23px]" data-node-id="14:170" data-name="Icon/back">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+        </div>
+        <div className="content-stretch flex flex-[1_0_0] flex-col items-start min-w-px overflow-clip relative" data-node-id="14:172" data-name="Title block">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="14:173">
+            决策记录
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 size-[40px]" data-node-id="14:174" data-name="Icon button/calendar">
+          <div className="relative shrink-0 size-[21px]" data-node-id="14:175" data-name="Icon/calendar">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconCalendar} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[760px] items-start overflow-clip pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="14:178" data-name="Recent history">
+        <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[34px] items-start overflow-clip relative shrink-0 w-[364px]" data-node-id="14:179" data-name="History range">
+          <div className="bg-[var(--color\/navy,#123f4d)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="14:180" data-name="Badge/最近 30 天">
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="14:181">
+              最近 30 天
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="14:182" data-name="Badge/全部结果">
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:183">
+              全部结果
+            </p>
+          </div>
+        </div>
+        <div className="[word-break:break-word] content-stretch flex gap-[10px] h-[88px] items-start overflow-clip relative shrink-0 w-[364px] whitespace-nowrap" data-node-id="14:184" data-name="History metrics">
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[88px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[114px]" data-node-id="14:185" data-name="工作日">
+            <p className="font-['Roboto:Medium'] font-medium leading-[34px] relative shrink-0 text-[30px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:186" style={{ fontVariationSettings: '"wdth" 100' }}>
+              16
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/muted,#647782)]" data-node-id="14:187">
+              计划日期
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[88px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[114px]" data-node-id="14:188" data-name="天有提前">
+            <p className="font-['Roboto:Medium'] font-medium leading-[34px] relative shrink-0 text-[30px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:189" style={{ fontVariationSettings: '"wdth" 100' }}>
+              4
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/muted,#647782)]" data-node-id="14:190">
+              天有提前
+            </p>
+          </div>
+          <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[88px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[114px]" data-node-id="14:191" data-name="分钟 · 今日提前">
+            <p className="font-['Roboto:Medium'] font-medium leading-[34px] relative shrink-0 text-[30px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:192" style={{ fontVariationSettings: '"wdth" 100' }}>
+              12
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/muted,#647782)]" data-node-id="14:193">
+              分钟 · 今日提前
+            </p>
+          </div>
+        </div>
+        <div className="[word-break:break-word] content-stretch flex h-[30px] items-center overflow-clip relative shrink-0 w-full" data-node-id="14:194" data-name="Section/8月27日 · 今天">
+          <p className="flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[23px] min-w-px relative text-[16px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:195">
+            8月27日 · 今天
+          </p>
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="14:196">
+            查看详情
+          </p>
+        </div>
+        <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[112px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="14:197" data-name="Record / Today">
+          <div className="content-stretch flex gap-[10px] h-[34px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="14:198" data-name="Record time">
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Roboto:Medium'] font-medium leading-[34px] min-w-px relative text-[30px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:199" style={{ fontVariationSettings: '"wdth" 100' }}>
+              07:18
+            </p>
+            <div className="bg-[var(--color\/surface,white)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="14:200" data-name="Badge/提前 12 分钟">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="14:201">
+                提前 12 分钟
+              </p>
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="14:202">
+            小雨 · 通勤 47 分钟 · 提前闹钟已就绪
+          </p>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:203">
+            评估于 8月26日 21:02
+          </p>
+        </div>
+        <div className="[word-break:break-word] content-stretch flex h-[30px] items-center overflow-clip relative shrink-0 w-full" data-node-id="14:204" data-name="Section/8月26日 · 昨天">
+          <p className="flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[23px] min-w-px relative text-[16px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:205">
+            8月26日 · 昨天
+          </p>
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="14:206">
+            查看详情
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[104px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="14:207" data-name="Record / No advance">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[30px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="14:208" data-name="Record time">
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Roboto:Light'] font-light leading-[32px] min-w-px relative text-[28px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:209" style={{ fontVariationSettings: '"wdth" 100' }}>
+              07:30
+            </p>
+            <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="14:210" data-name="Badge/无需提前">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:211">
+                无需提前
+              </p>
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:212">
+            晴 · 通勤 35 分钟 · 保持系统时钟设置
+          </p>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/subtle,#8a9aa3)] whitespace-nowrap" data-node-id="14:213">
+            未注册额外闹钟
+          </p>
+        </div>
+        <div className="[word-break:break-word] content-stretch flex h-[30px] items-center overflow-clip relative shrink-0 w-full" data-node-id="14:214" data-name="Section/8月25日 · 星期二">
+          <p className="flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[23px] min-w-px relative text-[16px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:215">
+            8月25日 · 星期二
+          </p>
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="14:216">
+            查看详情
+          </p>
+        </div>
+        <div className="bg-[var(--color\/amberbg,#fff1da)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[104px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="14:217" data-name="Record / Evaluation failed">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[26px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="14:218" data-name="Failed record">
+            <div className="relative shrink-0 size-[20px]" data-node-id="14:219" data-name="Icon/info">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconInfo} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="14:222">
+              天气数据获取失败
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/amber,#ad661c)] whitespace-nowrap" data-node-id="14:223">
+              未新增
+            </p>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/amber,#ad661c)] whitespace-nowrap" data-node-id="14:224">
+            未修改已有闹钟，请确认系统时钟设置。
+          </p>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="14:225">
+            可在诊断页查看失败原因
+          </p>
+        </div>
+        <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[10px] text-[color:var(--color\/subtle,#8a9aa3)] w-[364px]" data-node-id="14:226">
+          <p className="leading-[15px] mb-0">仅展示本机记录 · 本页为演示数据</p>
+          <p className="leading-[15px]">具体地址、坐标与接口凭证不会显示在记录中。</p>
+        </div>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="14:227" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="14:228" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

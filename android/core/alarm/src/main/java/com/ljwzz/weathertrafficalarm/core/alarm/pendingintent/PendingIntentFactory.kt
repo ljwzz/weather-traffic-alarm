@@ -13,6 +13,7 @@ enum class AlarmAction(val path: String) {
     DISMISS("dismiss"),
     SNOOZE("snooze"),
     FULL_SCREEN("full_screen"),
+    SHOW_ALARM("show_alarm"),
 }
 
 @Singleton
@@ -50,6 +51,21 @@ class PendingIntentFactory @Inject constructor(
             data = Uri.parse("alarm://occurrences/$occurrenceId?action=${AlarmAction.FULL_SCREEN.path}")
             putExtra(EXTRA_OCCURRENCE_ID, occurrenceId)
             putExtra(EXTRA_ACTION, AlarmAction.FULL_SCREEN.path)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+    }
+
+    /**
+     * The AlarmClockInfo display intent must open an Activity. core:alarm keeps
+     * no compile-time dependency on :app, so use the app's explicit component
+     * name agreed by the app module instead of a broadcast PendingIntent.
+     */
+    fun createShowAlarmIntent(occurrenceId: String): Intent {
+        return Intent(ACTION_SHOW_ALARM).apply {
+            setClassName(context.packageName, RINGING_ACTIVITY_CLASS_NAME)
+            data = Uri.parse("alarm://occurrences/$occurrenceId?action=${AlarmAction.SHOW_ALARM.path}")
+            putExtra(EXTRA_OCCURRENCE_ID, occurrenceId)
+            putExtra(EXTRA_ACTION, AlarmAction.SHOW_ALARM.path)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
     }
@@ -98,6 +114,16 @@ class PendingIntentFactory @Inject constructor(
         )
     }
 
+    fun showAlarmPendingIntent(occurrenceId: String): PendingIntent {
+        val intent = createShowAlarmIntent(occurrenceId)
+        return PendingIntent.getActivity(
+            context,
+            generateRequestCode(occurrenceId, AlarmAction.SHOW_ALARM),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
     fun findPendingIntent(
         occurrenceId: String,
         action: AlarmAction,
@@ -109,6 +135,7 @@ class PendingIntentFactory @Inject constructor(
             AlarmAction.DISMISS -> createDismissIntent(occurrenceId, componentClass)
             AlarmAction.SNOOZE -> createSnoozeIntent(occurrenceId, componentClass)
             AlarmAction.FULL_SCREEN -> createFullScreenIntent(occurrenceId, componentClass)
+            AlarmAction.SHOW_ALARM -> createShowAlarmIntent(occurrenceId)
         }
         // Identity flags must match creation; looking up a missing token must not create one.
         val flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE or when (action) {
@@ -116,7 +143,7 @@ class PendingIntentFactory @Inject constructor(
             else -> 0
         }
         return when (action) {
-            AlarmAction.FULL_SCREEN ->
+            AlarmAction.FULL_SCREEN, AlarmAction.SHOW_ALARM ->
                 PendingIntent.getActivity(context, requestCode, intent, flags)
             else -> PendingIntent.getBroadcast(context, requestCode, intent, flags)
         }
@@ -129,6 +156,9 @@ class PendingIntentFactory @Inject constructor(
     companion object {
         const val EXTRA_OCCURRENCE_ID = "occurrence_id"
         const val EXTRA_ACTION = "action"
+        const val ACTION_SHOW_ALARM = "com.ljwzz.weathertrafficalarm.SHOW_ALARM"
+
+        private const val RINGING_ACTIVITY_CLASS_NAME = "com.ljwzz.weathertrafficalarm.ui.zhitu.AlarmRingingActivity"
 
         private fun generateRequestCode(occurrenceId: String, action: AlarmAction): Int {
             return (occurrenceId.hashCode() * 31 + action.ordinal) and 0x7FFFFFFF

@@ -1,0 +1,218 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 42:724
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/219c219a-43c6-460b-b412-a0bfdcdf0731.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/d39aa3e0-955c-4521-8cdd-36c241d3989a.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/d106814d-dc90-4564-97eb-371a5679bd21.svg";
+
+export default function Component() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="42:724" data-name="弹层 · 清空与反馈">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="50:664" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="50:665" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="50:666" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="50:667" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="50:668" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/4,4px)] h-[88px] items-start overflow-clip pb-[12px] pt-[8px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="50:675" data-name="Header/数据与凭据">
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-center overflow-clip relative shrink-0 w-[364px]" data-node-id="50:676" data-name="Back and title">
+          <div className="relative shrink-0 size-[18px]" data-node-id="50:677" data-name="Icon/back">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="50:679">
+            数据与凭据
+          </p>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="50:680">
+          由你提供数据凭据，状态清晰可见
+        </p>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/16,16px)] h-[660px] items-start overflow-x-clip overflow-y-auto pb-[var(--space\/24,24px)] pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="50:681" data-name="Body/credentials">
+        <div className="[word-break:break-word] bg-[var(--color\/amberbg,#fff1da)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="50:682" data-name="接口凭据未配置">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="50:683">
+            接口凭据未配置
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[324px]" data-node-id="50:684">
+            原型仅模拟保存与测试，不会向服务商发送请求。请勿输入真实密钥。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/16,16px)] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="50:685" data-name="Credentials form">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="50:686">
+            路线与地点 · 高德
+          </p>
+          <div className="content-stretch flex flex-col h-[76px] items-start relative shrink-0 w-[324px]" data-node-id="50:687" data-name="Text field with support">
+            <CodeConnectSnippet data-node-id="50:688" data-name="Text field">
+              {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+              <TextField textSupportingText="用于路线与地点搜索" supportingText="用于路线与地点搜索" textInputText="••••••••••••••••" inputText="••••••••••••••••" textLabelText="AMap WebKey · 必填" labelText="AMap WebKey · 必填" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={true} showSupportingText={true} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+            </CodeConnectSnippet>
+          </div>
+          <div className="content-stretch flex flex-col h-[76px] items-start relative shrink-0 w-[324px]" data-node-id="50:689" data-name="Text field with support">
+            <CodeConnectSnippet data-node-id="50:690" data-name="Text field">
+              {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+              <TextField textSupportingText="仅地图与主动定位需要" supportingText="仅地图与主动定位需要" textInputText="未填写" inputText="未填写" textLabelText="AMap SDKKey · 选填" labelText="AMap SDKKey · 选填" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={true} showSupportingText={true} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+            </CodeConnectSnippet>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] w-[324px]" data-node-id="50:691">
+            天气评估 · 彩云
+          </p>
+          <CodeConnectSnippet data-node-id="50:692" data-name="Text field">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+            <TextField textSupportingText="" supportingText="" textInputText="••••••••••••••••" inputText="••••••••••••••••" textLabelText="Caiyun AppKey · 必填" labelText="Caiyun AppKey · 必填" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={false} showSupportingText={false} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="50:693" data-name="Text field">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+            <TextField textSupportingText="" supportingText="" textInputText="••••••••••••••••" inputText="••••••••••••••••" textLabelText="Caiyun AppSecret · 必填" labelText="Caiyun AppSecret · 必填" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={false} showSupportingText={false} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+          </CodeConnectSnippet>
+        </div>
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-start overflow-clip relative shrink-0 w-[364px]" data-node-id="50:694" data-name="Credential actions">
+          <CodeConnectSnippet data-node-id="50:695" data-name="Button/测试连接">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="测试连接" labelText="测试连接" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="50:696" data-name="Button/清空凭据">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="清空凭据" labelText="清空凭据" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+        </div>
+        <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="50:697">
+          <p className="leading-[16px] mb-0">保存后默认遮罩；测试只显示成功、失败与时间。</p>
+          <p className="leading-[16px]">原型刷新即清除输入；正式应用按 SPEC 加密存储。</p>
+        </div>
+      </div>
+      <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col h-[76px] items-start overflow-clip px-[var(--space\/24,24px)] py-[12px] relative shrink-0 w-[412px]" data-node-id="50:740" data-name="Footer/credentials">
+        <CodeConnectSnippet data-node-id="50:741" data-name="Button/保存凭据">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="保存凭据" labelText="保存凭据" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="50:746" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="50:747" data-name="Rectangle" />
+      </div>
+      <div className="absolute bg-[var(--color\/black,#090f12)] h-[892px] left-0 opacity-28 top-0 w-[412px]" data-node-id="50:748" data-name="Modal scrim" />
+      <CodeConnectSnippet data-node-id="50:749" data-name="Bottom sheet">
+        {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/bottom-sheets/overview */}
+        <BottomSheet slotContent="50:750" content="50:750" booleanShowDragHandle={true} showDragHandle={true} variantModal="False" modal="False">
+          <Content instanceSwapSlotSwap="46:344" slotSwap="46:344" variantLayout="Empty" layout="Empty" />
+        </BottomSheet>
+      </CodeConnectSnippet>
+      <div className="absolute content-stretch flex flex-col gap-[var(--space\/20,20px)] items-start left-0 p-[var(--space\/24,24px)] top-[532px] w-[412px]" data-node-id="50:757" data-name="Credential clear confirmation">
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="50:758">
+          清空接口凭据？
+        </p>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="50:759">
+          将清除本次会话中填写的高德与彩云凭据。
+        </p>
+        <div className="[word-break:break-word] bg-[var(--color\/amberbg,#fff1da)] content-stretch flex flex-col gap-[var(--space\/8,8px)] items-start p-[var(--space\/16,16px)] relative rounded-[var(--radius\/16,16px)] shrink-0 w-[364px]" data-node-id="50:760" data-name="Clear effects">
+          <p className="font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/amber,#ad661c)] w-[332px]" data-node-id="50:761">
+            不改动路线、计划与系统正常闹钟
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[332px]" data-node-id="50:762">
+            未重新填写前，原型只能浏览演示，不执行真实评估。
+          </p>
+        </div>
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-start relative shrink-0 w-[364px]" data-node-id="50:763" data-name="Dialog actions">
+          <CodeConnectSnippet data-node-id="50:764" data-name="Button/取消">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="取消" labelText="取消" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="50:770" data-name="Button/确认清空">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="确认清空" labelText="确认清空" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="50:776">
+          确认后提示「凭据已清空」；取消不改变当前输入。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: M3/sys/light/surface: #FEF7FF, M3/sys/light/outline: #79747E, M3/Elevation Light/3: Effect(type: DROP_SHADOW, color: #0000004D, offset: (0, 1), radius: 3, spread: 0); Effect(type: DROP_SHADOW, color: #00000026, offset: (0, 4), radius: 8, spread: 3), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Text field
+**Node ID:** 38:911
+
+Use a text field when someone needs to enter text into a UI, such as filling in contact or payment information. 🛠 Additional options Support text - you can toggle supporting text between hide and show.
+
+**Documentation:**
+- [https://m3.material.io/components/text-fields/overview](https://m3.material.io/components/text-fields/overview)
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+## Bottom sheet
+**Node ID:** 46:360
+
+Bottom sheets are surfaces containing supplementary content, anchored to the bottom of the screen.
+
+
+
+🛠 Additional options
+
+Drag handle - can be toggled to hide or show
+
+**Documentation:**
+- [https://m3.material.io/components/bottom-sheets/overview](https://m3.material.io/components/bottom-sheets/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

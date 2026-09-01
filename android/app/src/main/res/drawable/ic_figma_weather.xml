@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Source: prototype/assets/figma-svg/425e3964-9492-4b65-b2a0-a59c5b4987ec.svg; path data unchanged. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="19dp" android:height="19dp" android:viewportWidth="19" android:viewportHeight="19">
+    <path android:pathData="M4.75 11.875H14.25C14.9849 11.896 15.698 11.6242 16.2325 11.1194C16.7669 10.6146 17.079 9.9182 17.1 9.18333C17.121 8.44846 16.8492 7.73535 16.3444 7.20087C15.8396 6.66639 15.1432 6.35433 14.4083 6.33333C14.2755 5.25159 13.7747 4.24844 12.9899 3.49216C12.2051 2.73587 11.1842 2.27245 10.0983 2.17964C9.01236 2.08683 7.92756 2.37026 7.02584 2.98241C6.12412 3.59455 5.46034 4.49816 5.14583 5.54167C4.30598 5.48918 3.47967 5.77247 2.84869 6.32921C2.21771 6.88596 1.83374 7.67056 1.78125 8.51042C1.72876 9.35027 2.01205 10.1766 2.5688 10.8076C3.12555 11.4385 3.91015 11.8225 4.75 11.875Z" android:fillColor="#00000000" android:strokeColor="#4F94C4" android:strokeWidth="1.425" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M6.33333 14.25L5.54167 16.625M9.5 14.25L8.70833 16.625M12.6667 14.25L11.875 16.625" android:fillColor="#00000000" android:strokeColor="#4F94C4" android:strokeWidth="1.425" android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

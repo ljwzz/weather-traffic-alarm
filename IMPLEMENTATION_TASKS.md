@@ -4,9 +4,51 @@
 - 起点：仓库已删除后端、contract、calendar-data、infra 与旧草稿；保留 `android/` 工程（app、core/{model,data,network,alarm,map}、feature/*）
 - 目标：从纯 Android 本地优先架构推进到可公开发布的 Android 应用
 - Android 包名：`com.ljwzz.weathertrafficalarm`
-- 天气提供方：彩云天气 v2.6（App 内直连，App Key + App Secret）
-- 路线、POI、输入提示、地图与前台定位提供方：高德（Web 服务 API + Android SDK）
+- 当前天气／地图／路线 Provider：未接入。
+- 后续规划：彩云天气 v2.6；高德 Web 服务 API 与 Android SDK。
 - 工作日数据源：holiday-cn 年度 JSON（App 抓取缓存）
+- 页面与原型交接：见 [`docs/design-handoff.md`](./docs/design-handoff.md)；Figma 的 21 个页面是视觉素材基线，当前 Android 范围为 12 个主页面及路线／日历功能整合。
+
+> 2026-08-31 当前执行线：先完成不依赖高德和彩云的本地闹钟。`P7`–`P9` 中的路线、天气和提前计算保留为后续能力，不得作为本阶段完成条件，也不得用模拟结果替代。下方 `T010`–`T138` 是此前通勤评估路线图，仅作为后续规划，不得与 L 系列当前本地闹钟契约冲突。每个任务是否完成必须以本轮构建、测试和设备记录为准。
+
+## 1A. 本地闹钟优先执行线
+
+### [x] L001 日期规则与下一次实例
+
+- 扩展计划为 `Once(date)`、`Weekly(days)`、`Workdays`；计划保存时固定设备时区。
+- 单次过去时间拒绝保存；每周至少一天；当天默认 06:00 已过时选择次日；跨日、月底、闰日、时区和夏令时计算有单元测试。
+
+### [x] L002 本地闹钟实例与持久化
+
+- 实例含唯一 ID、计划 ID、计划版本、触发时刻、父实例 ID 和结果状态；区分启用意图与 `PENDING_PERMISSION`、`REGISTERED`、`REGISTRATION_FAILED`、`COMPLETED`。
+- Room 使用显式迁移；旧演示计划缺少日期规则时要求选择规则后才可启用。迁移、重启持久化和取消编辑不写入必须测试。
+
+### [x] L003 LocalAlarmCoordinator 与系统调度
+
+- 页面只调用 `LocalAlarmCoordinator`；该协调器负责保存、启停、删除、下一次计算、注册、触发、停止、贪睡和恢复。
+- 使用 `setAlarmClock()` 注册下一次有效实例；新实例注册成功后才取消旧实例；能力缺失或异常显示真实失败原因，不显示已注册。
+
+### [x] L004 响铃、贪睡与恢复
+
+- Receiver 校验实例、版本和状态，重复广播幂等；前台响铃服务处理循环铃声、振动、停止和 10 分钟默认贪睡。
+- 贪睡为独立子实例；单次完成后停用；重复规则安排下一次；重启、解锁、时间变更、覆盖安装和 10 分钟迟到边界均有测试。
+
+### [x] L005 本地页面与真实状态
+
+- 闹钟 CRUD、首页下一次有效闹钟、记录空态／实际事件、日期与结果筛选、真实日历月份和按计划按日期覆盖。
+- 设置持久化、常用地点文字和出行方式保存；天气、路线、地图使用“暂未接入”留白，禁止模拟数据。
+
+### [x] L006 凭据与能力诊断
+
+- 凭据使用 Keystore 加密保存和清除；测试明确未接入且不发请求。
+- Android 读取通知、精确闹钟、全屏提醒和闹钟音量状态，提供设置入口并在返回后重新检查。
+
+### [x] L007 本地验收
+
+- 单元、迁移、UI 和 API 36 模拟器覆盖计划范围；设备响铃、锁屏、停止、贪睡、进程回收、重启恢复单独记录。
+- Debug APK、测试结果和截图是交付物；未做的真机验证不得标记通过。
+
+验收记录：[`android/qa/README.md`](./android/qa/README.md)。JVM 129 项、Android 36 设备 7 项、原型 15 项通过；另完成 holiday-cn 设备联网验证和未解锁重启响铃验证。实体设备及发布环境仍按验收记录中的边界处理。
 
 ## 1. 执行约定
 
@@ -34,6 +76,7 @@
 - 新增行为有成功、失败和边界测试。
 - 日志、fixture 和截图不包含 key、secret、令牌、地址或坐标。
 - `SPEC.md` 或任务清单受影响时已同步更新。
+- UI 任务完成前按 `docs/design-handoff.md` 核对 Figma 节点与本地 `prototype/`；页面结构、布局、组件、文案及交互不得自行偏离原型。发生明确变更时同步设计、规格和原型。
 - 未使用动态依赖版本。
 - 未复制无法确认许可证的第三方源码。
 
@@ -76,7 +119,7 @@ flowchart LR
 
 技术基线：
 
-- AGP 9.3.0 配合 Gradle 9.6.1 与 `compileSdk 37`，使用内置 Kotlin（AGP 9 不再应用 `org.jetbrains.kotlin.android`）。
+- AGP 9.3.1 配合 Gradle 9.6.1 与 `compileSdk 37`，使用内置 Kotlin（AGP 9 不再应用 `org.jetbrains.kotlin.android`）。
 - Kotlin 2.4.10 的 Compose 模块应用 `org.jetbrains.kotlin.plugin.compose`；Room 与 Hilt 代码生成统一使用 KSP。
 - 版本全部锁定在 `android/gradle/libs.versions.toml`。
 
@@ -136,7 +179,7 @@ test -f docs/environment.md
 实施：
 
 1. 核对 modules：`app`、`core/{model,data,network,alarm,map}`、`feature/{onboarding,home,plan,place,calendar,history,diagnostics}`；新增 `core/security` 与 `feature/credentials`（本轮只加入 settings 与空骨架，实现见 P4/P5）。
-2. 核对版本基线：AGP 9.3.0、Kotlin 2.4.10、KSP 2.3.11、Compose BOM 2026.06.00、Room 3.0.1（androidx.room3 新坐标）、DataStore 1.2.1、Work 2.11.2、Hilt 2.60.1（androidx-hilt 1.4.0）、Retrofit 3.0.0、OkHttp 5.4.0、kotlinx-serialization-json 1.11.0、AMap 合包 11.2.000；`compileSdk = 37`（Room 3.0.1 / androidx-hilt 1.4.0 要求）、`targetSdk = 36`。
+2. 核对版本基线：AGP 9.3.1、Kotlin 2.4.10、KSP 2.3.11、Compose BOM 2026.06.00、Room 3.0.1（androidx.room3 新坐标）、DataStore 1.2.1、Work 2.11.2、Hilt 2.60.1（androidx-hilt 1.4.0）、Retrofit 3.0.0、OkHttp 5.4.0、kotlinx-serialization-json 1.11.0、AMap 合包 11.2.000；`compileSdk = 37`（Room 3.0.1 / androidx-hilt 1.4.0 要求）、`targetSdk = 36`。
 3. 移除 Tink（`tink-android`）依赖：日历签名职责已删除，从 version catalog 与所有模块删除。
 4. 确认 `minSdk = 36`（与 SPEC 第 14 章未确认项一致，变更需在 SPEC 记录）。
 
@@ -212,14 +255,16 @@ grep -riE "postgres|redis|spring" docs/configuration.md || echo clean
 
 产物：
 
-- `core/model`：`AlarmPlan`、`PlaceRef`、`CommuteMode`、`RoutePolicy`、`AlarmSound`、`VibrationPattern`、`WeatherSeverity`、`FallbackReason`。
-- 新增领域类型：`EvaluationOutcome(SUCCESS|FAILED)`、`ProviderCredential`（见 SPEC 5.5）。
+- `core/model`：`AlarmPlan`、`PlaceRef`、`CommuteMode`（驾车、公交、步行、骑行、电动车）、`RoutePolicy`、`AlarmSound`、`VibrationPattern`、`WeatherSeverity`、`FallbackReason`、`DayClassification`、`SingleDayOverride`。
+- 新增领域类型：`EvaluationOutcome(SUCCESS|FAILED)`、`ProviderCredential`（见 SPEC 5.6）。
+- 新增日期分类与三套 `WeatherBufferProfile`：工作日 `10/20/30`、普通周末 `5/10/20`、法定休息日 `10/15/25`；profile 不叠加。
 - 每个类型对应 Kotlin 属性、约束与序列化支持（如需要）。
 
 实施：
 
 1. `core/model` 不依赖 Android UI、Room、Retrofit、高德或彩云类型。
 2. 约束（`preparationMinutes` 0–240、`maxAdvanceMinutes` 0–180、`snoozeMinutes` 1–30、`origin != destination`、非驾车无途经点）有测试。
+3. `DayClassification` 必须记录 `date`、`baseDayKind`、`source` 与有效状态；`SingleDayOverride` 必须记录原始日期类别/来源和可选的默认起床、到岗、准备时长、三档天气缓冲。缺省日级字段继承日常计划/profile，日级 profile 不得改写全局 profile。
 
 验收：
 
@@ -233,15 +278,16 @@ cd android && ./gradlew :core:model:test
 
 产物：
 
-- `WorkdayResolver`：输入 `CalendarYearCache?`（当年）、`CalendarYearCache?`（次年，12 月合并用）、`WorkdayOverride` 集合与日期，输出 `WORKDAY|HOLIDAY`。
+- `WorkdayResolver`：输入 `CalendarYearCache?`（当年）、`CalendarYearCache?`（次年，12 月合并用）、`SingleDayOverride` 集合与日期，输出包含原始类别/来源和有效状态的 `DayClassification`。
 - 优先级：用户覆盖 > holiday-cn > 周规则兜底。
 - 12 月合并语义：目标日期为 12 月时并入次年缓存中 12 月条目。
 
 实施：
 
 1. `isOffDay=false` 的日期（调休上班日）必须判定为 `WORKDAY`，与周末无关。
-2. 未列出的日期按周一至五 `WORKDAY`、周六日 `HOLIDAY`。
-3. 兜底原因可追溯（`CALENDAR_FALLBACK`）。
+2. `isOffDay=true` 为法定休息日；与周末重合时法定休息日分类优先。
+3. 未列出的日期按周一至五 `WORKDAY`、周六日普通周末自动兜底，不要求用户确认。
+4. 兜底原因可追溯（`CALENDAR_FALLBACK`）；单日加班覆盖仅影响指定日期，并保留原始休息日分类选择缓冲与记录来源。
 
 验收：
 
@@ -319,11 +365,13 @@ cd android && ./gradlew :core:model:test
 
 - `weatherRuleVersion` 常量与 `skycon -> severity` 映射表（SPEC FR-004 全枚举）。
 - 契约测试数据文件：每个彩云枚举一个用例。
+- 严重等级与日期分类选择三套互斥 buffer profile 的纯函数和测试。
 
 实施：
 
 1. 未知 `skycon` → `WEATHER_UNKNOWN_CODE` + 0 分钟缓冲，不默认晴天。
 2. 规则表必须与 `weatherRuleVersion` 绑定，规则变更时版本号递增。
+3. 调休上班使用工作日 profile；法定休息日优先于周末；日历缺失时按周几选择工作日或周末 profile。
 
 验收：
 
@@ -819,8 +867,8 @@ cd android && ./gradlew :feature:credentials:testDebugUnitTest
 
 实施：
 
-1. 高德区块：Web Key（必填）、Android SDK Key（可选）；彩云区块：App Key、App Secret。
-2. 密码掩码输入；保存前必须连接测试通过或用户显式跳过；提供“清除凭证”。
+1. 对应页面 19，并从首次引导和设置页进入：高德区块：Web Key（必填）、Android SDK Key（可选）；彩云区块：App Key、App Secret。
+2. 密码掩码输入；保存前必须连接测试通过或用户显式跳过；提供带确认 dialog 的“清除凭证”。
 3. 页面 Activity 设置 `FLAG_SECURE`（防截图/录屏）；确认在截图测试中截图结果为空白。
 
 验收：
@@ -955,7 +1003,8 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 
 1. 月历渲染：官方休息日/调休上班日/普通工作日/普通周末，区分数据来源（holiday-cn / 兜底）。
 2. 顶部数据状态：最后抓取时间、来源 URL、本次刷新结果；断网/脏数据时不阻塞页面。
-3. 用户单日覆盖与“恢复官方规则”。
+3. 日历缺失时按周一至周五工作日、周六日普通周末自动选择并标注兜底来源，无额外确认。
+4. 单日覆盖、单日加班与“恢复官方规则”使用日期详情 bottom sheet；单日加班只影响指定日期，不改变每周安排，可选覆写本日默认起床、到岗、准备时长和三档天气缓冲。
 
 验收：
 
@@ -1290,8 +1339,9 @@ cd android && ./gradlew :feature:history:assembleDebug
 
 实施：
 
-1. Material 3 主题、深色模式；Navigation Compose 路由表（含 `credentials`、`calendar` 新路由）。
-2. 通用组件：错误横幅、加载态、脱敏文本组件（用于凭证掩码显示）。
+1. Material 3 主题、深色模式；Navigation Compose 路由表覆盖 `docs/design-handoff.md` 的 21 个主页面、地点选择子状态及 `credentials`、`calendar`、`diagnostics` 路由。
+2. 通用组件：错误横幅、加载态、脱敏文本组件（用于凭证掩码显示）、日期详情、时间/时长、声音/振动、通勤方式、清除凭证确认等复用 bottom sheet/dialog。
+3. 路由和组件实现前核对本地原型；Figma 根节点缺失的跳转不得从组件状态推断。
 
 验收：
 
@@ -1305,8 +1355,8 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. 隐私政策页（高德 SDK 披露、彩云数据来源、数据只存本机说明）。
-2. 同意前不初始化高德 SDK；能力诊断；引导凭证配置（可跳过）。
+1. 对应页面 18：隐私政策页（高德 SDK 披露、彩云数据来源、数据只存本机说明）。
+2. 同意前不初始化高德 SDK；能力诊断；引导凭证配置（可跳过）并允许进入只读首页。
 
 验收：
 
@@ -1320,7 +1370,7 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. 下一次响铃信息：默认起床时间与系统闹钟核对状态（`getNextAlarmClock()` 启发式，T030）；已注册提前闹钟与实际提前分钟数（若有）。
+1. 对应页面 01：下一次响铃信息：默认起床时间与系统闹钟核对状态（`getNextAlarmClock()` 启发式，T030）；已注册提前闹钟与实际提前分钟数（若有）。
 2. 天气区域“数据来自彩云天气”；“请确认已在系统时钟 App 设置闹钟”常驻提醒；凭证缺失横幅；权限异常横幅。
 
 验收：
@@ -1335,8 +1385,9 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. 计划 CRUD、启用开关；保存前展示“系统闹钟引导时间”（默认起床时间，需用户在系统时钟 App 设置）与最近成功评估的“建议提前闹钟”。
-2. 工作日预览区域触发日历刷新（T073）但不等网络。
+1. 对应页面 05–07、15–17：计划 CRUD、启用开关；保存前展示“系统闹钟引导时间”（默认起床时间，需用户在系统时钟 App 设置）与最近成功评估的“建议提前闹钟”。
+2. 提供工作日、普通周末、法定休息日三套独立天气缓冲；保存缓冲不自动开启休息日计划。
+3. 工作日预览区域触发日历刷新（T073）但不等网络。
 
 验收：
 
@@ -1350,8 +1401,8 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. POI 搜索 + 输入提示；已配置 SDK Key 时提供地图选点（`AndroidView` 包装 `MapView`，生命周期完整转发）与“使用当前位置”。
-2. 未配置 SDK Key 时隐藏地图与定位入口。
+1. 对应页面 03–04 与全屏地点选择子状态：POI 搜索 + 输入提示；已配置 SDK Key 时提供地图选点（`AndroidView` 包装 `MapView`，生命周期完整转发）与“使用当前位置”。
+2. 固定提供驾车、公交、步行、骑行、电动车五种方式；未配置 SDK Key 时隐藏地图与定位入口。
 
 验收：
 
@@ -1365,7 +1416,9 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. 字体缩放、TalkBack 语义、对比度检查；横竖屏与多尺寸。
+1. 完成页面 08、09–12（系统概念展示）、13–14、19（凭证）、20（日历）、21（诊断）的路由、状态和验收；系统概念展示不引入额外厂商接口或常驻提醒行为。
+2. 字体缩放、TalkBack 语义、对比度检查；横竖屏与多尺寸。
+3. 对照本地原型逐项核对页面结构、布局、组件、文案和交互；原型命令以 `prototype/README.md` 为准。
 
 验收：
 

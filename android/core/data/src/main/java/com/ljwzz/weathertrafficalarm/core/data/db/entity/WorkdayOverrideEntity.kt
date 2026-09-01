@@ -25,4 +25,5 @@ data class WorkdayOverrideEntity(
     @ColumnInfo(name = "plan_id") val planId: String,
     @ColumnInfo(name = "date") val date: String,
     @ColumnInfo(name = "status") val status: DayStatus,
+    @ColumnInfo(name = "wake_local_time") val wakeLocalTime: String? = null,
 )

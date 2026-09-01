@@ -1,17 +1,17 @@
-# 通勤闹钟 (weather-traffic-alarm)
+# 知途（weather-traffic-alarm）
 
-一个纯 Android、本地优先的通勤闹钟：根据工作日、通勤耗时和天气状况，在夜间自动评估次日是否需要提前起床。**正常起床闹钟完全由系统时钟 App 提供**（App 只做设置引导）；评估成功且确实需要提前时，App 才注册一个一次性提前闹钟。评估失败或 App 被清理都不会影响正常闹钟响铃。
+一个纯 Android、本地优先的闹钟应用。本 App 创建、注册和响铃本地闹钟，支持单次、每周和工作日规则，以及铃声、振动和贪睡。首次安装没有预置闹钟或记录。
+
+页面级需求以当前 Figma 设计稿为主；开发和界面验收必须参照本地 [`prototype/`](./prototype/)。非视觉业务与安全规则以 [`SPEC.md`](./SPEC.md) 为准，冲突时先向用户确认。
 
 **包名 / applicationId：** `com.ljwzz.weathertrafficalarm`
 
 ## 架构
 
-- **纯 Android 本地优先**：无后端、无 Spring Boot、无数据库服务、无服务端 API 契约。所有数据（计划、决策历史、日历缓存）只存本机。
-- 第三方 API 由 App **直接调用**：
-  - **高德**（Web 服务 API）：路径规划、POI 搜索、输入提示；高德 Android SDK 用于地图选点与前台定位。
-  - **彩云天气**（v2.6，App Key + App Secret HMAC-SHA256）：小时级天气预报。
-- 第三方凭证由用户在**凭证配置页**手动输入，连接测试可校验，密钥用 **Android Keystore 不可导出密钥**加密后存本地专用凭证存储，排除备份。
-- 工作日规则使用 [holiday-cn](https://github.com/NateScarlet/holiday-cn)（MIT）的年度 JSON 数据，由 App 主动抓取并缓存，按 10 月 1 日分界控制拉取年份，具备数据校验与本地兜底。
+- **纯 Android 本地优先**：无后端；计划、实例、记录、设置和日历覆盖只存本机。
+- **本地响铃**：通过系统闹钟能力注册下一次实例，Receiver 与前台响铃服务按实例 ID 处理停止和贪睡。
+- **本地凭据**：高德和彩云凭据可加密保存、清除；当前不发起 Provider 请求，连接测试不会返回成功。
+- **未接入容器**：地图、路线和天气保持页面入口与留白提示，不显示模拟数据。路线与天气的 Provider 接口保留为后续能力。
 
 ## 目录结构
 
@@ -21,28 +21,27 @@ weather-traffic-alarm/
 │   ├── app/                     # 应用壳
 │   ├── core/model/              # 领域模型与纯计算（无 Android 依赖）
 │   ├── core/data/               # Room、DataStore、凭证存储、日历缓存、仓库
-│   ├── core/network/            # 高德/彩云 HTTP 客户端、脱敏
+│   ├── core/network/            # 后续 Provider HTTP 接口；当前不由 App 使用
 │   ├── core/alarm/              # 精确闹钟、响铃、状态机、快照
-│   ├── core/map/                # 高德 SDK 适配（Compose AndroidView）
-│   ├── core/security/           # Android Keystore 加密凭证存储
-│   └── feature/{onboarding,home,plan,place,calendar,history,credentials,diagnostics}/
+│   ├── core/map/                # 地图能力占位；当前无 SDK 依赖
+│   └── feature/*                # 功能模块骨架；当前页面实现位于 app/ui/zhitu
 ├── docs/                        # 环境与配置记录
 └── scripts/                     # 验证脚本
 ```
 
 ## 功能要点
 
-- 正常起床闹钟：由用户在系统时钟 App 中设置，App 不做任何注册；首页提供“请在系统时钟 App 设置闹钟”引导与 `getNextAlarmClock()` 启发式核对，避免 App 被清理后没有任何闹钟生效。
-- 自动提前：每晚 19:00 后评估次日天气与通勤；**只有评估完全成功且确实需要提前时**，才注册一个一次性提前闹钟（只提前、不推迟），失败时不做任何调度修改。
-- 工作日日历：抓取 holiday-cn 年度 JSON 并缓存；打开日历相关页面时刷新（先清理去年数据，10 月 1 日前只拉当年、之后拉当年与次年），失败回退周规则。
-- 凭证管理：高德（Web Key + 可选 Android SDK Key）与彩云（App Key + App Secret）分别配置，均带连接测试。
-- 安全：凭证用 Android Keystore 生成不可导出密钥加密，专用存储排除备份，禁止日志/截图/崩溃信息泄露凭证。
+- 闹钟 CRUD：名称、日期、时间、单次／每周／工作日规则、启停、删除。
+- 真实状态：待授权、已注册、注册失败、已完成；首页显示下一次有效闹钟，记录按日期和结果筛选。
+- 响铃：系统铃声、振动、停止和默认 10 分钟贪睡；同一时刻多个闹钟独立处理。
+- 日历：真实月份、日期选择与按计划按日期覆盖；无节假日数据时按周一至周五兜底。
+- 设置与诊断：本地设置持久化、常用地点文字管理、出行方式保存，以及 Android 权限／音量状态检查入口。
 
 ## 最低工具版本
 
 - JDK 21
-- Android SDK Platform 36 + Build Tools 36.0.0
-- Gradle 9.5.0（wrapper）
+- Android SDK Platform 37 + Build Tools 36.0.0
+- Gradle 9.6.1（wrapper）
 
 ## 验证
 
@@ -50,8 +49,12 @@ weather-traffic-alarm/
 ./scripts/verify-all.sh
 ```
 
+Debug APK、测试明细和截图见 [`android/qa/README.md`](./android/qa/README.md)。
+
 ## 文档
 
 - 产品与技术规格：[`SPEC.md`](./SPEC.md)
 - 可执行实施任务：[`IMPLEMENTATION_TASKS.md`](./IMPLEMENTATION_TASKS.md)
+- 设计与原型交接：[`docs/design-handoff.md`](./docs/design-handoff.md)
 - 安全策略：[`SECURITY.md`](./SECURITY.md)
+- 本地原型：[`prototype/README.md`](./prototype/README.md)

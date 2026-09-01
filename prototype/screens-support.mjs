@@ -1,0 +1,39 @@
+import { todayIso } from './state.mjs';
+
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const dayNames = ['一','二','三','四','五','六','日'];
+const monthLabel = value => { const [year, month] = value.split('-').map(Number); return `${year}年 ${month}月`; };
+const monthGrid = value => { const [year, month] = value.split('-').map(Number); const first = new Date(year, month - 1, 1); const startOffset = (first.getDay() + 6) % 7; return Array.from({ length: 42 }, (_, index) => { const date = new Date(year, month - 1, 1 - startOffset + index); const local = todayIso(date); return { date: local, day: date.getDate(), outside: date.getMonth() !== month - 1 }; }); };
+
+export function createSupportScreens({ escapeHTML = esc, action, overlayAction }) {
+  const button = (label, name, value = '', className = 'support-button') => `<button type="button" class="${className}" data-action="${name}" data-value="${esc(value)}">${esc(label)}</button>`;
+  const close = () => button('取消', 'close-overlay', '', 'support-button');
+  return {
+    renderRoute(route, state) {
+      const c = state.config || state; const r = state.runtime || {};
+      if (route === 'onboarding') return `<section class="support-screen"><article class="support-welcome"><h2>知途</h2><p>本地闹钟与通勤信息</p><strong>基础闹钟无需地图或天气服务。</strong></article><article class="support-info-card"><h2>先创建本地闹钟</h2><p>指定日期、每周或工作日。实际注册、响铃和权限由 Android 应用完成。</p></article><footer class="screen-footer">${button('开始设置', 'finish-onboarding', 'plans', 'support-button is-primary')}</footer></section>`;
+      if (route === 'credentials') {
+        const configured = Boolean(r.credentials?.amapWebKey || r.credentials?.caiyunAppKey || r.credentials?.caiyunAppSecret);
+        return `<section class="support-screen"><article class="support-status-card"><h2>数据服务暂未接入</h2><p>不会发起连接测试，也不会使用凭据生成地图、天气或提前计算结果。</p></article><article class="support-form-card"><h2>凭据（仅当前页面会话）</h2><label class="support-field"><span>高德 Key</span><input type="password" data-credential="amapWebKey" value="${configured ? '••••••••' : ''}" autocomplete="off"></label><label class="support-field"><span>彩云 Key</span><input type="password" data-credential="caiyunAppKey" value="${configured ? '••••••••' : ''}" autocomplete="off"></label><p class="support-caption">浏览器原型不持久化凭据；Android 应用将使用系统密钥库保存。</p><div class="support-inline-actions">${button('保存（仅会话）', 'save-credentials', '', 'support-button is-tonal')}${button('测试连接', 'test-credentials', '', 'support-button is-primary')}</div>${button('清空当前会话凭据', 'clear-credentials', '', 'support-text-action')}</article><p class="support-caption">${esc(r.credentialStatus || '未配置')}</p></section>`;
+      }
+      if (route === 'calendar') {
+        const plan = c.alarmPlans?.find(item => item.id === r.calendarPlanId); const month = r.calendarMonth || todayIso().slice(0, 7); const selected = r.selectedDate || todayIso(); const key = plan ? `${plan.id}:${selected}` : ''; const override = key ? c.dateOverrides?.[key] : null;
+        return `<section class="support-screen"><article class="support-calendar-source"><strong>本地日历</strong><p>当前按星期判定工作日；节假日数据将在 Android 端接入后更新。</p></article><article class="support-month-card"><header>${button('‹','calendar-previous','','support-text-action')}<h2>${monthLabel(month)}</h2>${button('›','calendar-next','','support-text-action')}</header><div class="support-calendar-weekdays">${dayNames.map(day => `<span>${day}</span>`).join('')}</div><div class="support-calendar-grid">${monthGrid(month).map(item => `<button type="button" data-action="select-calendar-date" data-value="${item.date}" class="support-calendar-day ${item.outside ? 'is-outside' : ''} ${item.date === selected ? 'is-selected' : ''}">${item.day}</button>`).join('')}</div></article>${plan ? `<article class="support-day-card"><h2>${esc(plan.name)} · ${esc(selected)}</h2><p>单日覆盖只影响当前选择的计划和日期。</p><div class="support-day-choices">${button('沿用计划','set-date-override','inherit',`support-day-choice ${!override ? 'is-selected' : ''}`)}${button('本日停用','set-date-override','off',`support-day-choice ${override?.enabled === false ? 'is-selected' : ''}`)}${button('本日启用','set-date-override','on',`support-day-choice ${override?.enabled === true ? 'is-selected' : ''}`)}</div>${button(override?.time ? `时间 ${override.time}` : '设置本日时间', 'overlay', 'override-time', 'support-text-action')}</article>` : '<article class="support-day-card"><h2>选择一个闹钟</h2><p>请从闹钟编辑页打开日历，设置单日覆盖。</p></article>'}<footer class="screen-footer">${button('完成', 'save-calendar', '', 'support-button is-primary')}</footer></section>`;
+      }
+      if (route === 'diagnostics') return `<section class="support-screen"><article class="support-diagnostic-card"><h2>Android 设备诊断</h2><p>实际应用将读取通知权限、精确闹钟、全屏提醒和闹钟音量，并提供系统设置入口。</p><div class="support-diagnostic-row"><span>浏览器原型</span><strong>不读取系统状态</strong></div><div class="support-diagnostic-row"><span>本地闹钟</span><strong>由 Android 注册</strong></div></article><button class="support-button is-primary" data-action="recheck-diagnostics">在 Android 应用中重新检查</button></section>`;
+      return '<section class="support-screen"><article class="support-info-card"><h2>页面暂未配置</h2></article></section>';
+    },
+    renderFooter() { return ''; },
+    renderOverlay(name, state) {
+      if (!name) return '';
+      const r = state.runtime || {}; const draft = r.alarmDraft || {}; const shell = (title, body, save, saveLabel = '保存') => `<div class="support-overlay" role="dialog" aria-modal="true" aria-label="${esc(title)}"><section class="support-sheet"><i class="support-sheet-handle"></i><h2>${esc(title)}</h2>${body}<div class="support-sheet-actions">${close()}${button(saveLabel, save, '', 'support-button is-primary')}</div></section></div>`;
+      if (name === 'alarm-time') return shell('选择时间', `<label class="support-modal-field"><span>时间</span><input type="time" data-overlay-field="time" value="${esc(draft.time || '06:00')}"></label>`, 'save-overlay-time');
+      if (name === 'alarm-snooze') return shell('贪睡时长', `<label class="support-duration-input"><span>分钟（1–30）</span><input type="number" min="1" max="30" data-overlay-field="snoozeMinutes" value="${esc(draft.snoozeMinutes ?? 10)}"></label>`, 'save-overlay-snooze');
+      if (name === 'alarm-sound') return shell('铃声与振动', `<div class="support-sound-choices">${['晨光','清风','星河'].map(sound => `<label class="support-sound-choice ${draft.ringtone === sound ? 'is-selected' : ''}"><input type="radio" data-overlay-field="ringtone" value="${sound}" ${draft.ringtone === sound ? 'checked' : ''}><i>♪</i><span>${sound}</span><button type="button" data-action="preview-sound" data-value="${sound}">试听</button></label>`).join('')}</div><label class="support-vibration">振动<input type="checkbox" data-overlay-field="vibration" ${draft.vibration ? 'checked' : ''}></label>`, 'save-overlay-sound');
+      if (name === 'override-time') return shell('设置本日时间', `<label class="support-modal-field"><span>时间</span><input type="time" data-overlay-field="overrideTime" value="${esc(r.overrideDraftTime || draft.time || '06:00')}"></label>`, 'save-override-time');
+      if (name === 'history-filter') return shell('筛选记录', [['all','全部'],['registered','已注册'],['stopped','已停止'],['snoozed','已贪睡'],['failed','异常']].map(([key,label]) => button(label,'history-filter',key,'support-button is-tonal')).join(''), 'close-overlay', '关闭');
+      if (name === 'clear-credentials') return shell('清空凭据', '<p class="support-sheet-description">仅清空当前浏览器会话中的凭据。</p>', 'confirm-clear-credentials', '清空');
+      return '';
+    },
+  };
+}

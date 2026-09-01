@@ -1,0 +1,269 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 3:34
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/2d5cd939-8b02-40b4-a7a0-4378b8e9f8de.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/40660afc-d7b9-4415-a4bc-14a1625c34ee.svg";
+const imgIconPlus = "https://www.figma.com/api/mcp/asset/7a596599-af06-484c-81b7-48409b147c97.svg";
+const imgIconShield = "https://www.figma.com/api/mcp/asset/2c52264e-dee6-4069-95c5-e8105043da04.svg";
+const imgIconChev = "https://www.figma.com/api/mcp/asset/9d8a6b73-ef3d-4a1f-af23-ce5746ca2cd1.svg";
+const imgIconClock = "https://www.figma.com/api/mcp/asset/bdf9bff2-b94e-40de-9c33-ff4456c42789.svg";
+const imgIconChev1 = "https://www.figma.com/api/mcp/asset/4fb9d3ea-b51c-4412-bde5-20bf32a7512d.svg";
+const imgIconChev2 = "https://www.figma.com/api/mcp/asset/9e6bea8e-a44c-4bf2-a9b8-734b6dbd5a35.svg";
+const imgIconCalendar = "https://www.figma.com/api/mcp/asset/efc64a63-5c2a-406d-9ed2-8ebcc0c3d7fc.svg";
+const imgIconChev3 = "https://www.figma.com/api/mcp/asset/a1d7afd2-f317-4cf9-ade9-3444fe400914.svg";
+const imgIconSun = "https://www.figma.com/api/mcp/asset/d4d9b627-eaa1-4941-9b33-5ee5123ac2af.svg";
+const imgIconRoute = "https://www.figma.com/api/mcp/asset/c52d0aa9-7650-4651-9aa1-51e22fd87080.svg";
+const imgIconClock1 = "https://www.figma.com/api/mcp/asset/d7711081-e8f5-47ee-a045-27b02f56189a.svg";
+const imgIconSettings = "https://www.figma.com/api/mcp/asset/7caac4c8-0381-4999-a45b-fd9dbf17a07c.svg";
+
+export default function Component05() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="3:34" data-name="05 / 闹钟 · 计划总览">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="9:65" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="9:66" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="9:67" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="9:68" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="9:69" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[88px] items-center overflow-clip px-[24px] relative shrink-0 w-[412px]" data-node-id="9:76" data-name="Header/闹钟计划">
+        <div className="[word-break:break-word] content-stretch flex flex-[1_0_0] flex-col gap-[3px] items-start min-w-px overflow-clip relative whitespace-nowrap" data-node-id="9:77" data-name="Title block">
+          <p className="font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="9:78">
+            闹钟计划
+          </p>
+          <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)]" data-node-id="9:79">
+            提前一点，把从容留给早晨
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 size-[40px]" data-node-id="9:80" data-name="Icon button/plus">
+          <div className="relative shrink-0 size-[21px]" data-node-id="9:81" data-name="Icon/plus">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconPlus} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[660px] items-start overflow-clip pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="9:83" data-name="Alarm plans">
+        <div className="bg-[var(--color\/sky,#e3f2fa)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[108px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="9:84" data-name="System clock / separate responsibility">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-center overflow-clip relative shrink-0 w-[332px]" data-node-id="9:85" data-name="System clock status">
+            <div className="relative shrink-0 size-[20px]" data-node-id="9:86" data-name="Icon/shield">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconShield} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] min-w-px relative text-[13px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="9:89">
+              正常起床 · 系统时钟
+            </p>
+            <div className="relative shrink-0 size-[18px]" data-node-id="9:90" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="[word-break:break-word] content-stretch flex gap-[var(--space\/12,12px)] h-[34px] items-center overflow-clip relative shrink-0 w-[332px] whitespace-nowrap" data-node-id="9:92" data-name="System wake time">
+            <p className="font-['Roboto:Medium'] font-medium leading-[31px] relative shrink-0 text-[27px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="9:93" style={{ fontVariationSettings: '"wdth" 100' }}>
+              07:30
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)]" data-node-id="9:94">
+              请在系统时钟中设置并确认
+            </p>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[222px] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="9:95" data-name="Plan / Workday">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[32px] items-center overflow-clip relative shrink-0 w-[324px]" data-node-id="9:96" data-name="Plan heading">
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[23px] min-w-px relative text-[16px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="9:97">
+              工作日通勤
+            </p>
+            <CodeConnectSnippet data-node-id="9:98" data-name="Switch/On">
+              {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/switch/overview */}
+              <Switch booleanShowFocusIndicator={false} showFocusIndicator={false} variantSelected="True" selected="True" variantState="Enabled" state="Enabled" variantIcon="False" icon="False" />
+            </CodeConnectSnippet>
+          </div>
+          <div className="[word-break:break-word] content-stretch flex gap-[var(--space\/12,12px)] h-[62px] items-end overflow-clip relative shrink-0 w-[324px] whitespace-nowrap" data-node-id="9:104" data-name="Baseline time">
+            <p className="font-['Roboto:Light'] font-light leading-[59px] relative shrink-0 text-[52px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="9:105" style={{ fontVariationSettings: '"wdth" 100' }}>
+              07:30
+            </p>
+            <div className="content-stretch flex flex-col font-['Noto_Sans_SC:Regular'] font-normal gap-[3px] h-[42px] items-start leading-[16px] overflow-clip relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[136px]" data-node-id="9:106" data-name="Time meaning">
+              <p className="relative shrink-0" data-node-id="9:107">
+                默认起床参考
+              </p>
+              <p className="relative shrink-0" data-node-id="9:108">
+                09:00 到岗
+              </p>
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[26px] items-start overflow-clip relative shrink-0 w-[324px]" data-node-id="9:109" data-name="Weekdays">
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:110" data-name="一">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="9:111">
+                一
+              </p>
+            </div>
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:112" data-name="二">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="9:113">
+                二
+              </p>
+            </div>
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:114" data-name="三">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="9:115">
+                三
+              </p>
+            </div>
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:116" data-name="四">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="9:117">
+                四
+              </p>
+            </div>
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:118" data-name="五">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="9:119">
+                五
+              </p>
+            </div>
+            <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:120" data-name="六">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/subtle,#8a9aa3)] whitespace-nowrap" data-node-id="9:121">
+                六
+              </p>
+            </div>
+            <div className="content-stretch flex h-[26px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[30px]" data-node-id="9:122" data-name="日">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/subtle,#8a9aa3)] whitespace-nowrap" data-node-id="9:123">
+                日
+              </p>
+            </div>
+          </div>
+          <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex gap-[7px] h-[28px] items-center overflow-clip pl-[10px] relative rounded-[var(--radius\/12,12px)] shrink-0 w-[324px]" data-node-id="9:124" data-name="Advance alarm status">
+            <div className="relative shrink-0 size-[15px]" data-node-id="9:125" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] min-w-px relative text-[11px] text-[color:var(--color\/brand,#007f78)]" data-node-id="9:128">
+              今天 07:18 提前闹钟已就绪
+            </p>
+            <div className="relative shrink-0 size-[14px]" data-node-id="9:129" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev1} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[8px] h-[122px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="9:131" data-name="Entry/Rest rules">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="22:213" data-name="Rest rules heading">
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[23px] min-w-px relative text-[16px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="22:214">
+              休息日规则
+            </p>
+            <div className="relative shrink-0 size-[18px]" data-node-id="22:215" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev2} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="22:217">
+            周末 / 法定休息日 · 默认停用
+          </p>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="22:218">
+            缓冲分别配置；保存参数不会自动开启
+          </p>
+        </div>
+        <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex flex-col gap-[var(--space\/8,8px)] h-[106px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="9:148" data-name="Entry/Single day">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="22:219" data-name="Single day heading">
+            <div className="relative shrink-0 size-[21px]" data-node-id="22:220" data-name="Icon/calendar">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconCalendar} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Bold'] font-bold leading-[23px] min-w-px relative text-[16px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="22:223">
+              单日加班
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="22:224">
+              选择日期
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="22:225" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev3} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="22:227">
+            只开启某一天，不改变每周重复安排
+          </p>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="22:228">
+          每日 19:00 后评估次日计划；异常时不改系统闹钟。
+        </p>
+      </div>
+      <div className="bg-[var(--color\/surface,white)] content-stretch flex h-[76px] items-start pb-[4px] pt-[8px] relative shrink-0 w-[412px]" data-node-id="9:155" data-name="知途 / Navigation">
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I9:155;5:56" data-name="Tab/今日">
+          <div className="content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I9:155;5:57" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I9:155;5:58" data-name="Icon/sun">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconSun} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="I9:155;5:61">
+            今日
+          </p>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I9:155;5:62" data-name="Tab/路线">
+          <div className="content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I9:155;5:63" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I9:155;5:64" data-name="Icon/route">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRoute} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="I9:155;5:68">
+            路线
+          </p>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I9:155;5:69" data-name="Tab/闹钟">
+          <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I9:155;5:70" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I9:155;5:71" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock1} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="I9:155;5:74">
+            闹钟
+          </p>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[64px] items-center overflow-clip relative shrink-0 w-[103px]" data-node-id="I9:155;5:75" data-name="Tab/设置">
+          <div className="content-stretch flex h-[32px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[56px]" data-node-id="I9:155;5:76" data-name="Selection">
+            <div className="relative shrink-0 size-[22px]" data-node-id="I9:155;5:77" data-name="Icon/settings">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconSettings} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="I9:155;5:80">
+            设置
+          </p>
+        </div>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="9:181" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="9:182" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Label: Font(family: "Noto Sans SC", style: Medium, size: 13, weight: 500, lineHeight: 19, letterSpacing: 0), 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), M3/sys/light/on-primary: #FFFFFF, 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Switch
+**Node ID:** 5:145
+
+Switches are the preferred way to adjust settings. They're used to control binary options – think On/Off or True/False.
+
+**Documentation:**
+- [https://m3.material.io/components/switch/overview](https://m3.material.io/components/switch/overview)
+
+## Active=闹钟
+**Node ID:** 5:55
+
+知途底部导航。选中项同时以图标底色和标签强调。
+
+## 知途 / Navigation
+**Node ID:** 5:107
+
+四个主要目的地：今日、路线、闹钟、设置。
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

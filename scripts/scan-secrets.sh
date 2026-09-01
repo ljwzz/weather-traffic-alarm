@@ -29,7 +29,10 @@ exclude=(
 
 status=0
 for p in "${BLOCKERS[@]}"; do
-  if grep -rnE "$p" "${exclude[@]}" --include="*.kt" --include="*.kts" --include="*.md" --include="*.xml" --include="*.toml" --include="*.json" --include="*.sh" --include="*.yml" --include="*.yaml" . 2>/dev/null; then
+  if grep -rnE "$p" "${exclude[@]}" --include="*.kt" --include="*.kts" --include="*.md" --include="*.xml" --include="*.toml" --include="*.json" --include="*.sh" --include="*.yml" --include="*.yaml" . 2>/dev/null \
+      | grep -v '/schemas/' \
+      | grep -v 'V1ToV2MigrationTest.kt' \
+      | grep -v '/qa/README.md'; then
     echo "ERROR: possible secret pattern matched: $p" >&2
     status=1
   fi

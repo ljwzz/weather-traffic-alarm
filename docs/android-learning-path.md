@@ -1,6 +1,6 @@
 # Android 学习路径（面向零基础，服务于通勤闹钟项目）
 
-目标：学完后能**独立核对 [facts-to-verify.md](./facts-to-verify.md) 中的 `❓`/`🔬` 项**，并正向输出通勤闹钟 v2.1 的实现方案。
+目标：学完后能先完成本地闹钟的可靠实现，再核对 [`facts-to-verify.md`](./facts-to-verify.md) 中的后续 Provider 项。
 
 原则：
 
@@ -13,10 +13,10 @@
 ## 阶段 0：先读项目文档（半天）
 
 - 通读 `SPEC.md`（重点：header 架构变更说明、第 2 章依赖表、第 5 章领域模型、FR-001/003/006/007、第 8 章 UI、第 14 章未决项）。
-- 通读 `README.md` 与 `docs/configuration.md`。
+- 通读 `README.md`、`docs/configuration.md` 与 [`design-handoff.md`](./design-handoff.md)；页面开发与界面验收参照本地 `prototype/`，除非用户明确要求不得自行改动原型。
 - 通读 `docs/facts-to-verify.md`，标记你不确定的断言——它们是学习动机清单。
 
-完成标志：能解释"为什么本 App 不注册正常起床闹钟"以及"提前闹钟在什么条件下才注册"。
+完成标志：能解释本 App 如何为单次、每周和工作日规则计算下一次本地响铃，以及为什么未接入路线和天气时不应生成模拟提前量。
 
 ## 阶段 1：Kotlin 语言基础（1–2 周）
 
@@ -55,10 +55,10 @@
 
 教材：
 
-- Room：https://developer.android.com/training/data-storage/room （注意：Room 2.x 指南已标记 deprecated，页面内有 Room 3 新指南链接，看新指南；本项目锁定 2.8.4，学完需评估迁移）
+- Room：https://developer.android.com/training/data-storage/room （注意：Room 2.x 指南已标记 deprecated，页面内有 Room 3 新指南链接；本项目当前基线为 Room 3.0.1）
 - DataStore：https://developer.android.com/topic/libraries/architecture/datastore
 
-完成标志：能对照 SPEC 5.2/5.7 设计出 `AlarmPlan` 与 `AlarmOccurrence` 的实体/DAO/关系，以及 `NextTempAlarmSnapshot` 放 DataStore 还是 Room 的理由。
+完成标志：能对照 SPEC 0.3 设计出 `AlarmPlan`、本地闹钟实例和贪睡子实例的实体／DAO／关系，以及 Direct Boot 快照放 DataStore 还是 Room 的理由。
 
 ## 阶段 4：后台任务、闹钟与 Direct Boot（1–2 周，本项目核心）
 
@@ -79,9 +79,9 @@
 
 完成标志：
 
-- 能解释 `setExactAndAllowWhileIdle` 与 `setAlarmClock` 的差异，以及为什么 FR-007 选 `setAlarmClock()`。
-- 能解释"重启后未解锁时只能从设备保护存储恢复，不能启动响铃服务"（FR-010）对应的平台机制。
-- 能解释 WorkManager 为什么"不承担精确响铃职责"（FR-006 后半句）。
+- 能解释 `setExactAndAllowWhileIdle` 与 `setAlarmClock` 的差异，以及本地闹钟为何选 `setAlarmClock()`。
+- 能解释接收器、前台响铃服务、停止和贪睡为何必须按实例 ID 幂等。
+- 能解释重启后恢复与 10 分钟迟到窗口的边界。
 
 ## 阶段 5：通知、渠道与全屏 Intent（1 周）
 
@@ -110,7 +110,7 @@
 - 彩云官网入口：https://caiyunapp.com/api/weather
 - holiday-cn：https://github.com/NateScarlet/holiday-cn/blob/master/README.md
 
-对照核对：逐条核对 facts-to-verify.md 的 E 组；彩云两项 `❓`（E7 鉴权头、E8 冻雨代码）与 E9 坐标基准必须在官方文档原文找答案。
+对照核对：Provider 接入前逐条核对 facts-to-verify.md 的 E 组；当前本地闹钟功能不依赖这些结论。
 
 完成标志：能写出"彩云请求 → HMAC 签名 → 解析 → 错误分类（对照 SPEC 7.3）"的伪代码。
 
@@ -119,7 +119,7 @@
 - 测试基础（单元/仪器测试分类）：https://developer.android.com/training/testing/fundamentals
 - 仪器测试：https://developer.android.com/training/testing/instrumented-tests
 
-完成标志：能对照 SPEC 11.1 判断"提前闹钟计算"为什么是纯 JVM 单元测试，而"响铃回归"为什么需要仪器测试。
+完成标志：能对照 SPEC 11.1 判断日期规则、实例状态机和恢复为何适合纯 JVM 单元测试，以及响铃回归为何需要仪器测试。
 
 ## 阶段 9：Android 16 专项（2–3 天）
 
@@ -134,7 +134,7 @@
 
 1. 用已核实的事实更新 `docs/facts-to-verify.md`，删除/改写不成立的断言。
 2. 把结论同步回 `SPEC.md` 第 2 章技术依据与第 14 章未决项。
-3. 基于事实正向输出实现方案：优先处理 `android/` 下仍是旧架构的 Kotlin 骨架（`core/model/AlarmOccurrence.kt`、`OccurrenceStateMachine.kt`、`NextAlarmSnapshot.kt`、`ExactAlarmScheduler.kt`）与新架构（v2.1）的差距，再对照 `IMPLEMENTATION_TASKS.md` 排实施顺序。
+3. 基于事实正向输出实现方案：优先处理 `android/` 下仍是旧架构的 Kotlin 骨架（`core/model/AlarmOccurrence.kt`、`OccurrenceStateMachine.kt`、`NextAlarmSnapshot.kt`、`ExactAlarmScheduler.kt`）与新架构（v3.0）的差距，再对照 `IMPLEMENTATION_TASKS.md` 排实施顺序。
 
 ## 引用说明
 

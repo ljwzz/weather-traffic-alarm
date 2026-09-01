@@ -1,10 +1,12 @@
 package com.ljwzz.weathertrafficalarm.core.data.mapper
 
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmDecisionEntity
+import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmEventEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmOccurrenceEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmPlanEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
+import com.ljwzz.weathertrafficalarm.core.model.AlarmEvent
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
@@ -28,6 +30,9 @@ fun AlarmPlanEntity.toDomain(): AlarmPlan = AlarmPlan(
     sound = sound,
     vibration = vibration,
     snoozeMinutes = snoozeMinutes,
+    schedule = schedule,
+    armedState = armedState,
+    scheduleError = scheduleError,
     createdAt = createdAt,
     updatedAt = updatedAt,
 )
@@ -51,6 +56,9 @@ fun AlarmPlan.toEntity(): AlarmPlanEntity = AlarmPlanEntity(
     sound = sound,
     vibration = vibration,
     snoozeMinutes = snoozeMinutes,
+    schedule = schedule,
+    armedState = armedState,
+    scheduleError = scheduleError,
     createdAt = createdAt,
     updatedAt = updatedAt,
 )
@@ -63,6 +71,8 @@ fun AlarmOccurrenceEntity.toDomain(): AlarmOccurrence = AlarmOccurrence(
     scheduledWakeAt = scheduledWakeAt,
     state = state,
     decisionId = decisionId,
+    kind = kind,
+    parentOccurrenceId = parentOccurrenceId,
     updatedAt = updatedAt,
 )
 
@@ -74,6 +84,8 @@ fun AlarmOccurrence.toEntity(): AlarmOccurrenceEntity = AlarmOccurrenceEntity(
     scheduledWakeAt = scheduledWakeAt,
     state = state,
     decisionId = decisionId,
+    kind = kind,
+    parentOccurrenceId = parentOccurrenceId,
     updatedAt = updatedAt,
 )
 
@@ -127,10 +139,30 @@ fun WorkdayOverrideEntity.toDomain(): WorkdayOverride = WorkdayOverride(
     planId = planId,
     date = date,
     status = status,
+    wakeLocalTime = wakeLocalTime,
 )
 
 fun WorkdayOverride.toEntity(): WorkdayOverrideEntity = WorkdayOverrideEntity(
     planId = planId,
     date = date,
     status = status,
+    wakeLocalTime = wakeLocalTime,
+)
+
+fun AlarmEventEntity.toDomain(): AlarmEvent = AlarmEvent(
+    id = id,
+    planId = planId,
+    occurrenceId = occurrenceId,
+    type = type,
+    message = message,
+    createdAt = createdAt,
+)
+
+fun AlarmEvent.toEntity(): AlarmEventEntity = AlarmEventEntity(
+    id = id,
+    planId = planId,
+    occurrenceId = occurrenceId,
+    type = type,
+    message = message,
+    createdAt = createdAt,
 )

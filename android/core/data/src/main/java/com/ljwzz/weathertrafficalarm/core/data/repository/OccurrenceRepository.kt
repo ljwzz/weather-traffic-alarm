@@ -4,6 +4,8 @@ import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmOccurrenceDao
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,6 +26,12 @@ class OccurrenceRepository @Inject constructor(
 
     suspend fun getByPlanId(planId: String): List<AlarmOccurrence> =
         occurrenceDao.getByPlanId(planId).map { it.toDomain() }
+
+    fun observeAll(): Flow<List<AlarmOccurrence>> =
+        occurrenceDao.observeAll().map { entities -> entities.map { it.toDomain() } }
+
+    suspend fun getAll(): List<AlarmOccurrence> =
+        occurrenceDao.getAll().map { it.toDomain() }
 
     suspend fun updateState(occurrenceId: String, state: String, updatedAt: Long) {
         occurrenceDao.updateState(occurrenceId, state, updatedAt)

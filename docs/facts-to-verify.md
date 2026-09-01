@@ -1,6 +1,13 @@
-# 待核对事实清单（通勤闹钟 v2.1）
+# 待核对事实清单（本地闹钟优先）
 
 用途：把 SPEC.md / README.md 中依赖平台行为与第三方服务的断言逐条列出，供学习与验证。核对完一条，把状态改为 `✅ 已核实` 并附上证据链接或实验记录。
+
+## 当前本地闹钟基线
+
+- 本 App 直接使用 `AlarmManager.setAlarmClock()` 为有效本地实例注册下一次响铃；官方 API 将其定义为代表闹钟的调度方法，并说明系统可用即将触发的闹钟信息提醒用户。https://developer.android.com/reference/android/app/AlarmManager
+- 精确闹钟能力应在注册前检查；Android 官方示例在系统设置返回的 `onResume()` 中再次检查并根据结果降级。https://developer.android.com/training/permissions/requesting-special
+- Android Keystore 的密钥材料不进入应用进程；本地凭据的实现应把明文限制在输入和加密操作的短生命周期内。https://developer.android.com/privacy-and-security/keystore
+- 以下历史“系统时钟引导／一次性提前闹钟”条目仅供后续通勤评估能力参考，不是当前本地闹钟验收条件。
 
 状态标记：
 
@@ -21,7 +28,7 @@
 | A4 | 设备重启后所有 AlarmManager 闹钟被清除，需重新注册 | ✅ | 同上页 |
 | A5 | 强制停止会清除本应用已注册的 PendingIntent 与闹钟，应用无法自启动恢复 | ✅ | 同上页 |
 | A6 | `setAlarmClock()` 注册的闹钟在系统 UI（状态栏/锁屏）可见，属于闹钟类型 | ✅ | https://developer.android.com/develop/background-work/services/alarms |
-| A7 | 精确闹钟权限（API 31+）：`SCHEDULE_EXACT_ALARM` 自动授予且用户可撤销；`USE_EXACT_ALARM` 仅限闹钟/日历类应用且需 Google Play 政策声明 | ✅ | https://developer.android.com/develop/background-work/services/alarms |
+| A7 | Android 13+ 可声明 `SCHEDULE_EXACT_ALARM` 或 `USE_EXACT_ALARM`；前者由用户在特殊访问设置中授予并可能撤销，后者自动授予但仅适用于以精确闹钟为核心的有限场景 | ✅ | https://developer.android.com/develop/background-work/services/alarms |
 | A8 | 本 App 采用 `USE_EXACT_ALARM` 的前提是"核心功能是闹钟"（提前闹钟属于闹钟类型）——需要 Google Play 政策对该权限适用范围的书面确认 | ❓ | Play 政策中心"精确闹钟"声明页面（待查阅） |
 | A9 | 系统时钟 App 设置的正常起床闹钟（`setAlarmClock` 类）会出现在 `getNextAlarmClock()` 返回值中 | 🔬 | 真机：在系统时钟 App 设闹钟，比对返回值 |
 | A10 | 不同厂商系统时钟 App（Google Clock/小米/华为/OPPO/vivo 等）对 `getNextAlarmClock` 的一致性 | 🔬 | 目标设备矩阵实测 |
@@ -58,7 +65,7 @@
 | D2 | `KeyGenParameterSpec` 生成 AES-GCM 密钥、`setKeyPurpose(ENCRYPT\|DECRYPT)` 是标准做法 | ⚠️ | 同 D1 页（API 细节在参考页） |
 | D3 | API 31+ 用 `android:dataExtractionRules` 控制备份，API 30- 用 `fullBackupContent`；两者需同时声明 | ✅ | https://developer.android.com/identity/data/autobackup |
 | D4 | 备份/恢复后凭证文件必须不存在且应用不崩溃（本项目验收项） | 🔬 | 真机备份/恢复实测 |
-| D5 | Room 2.x 文档已标记 deprecated，官方新指南为 Room 3；本项目锁定 Room 2.8.4 需要评估迁移 | ✅ | https://developer.android.com/training/data-storage/room （Room 3 指南 URL 在该页内） |
+| D5 | Room 2.x 文档已标记 deprecated，官方新指南为 Room 3；本项目当前依赖基线为 Room 3.0.1 | ✅ | https://developer.android.com/training/data-storage/room （Room 3 指南 URL 在该页内；版本以本地 version catalog 为准） |
 | D6 | Proto DataStore 可用作设备保护存储中的快照载体 | ⚠️ | https://developer.android.com/topic/libraries/architecture/datastore （结合 Direct Boot 用法待核实） |
 
 ## E. 第三方 API

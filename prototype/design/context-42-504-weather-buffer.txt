@@ -1,0 +1,329 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 42:504
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgEllipse = "https://www.figma.com/api/mcp/asset/084284af-4aec-4d04-b255-a8e470ed1e83.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/1306f51d-e383-4ee8-87ec-bea9ddc54019.svg";
+const imgIconBack = "https://www.figma.com/api/mcp/asset/ef63e5cb-911c-48f2-bbaa-1ad01dec554b.svg";
+const imgIconEdit = "https://www.figma.com/api/mcp/asset/c1f3b0f1-5dce-4abb-b383-5798803f4e39.svg";
+const imgIconOffice = "https://www.figma.com/api/mcp/asset/5d801176-6171-4d68-820e-3db6951826a2.svg";
+const imgIconChev = "https://www.figma.com/api/mcp/asset/26a7bacc-489d-4cbc-bf08-1cf6afdc92b0.svg";
+const imgIconClock = "https://www.figma.com/api/mcp/asset/e429f955-9223-4c60-b23a-fbe3a3267c21.svg";
+const imgIconShield = "https://www.figma.com/api/mcp/asset/61d2c62a-1018-45d5-9551-cf79552bea07.svg";
+const imgIconCalendar = "https://www.figma.com/api/mcp/asset/aaa5f7b5-3682-4015-bb7b-ad3422800d6c.svg";
+const imgIconRoute = "https://www.figma.com/api/mcp/asset/8052c208-6cd2-447a-b468-bc39b866f8b4.svg";
+const imgIconChev1 = "https://www.figma.com/api/mcp/asset/e6f35c69-5c8e-45e8-905c-24f82ef81934.svg";
+const imgIconRain = "https://www.figma.com/api/mcp/asset/ab031bd5-5c38-4328-be44-35c53b79e99d.svg";
+const imgIconChev2 = "https://www.figma.com/api/mcp/asset/83071664-92ec-4651-b835-60ec4030dd16.svg";
+const imgIconVolume = "https://www.figma.com/api/mcp/asset/b59076f1-a71c-4077-9723-4a9764127afa.svg";
+
+export default function Component() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="42:504" data-name="弹层 · 天气缓冲">
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="42:505" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="42:506" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:00
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="42:507" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="42:508" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="42:509" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[64px] items-center overflow-clip px-[24px] relative shrink-0 w-[412px]" data-node-id="42:516" data-name="Header/编辑通勤计划">
+        <div className="relative shrink-0 size-[23px]" data-node-id="42:517" data-name="Icon/back">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconBack} />
+        </div>
+        <div className="content-stretch flex flex-[1_0_0] flex-col items-start min-w-px overflow-clip relative" data-node-id="42:519" data-name="Title block">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[38px] relative shrink-0 text-[26px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="42:520">
+            编辑通勤计划
+          </p>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[684px] items-start overflow-clip pt-[4px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="42:521" data-name="Plan form">
+        <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex flex-col gap-[5px] h-[126px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="42:522" data-name="Default wake reference">
+          <div className="[word-break:break-word] content-stretch flex gap-[var(--space\/8,8px)] h-[22px] items-start overflow-clip relative shrink-0 text-[color:var(--color\/brand,#007f78)] w-[332px]" data-node-id="42:523" data-name="Wake label">
+            <p className="flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] min-w-px relative text-[12px]" data-node-id="42:524">
+              默认起床时间
+            </p>
+            <p className="font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] whitespace-nowrap" data-node-id="42:525">
+              工作日通勤
+            </p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[60px] items-center overflow-clip relative shrink-0 w-[332px]" data-node-id="42:526" data-name="Wake picker">
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Roboto:Light'] font-light leading-[57px] min-w-px relative text-[50px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:527" style={{ fontVariationSettings: '"wdth" 100' }}>
+              07:30
+            </p>
+            <div className="relative shrink-0 size-[22px]" data-node-id="42:528" data-name="Icon/edit">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconEdit} />
+            </div>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/brand,#007f78)] whitespace-nowrap" data-node-id="42:530">
+            此时间仅作参考，正常闹钟需在系统时钟设置。
+          </p>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col h-[220px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="42:531" data-name="Schedule and limits">
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[49px] items-center overflow-clip relative shrink-0 w-full" data-node-id="42:532" data-name="Setting/到岗时间">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:533" data-name="Icon/office">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconOffice} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:536">
+              到岗时间
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="42:537">
+              09:00
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="42:538" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[49px] items-center overflow-clip relative shrink-0 w-full" data-node-id="42:540" data-name="Setting/起床准备">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:541" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:544">
+              起床准备
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="42:545">
+              45 分钟
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="42:546" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[49px] items-center overflow-clip relative shrink-0 w-full" data-node-id="42:548" data-name="Setting/最多提前">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:549" data-name="Icon/shield">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconShield} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:552">
+              最多提前
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="42:553">
+              60 分钟
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="42:554" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[49px] items-center overflow-clip relative shrink-0 w-full" data-node-id="42:556" data-name="Entry/Rest rules">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:557" data-name="Icon/calendar">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconCalendar} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:560">
+              日期与休息日
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="42:561">
+              工作日 · 含调休
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="42:562" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col h-[64px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="42:564" data-name="Linked commute">
+          <div className="content-stretch flex gap-[10px] h-[40px] items-center overflow-clip relative shrink-0 w-[340px]" data-node-id="42:565" data-name="Linked route">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:566" data-name="Icon/route">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRoute} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] min-w-px relative text-[13px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:570">
+              上班路线 · 家 → 公司
+            </p>
+            <div className="relative shrink-0 size-[18px]" data-node-id="42:571" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev1} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col gap-[10px] h-[104px] items-start overflow-clip p-[var(--space\/16,16px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="42:573" data-name="Weather buffers">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[22px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="42:574" data-name="Weather heading">
+            <div className="relative shrink-0 size-[19px]" data-node-id="42:575" data-name="Icon/rain">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRain} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[19px] min-w-px relative text-[13px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:578">
+              工作日 · 天气缓冲
+            </p>
+            <div className="relative shrink-0 size-[17px]" data-node-id="42:579" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev2} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[10px] h-[32px] items-start overflow-clip relative shrink-0 w-[332px]" data-node-id="42:581" data-name="Buffer levels">
+            <div className="bg-[var(--color\/sky,#e3f2fa)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="42:582" data-name="Badge/小雨 10 分">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/blue,#4f94c4)] whitespace-nowrap" data-node-id="42:583">
+                小雨 10 分
+              </p>
+            </div>
+            <div className="bg-[var(--color\/sky,#e3f2fa)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="42:584" data-name="Badge/中雨 20 分">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/blue,#4f94c4)] whitespace-nowrap" data-node-id="42:585">
+                中雨 20 分
+              </p>
+            </div>
+            <div className="bg-[var(--color\/amberbg,#fff1da)] content-stretch flex gap-[var(--space\/4,4px)] h-[28px] items-center overflow-clip px-[10px] relative rounded-[var(--radius\/full,999px)] shrink-0" data-node-id="42:586" data-name="Badge/恶劣 30 分">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/amber,#ad661c)] whitespace-nowrap" data-node-id="42:587">
+                恶劣 30 分
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--color\/surface,white)] content-stretch flex flex-col h-[90px] items-start overflow-clip p-[var(--space\/12,12px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="42:588" data-name="Sound and snooze">
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[36px] items-center overflow-clip relative shrink-0 w-full" data-node-id="42:589" data-name="Setting/铃声与振动">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:590" data-name="Icon/volume">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconVolume} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:592">
+              铃声与振动
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="42:593">
+              晨光 · 开启
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="42:594" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[36px] items-center overflow-clip relative shrink-0 w-full" data-node-id="42:596" data-name="Setting/贪睡时长">
+            <div className="relative shrink-0 size-[20px]" data-node-id="42:597" data-name="Icon/clock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] min-w-px relative text-[14px] text-[color:var(--color\/ink,#172d3c)]" data-node-id="42:600">
+              贪睡时长
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] whitespace-nowrap" data-node-id="42:601">
+              10 分钟
+            </p>
+            <div className="relative shrink-0 size-[16px]" data-node-id="42:602" data-name="Icon/chev">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconChev} />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col h-[76px] items-start overflow-clip px-[var(--space\/24,24px)] py-[12px] relative shrink-0 w-[412px]" data-node-id="42:604" data-name="Save alarm plan">
+        <CodeConnectSnippet data-node-id="42:605" data-name="Button/保存计划">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="保存计划" labelText="保存计划" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="42:606" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/ink,#172d3c)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="42:607" data-name="Rectangle" />
+      </div>
+      <div className="absolute bg-[var(--color\/black,#090f12)] h-[892px] left-0 opacity-28 top-0 w-[412px]" data-node-id="48:369" data-name="Modal scrim" />
+      <CodeConnectSnippet data-node-id="48:370" data-name="Bottom sheet">
+        {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/bottom-sheets/overview */}
+        <BottomSheet slotContent="49:406" content="49:406" booleanShowDragHandle={true} showDragHandle={true} variantModal="False" modal="False">
+          <Content instanceSwapSlotSwap="46:344" slotSwap="46:344" variantLayout="Empty" layout="Empty" />
+        </BottomSheet>
+      </CodeConnectSnippet>
+      <div className="absolute content-stretch flex flex-col gap-[var(--space\/20,20px)] items-start left-0 p-[var(--space\/24,24px)] top-[372px] w-[412px]" data-node-id="48:376" data-name="Weather buffers editor">
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[29px] relative shrink-0 text-[20px] text-[color:var(--color\/ink,#172d3c)] whitespace-nowrap" data-node-id="48:377">
+          工作日 · 天气缓冲
+        </p>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="48:378">
+          三类数值独立保存，每次只采用当前日期类型的一组。
+        </p>
+        <div className="content-stretch flex flex-col gap-[var(--space\/16,16px)] items-start relative shrink-0 w-[364px]" data-node-id="48:379" data-name="Buffer values">
+          <CodeConnectSnippet data-node-id="48:380" data-name="Text field">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+            <TextField textSupportingText="" supportingText="" textInputText="10" inputText="10" textLabelText="小雨 / 一级（分钟）" labelText="小雨 / 一级（分钟）" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={false} showSupportingText={false} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="48:390" data-name="Text field">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+            <TextField textSupportingText="" supportingText="" textInputText="20" inputText="20" textLabelText="中雨 / 二级（分钟）" labelText="中雨 / 二级（分钟）" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={false} showSupportingText={false} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="48:400" data-name="Text field">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/text-fields/overview */}
+            <TextField textSupportingText="" supportingText="" textInputText="30" inputText="30" textLabelText="恶劣天气 / 三级（分钟）" labelText="恶劣天气 / 三级（分钟）" textPlaceholderText="Placeholder" placeholderText="Placeholder" booleanShowSupportingText={false} showSupportingText={false} variantStyle="Outlined" style="Outlined" variantState="Enabled" state="Enabled" variantTextConfigurations="Input text" textConfigurations="Input text" variantLeadingIcon="False" leadingIcon="False" variantTrailingIcon="False" trailingIcon="False" />
+          </CodeConnectSnippet>
+        </div>
+        <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[11px] text-[color:var(--color\/muted,#647782)] w-[364px]" data-node-id="48:410">
+          <p className="leading-[16px] mb-0">范围 0–60 分钟 · 天气等级规则以 SPEC 为准。</p>
+          <p className="leading-[16px]">周末和法定休息日各自保存，不与工作日叠加。</p>
+        </div>
+        <div className="content-stretch flex gap-[var(--space\/12,12px)] items-start relative shrink-0 w-[364px]" data-node-id="48:411" data-name="Dialog actions">
+          <CodeConnectSnippet data-node-id="48:412" data-name="Button/取消">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="取消" labelText="取消" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+          <CodeConnectSnippet data-node-id="48:419" data-name="Button/保存缓冲">
+            {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+            <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="保存缓冲" labelText="保存缓冲" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+          </CodeConnectSnippet>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Body: Font(family: "Noto Sans SC", style: Regular, size: 14, weight: 400, lineHeight: 20, letterSpacing: 0), 知途/Label: Font(family: "Noto Sans SC", style: Medium, size: 13, weight: 500, lineHeight: 19, letterSpacing: 0), M3/Elevation Light/3: Effect(type: DROP_SHADOW, color: #0000004D, offset: (0, 1), radius: 3, spread: 0); Effect(type: DROP_SHADOW, color: #00000026, offset: (0, 4), radius: 8, spread: 3), M3/sys/light/surface: #FEF7FF, M3/sys/light/outline: #79747E, 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+## Bottom sheet
+**Node ID:** 46:360
+
+Bottom sheets are surfaces containing supplementary content, anchored to the bottom of the screen.
+
+
+
+🛠 Additional options
+
+Drag handle - can be toggled to hide or show
+
+**Documentation:**
+- [https://m3.material.io/components/bottom-sheets/overview](https://m3.material.io/components/bottom-sheets/overview)
+
+## Text field
+**Node ID:** 38:911
+
+Use a text field when someone needs to enter text into a UI, such as filling in contact or payment information. 🛠 Additional options Support text - you can toggle supporting text between hide and show.
+
+**Documentation:**
+- [https://m3.material.io/components/text-fields/overview](https://m3.material.io/components/text-fields/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

@@ -15,4 +15,5 @@ data class WorkdayOverride(
     val planId: String,
     val date: String,
     val status: DayStatus,
+    val wakeLocalTime: String? = null,
 )

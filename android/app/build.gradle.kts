@@ -67,13 +67,14 @@ dependencies {
     // Core module dependencies
     implementation(project(":core:model"))
     implementation(project(":core:data"))
-    implementation(project(":core:network"))
     implementation(project(":core:alarm"))
 
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext)
     androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.room.runtime)
     androidTestImplementation(composeBom)
     androidTestImplementation(libs.compose.ui.test)
 }
