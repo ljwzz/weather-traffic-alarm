@@ -4,14 +4,18 @@ import android.content.Context
 import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmDecisionDao
+import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmEventDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmOccurrenceDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmPlanDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.WorkdayOverrideDao
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmDecisionEntity
+import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmEventEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmOccurrenceEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmPlanEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
+import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
+import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
@@ -21,6 +25,7 @@ import com.ljwzz.weathertrafficalarm.core.model.RoutePolicy
 import com.ljwzz.weathertrafficalarm.core.model.VibrationPattern
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -37,6 +42,7 @@ class DatabaseTest {
     private lateinit var db: AppDatabase
     private lateinit var planDao: AlarmPlanDao
     private lateinit var decisionDao: AlarmDecisionDao
+    private lateinit var eventDao: AlarmEventDao
     private lateinit var occurrenceDao: AlarmOccurrenceDao
     private lateinit var overrideDao: WorkdayOverrideDao
 
@@ -121,6 +127,7 @@ class DatabaseTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         planDao = db.alarmPlanDao()
         decisionDao = db.alarmDecisionDao()
+        eventDao = db.alarmEventDao()
         occurrenceDao = db.alarmOccurrenceDao()
         overrideDao = db.workdayOverrideDao()
     }
@@ -142,10 +149,12 @@ class DatabaseTest {
         assertEquals("plan-1", retrieved!!.id)
         assertEquals("Morning Commute", retrieved.name)
         assertEquals(CommuteMode.DRIVING, retrieved.commuteMode)
-        assertEquals("Home", retrieved.origin.name)
-        assertEquals("Office", retrieved.destination.name)
-        assertEquals(116.397428, retrieved.origin.longitudeGcj02, 0.0001)
-        assertEquals(39.90923, retrieved.origin.latitudeGcj02, 0.0001)
+        val savedOrigin = requireNotNull(retrieved.origin)
+        val savedDestination = requireNotNull(retrieved.destination)
+        assertEquals("Home", savedOrigin.name)
+        assertEquals("Office", savedDestination.name)
+        assertEquals(116.397428, savedOrigin.longitudeGcj02, 0.0001)
+        assertEquals(39.90923, savedOrigin.latitudeGcj02, 0.0001)
     }
 
     @Test
@@ -177,6 +186,38 @@ class DatabaseTest {
         planDao.deleteById("plan-1")
 
         assertNull(planDao.getById("plan-1"))
+    }
+
+    @Test
+    fun basicAlarmPlanPersistsWithoutRoutePlaces() = runTest {
+        val plan = createTestPlan("basic-plan").copy(
+            origin = null,
+            destination = null,
+            enabled = true,
+            armedState = AlarmArmedState.NEEDS_PERMISSION,
+        )
+        planDao.upsert(plan)
+
+        val stored = planDao.getById("basic-plan")
+        assertNull(stored!!.origin)
+        assertNull(stored.destination)
+        assertEquals(AlarmArmedState.NEEDS_PERMISSION, stored.armedState)
+    }
+
+    @Test
+    fun updatingPlanPreservesDependentDecisionOccurrenceAndOverride() = runTest {
+        val original = createTestPlan()
+        planDao.upsert(original)
+        decisionDao.upsert(createTestDecision())
+        occurrenceDao.upsert(createTestOccurrence())
+        overrideDao.upsert(WorkdayOverrideEntity("plan-1", "2026-07-25", DayStatus.HOLIDAY))
+
+        planDao.upsert(original.copy(name = "Updated", revision = 2, updatedAt = System.currentTimeMillis()))
+
+        assertEquals("Updated", planDao.getById("plan-1")!!.name)
+        assertNotNull(decisionDao.getByPlanIdAndDate("plan-1", "2026-07-25"))
+        assertNotNull(occurrenceDao.getById("occ-1"))
+        assertNotNull(overrideDao.getByPlanIdAndDate("plan-1", "2026-07-25"))
     }
 
     // --- AlarmDecision tests ---
@@ -239,6 +280,24 @@ class DatabaseTest {
         val updated = occurrenceDao.getById("occ-1")
         assertNotNull(updated)
         assertEquals(OccurrenceState.FIRING, updated!!.state)
+    }
+
+    @Test
+    fun alarmEventsPersistAndAreRetainedIndependentlyOfOccurrences() = runTest {
+        planDao.upsert(createTestPlan())
+        eventDao.upsert(
+            AlarmEventEntity(
+                id = "event-1",
+                planId = "plan-1",
+                occurrenceId = null,
+                type = AlarmEventType.REGISTERED,
+                message = "Registered",
+                createdAt = 1_000L,
+            ),
+        )
+        assertEquals(1, eventDao.observeAll().first().size)
+        eventDao.deleteOlderThan(1_001L)
+        assertTrue(eventDao.observeAll().first().isEmpty())
     }
 
     // --- WorkdayOverride tests ---

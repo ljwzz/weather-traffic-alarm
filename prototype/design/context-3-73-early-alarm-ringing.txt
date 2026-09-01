@@ -1,0 +1,132 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 3:73
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgWallpaperEditableAtmosphere = "https://www.figma.com/api/mcp/asset/90efd783-558d-459e-9023-617c1323b182.svg";
+const imgEllipse = "https://www.figma.com/api/mcp/asset/c7b6f881-64e0-4bf1-b90a-7678a3cb38f9.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/24b9be6c-eb1d-4f38-9995-4f633c4823bc.svg";
+const imgIconClock = "https://www.figma.com/api/mcp/asset/bda1ff1c-5875-4d86-89d5-d5e2340fdb6a.svg";
+const imgIconRain = "https://www.figma.com/api/mcp/asset/59798ef3-4b7c-419a-b01f-742c7587a2ba.svg";
+const imgIconClock1 = "https://www.figma.com/api/mcp/asset/c39a1de1-294e-485c-9ba3-547085e07c94.svg";
+
+export default function Component12() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="3:73" data-name="12 / 响铃 · 提前闹钟">
+      <div className="absolute h-[892px] left-0 top-0 w-[412px]" data-node-id="13:143" data-name="Wallpaper / editable atmosphere">
+        <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgWallpaperEditableAtmosphere} />
+      </div>
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="13:150" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="13:151" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:18
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="13:152" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="13:153" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="13:154" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col h-[824px] items-start overflow-clip pb-[var(--space\/24,24px)] pt-[38px] px-[var(--space\/24,24px)] relative shrink-0 w-[412px]" data-node-id="13:161" data-name="Ringing alarm">
+        <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-center justify-center overflow-clip relative shrink-0 w-[364px]" data-node-id="13:162" data-name="Ringing app">
+          <div className="relative shrink-0 size-[22px]" data-node-id="13:163" data-name="Icon/clock">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock} />
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[20px] relative shrink-0 text-[14px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="13:166">
+            知途 · 提前闹钟
+          </p>
+        </div>
+        <div className="h-[30px] relative shrink-0 w-px" data-node-id="13:167" data-name="Spacer" />
+        <div className="content-stretch flex flex-col gap-[10px] h-[216px] items-center overflow-clip relative shrink-0 w-[364px]" data-node-id="13:168" data-name="Ringing time">
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[19px] relative shrink-0 text-[#c5dfde] text-[13px] whitespace-pre" data-node-id="13:169">{`8月27日  星期四`}</p>
+          <p className="[word-break:break-word] font-['Roboto:Light'] font-light leading-[107px] relative shrink-0 text-[94px] text-[color:var(--color\/white,white)] text-center whitespace-nowrap" data-node-id="13:170" style={{ fontVariationSettings: '"wdth" 100' }}>
+            07:18
+          </p>
+          <div className="bg-[rgba(255,255,255,0.13)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex h-[30px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[208px]" data-node-id="13:171" data-name="Advance badge">
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="13:172">
+              今天，比平时早 12 分钟
+            </p>
+          </div>
+        </div>
+        <div className="bg-[rgba(255,255,255,0.13)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex flex-col gap-[10px] h-[112px] items-start overflow-clip p-[18px] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[364px]" data-node-id="13:173" data-name="Ringing reason">
+          <div className="content-stretch flex gap-[10px] h-[32px] items-center overflow-clip relative shrink-0 w-[328px]" data-node-id="13:174" data-name="Weather reason">
+            <div className="relative shrink-0 size-[28px]" data-node-id="13:175" data-name="Icon/rain">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRain} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[25px] relative shrink-0 text-[17px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="13:178">
+              今天路上有小雨
+            </p>
+          </div>
+          <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[12px] text-[color:var(--color\/white,white)] w-[328px]" data-node-id="13:179">
+            <p className="leading-[17px] mb-0">通勤约 47 分钟，建议 08:03 出发。</p>
+            <p className="leading-[17px]">慢慢准备，也能准时到达。</p>
+          </div>
+        </div>
+        <div className="h-[104px] relative shrink-0 w-px" data-node-id="13:180" data-name="Spacer" />
+        <CodeConnectSnippet data-node-id="13:181" data-name="Button/停止">
+          {/* Material 3 Design Kit component
+Docs:
+  https://m3.material.io/components/buttons/overview */}
+          <Button booleanShowFocusIndicator={false} showFocusIndicator={false} instanceSwapIcon="5:280" icon="5:280" booleanShowIcon={false} showIcon={false} textLabelText="停止" labelText="停止" variantType="Square" type="Square" variantSize="Medium" size="Medium" variantState="Enabled" state="Enabled" />
+        </CodeConnectSnippet>
+        <div className="h-[12px] relative shrink-0 w-px" data-node-id="13:188" data-name="Spacer" />
+        <div className="bg-[rgba(255,255,255,0.14)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex gap-[10px] h-[56px] items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 w-[364px]" data-node-id="13:189" data-name="Snooze / 10 minutes">
+          <div className="relative shrink-0 size-[20px]" data-node-id="13:190" data-name="Icon/clock">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconClock1} />
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[22px] relative shrink-0 text-[15px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="13:193">
+            贪睡 10 分钟
+          </p>
+        </div>
+        <div className="h-[20px] relative shrink-0 w-px" data-node-id="13:194" data-name="Spacer" />
+        <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[#c5dfde] text-[11px] text-center w-[364px]" data-node-id="13:195">
+          <p className="leading-[16px] mb-0">仅停止本次提前闹钟</p>
+          <p className="leading-[16px]">系统时钟的 07:30 闹钟仍保持原设置</p>
+        </div>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="13:196" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/white,white)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="13:197" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+If the node is connected to a code component in the users codebase via Code Connect, the connected component will be included in the final markup wrapped in a CodeConnectSnippet element, with relevant imports at the top of the file. There are two formats: 1. Single snippet: <CodeConnectSnippet data-snippet-language="React"><TitleComponent>Hello World</TitleComponent></CodeConnectSnippet> 2. Multiple options: <CodeConnectSnippet data-snippet-language="React" options={[<Button variant="primary" />, <Button variant="secondary" />]} /> IMPORTANT: the CodeConnectSnippet wrapper element should not be part of the final code. For the options format, choose the single most appropriate option to use in your implementation. The source of the code component will be in the import path, e.g. import {ComponentName } from 'path/to/component'; IMPORTANT: the import path may not be relative/may point to a URL, so you should search for the component in the codebase and MUST use it if possible.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Type=Square, Size=Medium, State=Enabled
+**Node ID:** 5:327
+
+Standard Icon buttons are low-emphasis buttons. They are used for the lowest priority actions, especially when presenting multiple options. Icon buttons can be placed on a variety of backgrounds. Until the button is interacted with, its container isn’t visible.
+
+## Button
+**Node ID:** 5:316
+
+Buttons communicate actions that users can take.
+
+
+
+1.  Can contain an optional leading icon
+2.  Five color options: elevated, filled, tonal, outlined, and text
+3.  Five size recommendations: extra small, small, medium, large, extra large
+4.  Two shape options: round and square
+5.  Keep labels concise and use sentence-case
+
+**Documentation:**
+- [https://m3.material.io/components/buttons/overview](https://m3.material.io/components/buttons/overview)
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

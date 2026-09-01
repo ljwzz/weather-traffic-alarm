@@ -68,4 +68,27 @@ class NextAlarmSnapshotStoreTest {
         assertFalse(snapshot.vibrationEnabled)
         assertEquals(5, snapshot.snoozeMinutes)
     }
+
+    @Test
+    fun directBootFieldsPreserveOnlyCurrentOccurrenceData() {
+        val snapshot = NextAlarmSnapshot(
+            occurrenceId = "snooze-2",
+            planId = "plan-1",
+            planRevision = 4,
+            triggerAtMillis = 2_000L,
+            soundUri = null,
+            vibrationEnabled = true,
+            snoozeMinutes = 10,
+            occurrenceKind = "SNOOZE",
+            parentOccurrenceId = "regular-1",
+            occurrenceState = "SCHEDULED",
+            snoozeCount = 2,
+        )
+
+        val restored = json.decodeFromString<NextAlarmSnapshot>(json.encodeToString(snapshot))
+        assertEquals("SNOOZE", restored.occurrenceKind)
+        assertEquals("regular-1", restored.parentOccurrenceId)
+        assertEquals(2, restored.snoozeCount)
+        assertEquals("SCHEDULED", restored.occurrenceState)
+    }
 }

@@ -1,7 +1,9 @@
 package com.ljwzz.weathertrafficalarm.core.alarm.scheduler
 
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import com.ljwzz.weathertrafficalarm.core.alarm.AlarmReceiver
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.AlarmAction
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory
@@ -11,127 +13,151 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 
+sealed interface AlarmRegistrationResult {
+    data object Registered : AlarmRegistrationResult
+    data class Rejected(
+        val reason: RegistrationFailure,
+        val detail: String? = null,
+    ) : AlarmRegistrationResult
+}
+
+enum class RegistrationFailure {
+    PAST_TRIGGER,
+    EXACT_ALARM_PERMISSION,
+    NOTIFICATIONS_DISABLED,
+    PLATFORM_REJECTED,
+}
+
+/**
+ * Thin platform gateway. It never decides which occurrence should be armed;
+ * LocalAlarmCoordinator owns that decision and persists its occurrence before
+ * calling this class. Keeping this class side-effect focused also makes it safe
+ * to use from the Direct-Boot restorer with only a snapshot.
+ */
 @Singleton
 class ExactAlarmScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val alarmManager: AlarmManager,
     private val pendingIntentFactory: PendingIntentFactory,
     private val snapshotStore: NextAlarmSnapshotStore,
-) {
-
-    /**
-     * Creates a default occurrence for the plan and registers it as the system alarm.
-     * Persists the snapshot first, then registers, then commits the state.
-     */
-    suspend fun scheduleDefault(plan: AlarmPlan): AlarmOccurrence? {
-        if (!plan.enabled) return null
-
-        val nextTargetDate = resolveNextTargetDate(plan)
-            ?: return null
-
-        val occurrence = AlarmOccurrence(
-            occurrenceId = generateOccurrenceId(plan.id, nextTargetDate),
-            planId = plan.id,
-            planRevision = plan.revision,
-            targetDate = nextTargetDate,
-            scheduledWakeAt = resolveDefaultWakeMillis(plan, nextTargetDate),
-            state = OccurrenceState.DEFAULT_REGISTERED,
-        )
-
-        return scheduleOccurrence(plan, occurrence)
-    }
-
-    /**
-     * Registers an occurrence with the system [AlarmManager.setAlarmClock].
-     * Persists the snapshot first, then registers, then commits state.
-     * On registration failure, retains diagnostic state without crash.
-     */
-    suspend fun scheduleOccurrence(plan: AlarmPlan, occurrence: AlarmOccurrence): AlarmOccurrence? {
-        val snapshot = NextAlarmSnapshot(
-            occurrenceId = occurrence.occurrenceId,
-            planId = plan.id,
-            planRevision = plan.revision,
-            triggerAtMillis = occurrence.scheduledWakeAt,
-            soundUri = plan.sound.uri,
-            vibrationEnabled = plan.vibration.enabled,
-            snoozeMinutes = plan.snoozeMinutes,
-        )
-
-        // 1. Persist snapshot first
-        snapshotStore.save(snapshot)
-
-        // 2. Register system alarm
-        try {
-            val pi = pendingIntentFactory.alarmPendingIntent(
-                occurrence.occurrenceId,
+) : AlarmSchedulingGateway {
+    override suspend fun schedule(snapshot: NextAlarmSnapshot): AlarmRegistrationResult {
+        if (snapshot.triggerAtMillis <= System.currentTimeMillis()) {
+            return AlarmRegistrationResult.Rejected(RegistrationFailure.PAST_TRIGGER)
+        }
+        if (!canScheduleExactAlarms()) {
+            return AlarmRegistrationResult.Rejected(RegistrationFailure.EXACT_ALARM_PERMISSION)
+        }
+        if (!context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()) {
+            return AlarmRegistrationResult.Rejected(RegistrationFailure.NOTIFICATIONS_DISABLED)
+        }
+        return try {
+            val operation = pendingIntentFactory.alarmPendingIntent(
+                snapshot.occurrenceId,
                 AlarmReceiver::class.java,
             )
-            val alarmInfo = AlarmManager.AlarmClockInfo(occurrence.scheduledWakeAt, pi)
-            alarmManager.setAlarmClock(alarmInfo, pi)
-        } catch (e: SecurityException) {
-            // Alarm permission missing - retain snapshot for later recovery
-            return occurrence
+            val showIntent = pendingIntentFactory.showAlarmPendingIntent(snapshot.occurrenceId)
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(snapshot.triggerAtMillis, showIntent),
+                operation,
+            )
+            AlarmRegistrationResult.Registered
+        } catch (security: SecurityException) {
+            AlarmRegistrationResult.Rejected(RegistrationFailure.PLATFORM_REJECTED, security.message)
         }
-
-        return occurrence
     }
 
-    /**
-     * Cancels the scheduled alarm and related receiver intents before removing the plan snapshot.
-     */
+    override fun canScheduleExactAlarms(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+
+    /** Restore a still-valid Direct-Boot snapshot. */
+    override suspend fun restore(snapshot: NextAlarmSnapshot, nowMillis: Long): AlarmRegistrationResult {
+        if (snapshot.triggerAtMillis <= nowMillis) {
+            return AlarmRegistrationResult.Rejected(RegistrationFailure.PAST_TRIGGER)
+        }
+        return schedule(snapshot)
+    }
+
+    override suspend fun cancelOccurrence(occurrenceId: String) {
+        pendingIntentFactory.findPendingIntent(
+            occurrenceId,
+            AlarmAction.ALARM,
+            AlarmReceiver::class.java,
+        )?.let { pendingIntent ->
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+        pendingIntentFactory.cancelPendingIntent(
+            occurrenceId,
+            AlarmAction.DISMISS,
+            AlarmReceiver::class.java,
+        )
+        pendingIntentFactory.cancelPendingIntent(
+            occurrenceId,
+            AlarmAction.SNOOZE,
+            AlarmReceiver::class.java,
+        )
+        pendingIntentFactory.cancelPendingIntent(
+            occurrenceId,
+            AlarmAction.SHOW_ALARM,
+            AlarmReceiver::class.java,
+        )
+        snapshotStore.removeOccurrence(occurrenceId)
+    }
+
     suspend fun cancelForPlan(planId: String) {
-        snapshotStore.get(planId)?.let { snapshot ->
-            pendingIntentFactory.findPendingIntent(
-                snapshot.occurrenceId,
-                AlarmAction.ALARM,
-                AlarmReceiver::class.java,
-            )?.let { pendingIntent ->
-                alarmManager.cancel(pendingIntent)
-                pendingIntent.cancel()
-            }
-            pendingIntentFactory.cancelPendingIntent(
-                snapshot.occurrenceId,
-                AlarmAction.DISMISS,
-                AlarmReceiver::class.java,
-            )
-            pendingIntentFactory.cancelPendingIntent(
-                snapshot.occurrenceId,
-                AlarmAction.SNOOZE,
-                AlarmReceiver::class.java,
-            )
-        }
+        val snapshots = snapshotStore.observeAll().first()
+            .filter { it.planId == planId }
+        snapshots.forEach { cancelOccurrence(it.occurrenceId) }
+        // Also removes a legacy plan-keyed snapshot that may not be parseable as
+        // an occurrence-keyed entry during an upgrade.
         snapshotStore.remove(planId)
     }
 
     /**
-     * Generates a deterministic occurrence ID from plan ID and target date.
+     * Compatibility path for the pre-local-alarm demo. New production flows
+     * must create an occurrence and snapshot through LocalAlarmCoordinator.
      */
-    private fun generateOccurrenceId(planId: String, targetDate: String): String =
-        "${planId}_$targetDate"
-
-    /**
-     * Resolves the next target date for the plan.
-     * For initial implementation, uses tomorrow's date as default.
-     */
-    private suspend fun resolveNextTargetDate(plan: AlarmPlan): String? {
-        // Placeholder: returns the plan's next working day
-        // Full implementation will use WorkdayResolver
-        return java.time.LocalDate.now(java.time.ZoneId.of(plan.zoneId))
-            .plusDays(1)
-            .toString()
-    }
-
-    /**
-     * Resolves the default wake time in epoch millis for the given target date.
-     */
-    private fun resolveDefaultWakeMillis(plan: AlarmPlan, targetDate: String): Long {
-        val localDate = java.time.LocalDate.parse(targetDate)
-        val localTime = java.time.LocalTime.parse(plan.defaultWakeLocalTime)
-        val zoneId = java.time.ZoneId.of(plan.zoneId)
-        val zdt = java.time.ZonedDateTime.of(localDate, localTime, zoneId)
-        return zdt.toInstant().toEpochMilli()
+    suspend fun scheduleDefault(plan: AlarmPlan): AlarmOccurrence? {
+        if (!plan.enabled) return null
+        val targetDate = LocalDate.now(ZoneId.of(plan.zoneId)).plusDays(1)
+        val triggerAt = targetDate.atTime(LocalTime.parse(plan.defaultWakeLocalTime))
+            .atZone(ZoneId.of(plan.zoneId))
+            .toInstant()
+            .toEpochMilli()
+        val occurrence = AlarmOccurrence(
+            occurrenceId = "${plan.id}_$targetDate",
+            planId = plan.id,
+            planRevision = plan.revision,
+            targetDate = targetDate.toString(),
+            scheduledWakeAt = triggerAt,
+            state = OccurrenceState.DEFAULT_REGISTERED,
+        )
+        val snapshot = NextAlarmSnapshot(
+            occurrenceId = occurrence.occurrenceId,
+            planId = plan.id,
+            planRevision = plan.revision,
+            triggerAtMillis = triggerAt,
+            soundUri = plan.sound.uri,
+            vibrationEnabled = plan.vibration.enabled,
+            vibrationPatternMillis = plan.vibration.patternMillis.toList(),
+            snoozeMinutes = plan.snoozeMinutes,
+            alarmLabel = plan.name,
+        )
+        snapshotStore.save(snapshot)
+        return when (schedule(snapshot)) {
+            AlarmRegistrationResult.Registered -> occurrence
+            is AlarmRegistrationResult.Rejected -> {
+                snapshotStore.removeOccurrence(occurrence.occurrenceId)
+                null
+            }
+        }
     }
 }

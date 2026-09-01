@@ -1,0 +1,24 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="412" height="892" viewBox="0 0 412 892" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Wallpaper / editable atmosphere" clip-path="url(#clip0_0_62)">
+<path id="Vector" d="M412 0H0V892H412V0Z" fill="url(#paint0_linear_0_62)"/>
+<path id="Vector_2" d="M310 800C450.833 800 565 674.64 565 520C565 365.36 450.833 240 310 240C169.167 240 55 365.36 55 520C55 674.64 169.167 800 310 800Z" fill="url(#paint1_radial_0_62)"/>
+<path id="Vector_3" d="M-70 717C62 533 118 586 225 489C332 392 400 420 485 461V930H-70V717Z" fill="#79ABA8" fill-opacity="0.55"/>
+<path id="Vector_4" d="M-40 828C90 644 173 735 291 599C409 463 389 563 470 615V930H-40V828Z" fill="#548D90" fill-opacity="0.55"/>
+<path id="Vector_5" d="M-70 906C90 763 259 827 481 639V962H-70V906Z" fill="#386D78" fill-opacity="0.55"/>
+<path id="Vector_6" d="M-26 663C62 526 129 609 241 494C353 379 389 430 473 454M-25 680C62 543 129 626 241 511C353 396 389 447 473 471M-25 697C62 560 129 643 241 528C353 413 389 464 473 488" stroke="#E8F5EC" stroke-opacity="0.15"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_62" x1="38" y1="7.1522e-06" x2="390" y2="892" gradientUnits="userSpaceOnUse">
+<stop stop-color="#DAECED"/>
+<stop offset="0.56" stop-color="#B9DAD8"/>
+<stop offset="1" stop-color="#83B5B0"/>
+</linearGradient>
+<radialGradient id="paint1_radial_0_62" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(310 520) scale(255 280)">
+<stop stop-color="#F3F7E8" stop-opacity="0.9"/>
+<stop offset="1" stop-color="#F3F7E8" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="clip0_0_62">
+<rect width="412" height="892" fill="white"/>
+</clipPath>
+</defs>
+</svg>

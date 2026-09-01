@@ -38,6 +38,8 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.room.runtime)
     testImplementation(libs.work.testing)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.androidx.test.core)

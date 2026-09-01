@@ -51,7 +51,7 @@ class AlarmCapabilityChecker @Inject constructor(
     }
 
     private fun checkExactAlarm(): CapabilityLevel {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = context.getSystemService(android.app.AlarmManager::class.java)
             if (am?.canScheduleExactAlarms() != true) return CapabilityLevel.BLOCKING
         }
@@ -60,9 +60,8 @@ class AlarmCapabilityChecker @Inject constructor(
 
     private fun checkFullScreenIntent(): CapabilityLevel {
         if (Build.VERSION.SDK_INT >= 34) {
-            val granted = context.checkSelfPermission(Manifest.permission.USE_FULL_SCREEN_INTENT) ==
-                PackageManager.PERMISSION_GRANTED
-            if (!granted) return CapabilityLevel.DEGRADED
+            val manager = context.getSystemService(NotificationManager::class.java)
+            if (manager?.canUseFullScreenIntent() != true) return CapabilityLevel.DEGRADED
         }
         return CapabilityLevel.AVAILABLE
     }

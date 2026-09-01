@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Source: prototype/assets/figma-svg/2c52264e-dee6-4069-95c5-e8105043da04.svg; path data unchanged. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="20dp" android:height="20dp" android:viewportWidth="20" android:viewportHeight="20">
+    <path android:pathData="M10 1.66667L16.6667 5V10C16.6667 14.1667 10 18.3333 10 18.3333C10 18.3333 3.33333 14.1667 3.33333 10V5L10 1.66667Z" android:fillColor="#00000000" android:strokeColor="#4F94C4" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M6.66667 9.16667L9.16667 11.6667L13.3333 7.5" android:fillColor="#00000000" android:strokeColor="#4F94C4" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

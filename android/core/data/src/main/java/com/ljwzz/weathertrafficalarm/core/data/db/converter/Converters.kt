@@ -2,10 +2,14 @@ package com.ljwzz.weathertrafficalarm.core.data.db.converter
 
 import androidx.room3.ColumnTypeConverter
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
+import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
+import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
+import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.RoutePolicy
 import com.ljwzz.weathertrafficalarm.core.model.VibrationPattern
@@ -57,6 +61,16 @@ class Converters {
     fun toVibrationPattern(value: String): VibrationPattern =
         json.decodeFromString(VibrationPattern.serializer(), value)
 
+    @ColumnTypeConverter
+    fun fromAlarmSchedule(value: AlarmSchedule?): String? = value?.let {
+        json.encodeToString(AlarmSchedule.serializer(), it)
+    }
+
+    @ColumnTypeConverter
+    fun toAlarmSchedule(value: String?): AlarmSchedule? = value?.let {
+        json.decodeFromString(AlarmSchedule.serializer(), it)
+    }
+
     // --- Enums stored as strings ---
 
     @ColumnTypeConverter
@@ -90,8 +104,26 @@ class Converters {
     fun toOccurrenceState(value: String): OccurrenceState = OccurrenceState.valueOf(value)
 
     @ColumnTypeConverter
+    fun fromOccurrenceKind(value: OccurrenceKind): String = value.name
+
+    @ColumnTypeConverter
+    fun toOccurrenceKind(value: String): OccurrenceKind = OccurrenceKind.valueOf(value)
+
+    @ColumnTypeConverter
     fun fromDayStatus(value: DayStatus): String = value.name
 
     @ColumnTypeConverter
     fun toDayStatus(value: String): DayStatus = DayStatus.valueOf(value)
+
+    @ColumnTypeConverter
+    fun fromAlarmArmedState(value: AlarmArmedState): String = value.name
+
+    @ColumnTypeConverter
+    fun toAlarmArmedState(value: String): AlarmArmedState = AlarmArmedState.valueOf(value)
+
+    @ColumnTypeConverter
+    fun fromAlarmEventType(value: AlarmEventType): String = value.name
+
+    @ColumnTypeConverter
+    fun toAlarmEventType(value: String): AlarmEventType = AlarmEventType.valueOf(value)
 }

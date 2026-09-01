@@ -28,7 +28,6 @@ android {
 dependencies {
     implementation(project(":core:model"))
 
-    implementation(libs.amap.all)
     implementation(libs.hilt.android)
     implementation(libs.hilt.core)
     ksp(libs.hilt.compiler)

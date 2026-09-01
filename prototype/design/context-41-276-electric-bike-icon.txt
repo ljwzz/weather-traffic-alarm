@@ -1,0 +1,43 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 41:276
+Snapshot role: electric-bike icon source reference; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgVector = "https://www.figma.com/api/mcp/asset/9e2c3dff-7e83-4a5d-9d7a-6d9318372ef9.svg";
+const imgVector1 = "https://www.figma.com/api/mcp/asset/2603cd49-f8aa-4825-bbde-818e93f4500f.svg";
+
+export default function IconElectricBike() {
+  return (
+    <div className="relative size-full" data-node-id="41:276" data-name="Icon/electric-bike">
+      <div className="absolute inset-[54.17%_62.5%_12.5%_4.17%]" data-node-id="41:277" data-name="Vector">
+        <div className="absolute inset-[-11.25%]">
+          <img alt="" className="block max-w-none size-full" src={imgVector} />
+        </div>
+      </div>
+      <div className="absolute inset-[54.17%_4.17%_12.5%_62.5%]" data-node-id="41:278" data-name="Vector">
+        <div className="absolute inset-[-11.25%]">
+          <img alt="" className="block max-w-none size-full" src={imgVector} />
+        </div>
+      </div>
+      <div className="absolute inset-[16.67%_20.83%_29.17%_20.83%]" data-node-id="41:279" data-name="Vector">
+        <div className="absolute inset-[-6.92%_-6.43%]">
+          <img alt="" className="block max-w-none size-full" src={imgVector1} />
+        </div>
+      </div>
+      <p className="[word-break:break-word] absolute font-['Roboto:Medium'] font-medium leading-[normal] left-[13px] text-[8px] text-[color:var(--color\/brand,#007f78)] top-[-2px] whitespace-nowrap" data-node-id="41:281" style={{ fontVariationSettings: '"wdth" 100' }}>
+        E
+      </p>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

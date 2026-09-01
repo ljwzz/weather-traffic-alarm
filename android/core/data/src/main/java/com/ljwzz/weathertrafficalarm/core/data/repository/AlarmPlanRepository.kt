@@ -20,9 +20,10 @@ class AlarmPlanRepository @Inject constructor(
     suspend fun getById(planId: String): AlarmPlan? =
         planDao.getById(planId)?.toDomain()
 
-    suspend fun save(plan: AlarmPlan) {
+    suspend fun save(plan: AlarmPlan): AlarmPlan {
         val withRevision = plan.withRevisionIncremented()
         planDao.upsert(withRevision.toEntity())
+        return withRevision
     }
 
     suspend fun update(plan: AlarmPlan) {
@@ -35,11 +36,11 @@ class AlarmPlanRepository @Inject constructor(
 
     suspend fun enable(planId: String) {
         val plan = planDao.getById(planId) ?: return
-        planDao.upsert(plan.copy(enabled = true))
+        planDao.upsert(plan.copy(enabled = true, updatedAt = System.currentTimeMillis()))
     }
 
     suspend fun disable(planId: String) {
         val plan = planDao.getById(planId) ?: return
-        planDao.upsert(plan.copy(enabled = false))
+        planDao.upsert(plan.copy(enabled = false, updatedAt = System.currentTimeMillis()))
     }
 }

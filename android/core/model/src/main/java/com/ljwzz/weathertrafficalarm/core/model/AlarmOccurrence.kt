@@ -4,6 +4,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class OccurrenceState {
+    REGISTERING,
+    SCHEDULED,
+    FAILED,
     DEFAULT_REGISTERED,
     ADVANCED,
     FIRING,
@@ -11,6 +14,12 @@ enum class OccurrenceState {
     DISMISSED,
     MISSED,
     CANCELLED,
+}
+
+@Serializable
+enum class OccurrenceKind {
+    REGULAR,
+    SNOOZE,
 }
 
 @Serializable
@@ -22,5 +31,7 @@ data class AlarmOccurrence(
     val scheduledWakeAt: Long, // Instant epoch millis
     val state: OccurrenceState = OccurrenceState.DEFAULT_REGISTERED,
     val decisionId: String? = null,
+    val kind: OccurrenceKind = OccurrenceKind.REGULAR,
+    val parentOccurrenceId: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
 )

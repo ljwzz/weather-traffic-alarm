@@ -15,4 +15,15 @@ data class NextAlarmSnapshot(
     val soundUri: String?,
     val vibrationEnabled: Boolean,
     val snoozeMinutes: Int,
+    /**
+     * Direct-Boot-safe data for the one occurrence currently armed by a plan.
+     * The values intentionally exclude locations, provider data and credentials.
+     */
+    val alarmLabel: String = "闹钟",
+    val vibrationPatternMillis: List<Long> = listOf(0, 500, 500, 500),
+    val occurrenceKind: String = "REGULAR",
+    val parentOccurrenceId: String? = null,
+    val occurrenceState: String = "SCHEDULED",
+    val snoozeCount: Int = 0,
+    val firedAtMillis: Long? = null,
 )

@@ -1,0 +1,119 @@
+Figma file: wN04BlxRelbJyBVF35DyXE
+Node: 3:58
+Snapshot role: design context reference only; source assets are mapped in ../assets/ASSET_MAPPING.md.
+
+const imgWallpaperEditableAtmosphere = "https://www.figma.com/api/mcp/asset/a437caa4-700c-4e5f-bc12-2307c4951d22.svg";
+const imgEllipse = "https://www.figma.com/api/mcp/asset/28c3b4b8-6c2c-40de-9a82-a9da843168d8.svg";
+const imgGroup = "https://www.figma.com/api/mcp/asset/e1dbe3c0-1a3c-4947-bc22-ae0185653aaa.svg";
+const imgIconLock = "https://www.figma.com/api/mcp/asset/9e4049e9-afe4-4629-9741-29a95eca4f16.svg";
+const imgIconRain = "https://www.figma.com/api/mcp/asset/3415c66d-becb-4315-89ff-8eca8ce34e3d.svg";
+const imgIconRoute = "https://www.figma.com/api/mcp/asset/58b0104b-5dc5-410a-802b-27638e3cdc04.svg";
+const imgIconLock1 = "https://www.figma.com/api/mcp/asset/06dd0f9a-866b-4885-bc25-aaea40c7c46d.svg";
+
+export default function Component09() {
+  return (
+    <div className="bg-[var(--color\/bg,#f7f9fa)] content-stretch flex flex-col items-start overflow-clip relative rounded-[var(--radius\/32,32px)] shadow-[0px_12px_28px_0px_rgba(13,38,51,0.1)] size-full" data-node-id="3:58" data-name="09 / 锁屏 · 出发提醒">
+      <div className="absolute h-[892px] left-0 top-0 w-[412px]" data-node-id="11:143" data-name="Wallpaper / editable atmosphere">
+        <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgWallpaperEditableAtmosphere} />
+      </div>
+      <div className="content-stretch flex h-[44px] items-center justify-between overflow-clip pl-[26px] pr-[24px] relative shrink-0 w-[412px]" data-node-id="11:150" data-name="Android / Status bar">
+        <p className="[word-break:break-word] font-['Roboto:Medium'] font-medium leading-[15px] relative shrink-0 text-[13px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="11:151" style={{ fontVariationSettings: '"wdth" 100' }}>
+          07:58
+        </p>
+        <div className="absolute left-[201px] size-[10px] top-[14px]" data-node-id="11:152" data-name="Ellipse">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEllipse} />
+        </div>
+        <div className="h-[14px] overflow-clip relative shrink-0 w-[66px]" data-node-id="11:153" data-name="System signal">
+          <div className="absolute inset-[7.14%_0_0_0]" data-node-id="11:154" data-name="Group">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgGroup} />
+          </div>
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col h-[824px] items-start overflow-clip pb-[var(--space\/16,16px)] pt-[24px] px-[var(--space\/16,16px)] relative shrink-0 w-[412px]" data-node-id="11:161" data-name="Lock screen">
+        <div className="content-stretch flex h-[36px] items-center justify-center overflow-clip relative shrink-0 w-[380px]" data-node-id="11:162" data-name="Locked">
+          <div className="relative shrink-0 size-[20px]" data-node-id="11:163" data-name="Icon/lock">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconLock} />
+          </div>
+        </div>
+        <div className="content-stretch flex flex-col gap-[6px] h-[194px] items-center overflow-clip relative shrink-0 w-[380px]" data-node-id="11:166" data-name="Lock clock">
+          <p className="[word-break:break-word] font-['Roboto:Light'] font-light leading-[98px] relative shrink-0 text-[86px] text-[color:var(--color\/white,white)] text-center whitespace-nowrap" data-node-id="11:167" style={{ fontVariationSettings: '"wdth" 100' }}>
+            07:58
+          </p>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[22px] relative shrink-0 text-[15px] text-[color:var(--color\/white,white)] whitespace-pre" data-node-id="11:168">{`8月27日  星期四`}</p>
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-start justify-center overflow-clip relative shrink-0 w-[180px]" data-node-id="11:169" data-name="Lock weather">
+            <div className="relative shrink-0 size-[20px]" data-node-id="11:170" data-name="Icon/rain">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRain} />
+            </div>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[19px] relative shrink-0 text-[13px] text-[color:var(--color\/white,white)] whitespace-pre" data-node-id="11:173">{`22°  小雨`}</p>
+          </div>
+        </div>
+        <div className="h-[34px] relative shrink-0 w-px" data-node-id="11:174" data-name="Spacer" />
+        <div className="bg-[rgba(255,255,255,0.16)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex flex-col gap-[var(--space\/12,12px)] h-[212px] items-start overflow-clip p-[var(--space\/20,20px)] relative rounded-[var(--radius\/24,24px)] shrink-0 w-[380px]" data-node-id="11:175" data-name="System notification / commute reminder">
+          <div className="content-stretch flex gap-[var(--space\/8,8px)] h-[28px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="11:176" data-name="Notification identity">
+            <div className="bg-[var(--color\/mint,#def4ec)] content-stretch flex items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 size-[28px]" data-node-id="11:177" data-name="Icon button/route">
+              <div className="relative shrink-0 size-[21px]" data-node-id="11:178" data-name="Icon/route">
+                <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconRoute} />
+              </div>
+            </div>
+            <p className="[word-break:break-word] flex-[1_0_0] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] min-w-px relative text-[12px] text-[color:var(--color\/white,white)]" data-node-id="11:182">
+              知途 · 通勤提醒
+            </p>
+            <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[15px] relative shrink-0 text-[10px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="11:183">
+              现在
+            </p>
+          </div>
+          <p className="[word-break:break-word] font-['Noto_Sans_SC:Bold'] font-bold leading-[32px] relative shrink-0 text-[22px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="11:184">
+            5 分钟后，该出发了
+          </p>
+          <div className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[0] relative shrink-0 text-[13px] text-[color:var(--color\/white,white)] w-[340px]" data-node-id="11:185">
+            <p className="leading-[19px] mb-0">08:03 出发 · 08:50 预计到达</p>
+            <p className="leading-[19px]">路上有小雨，记得带伞。</p>
+          </div>
+          <div className="content-stretch flex gap-[var(--space\/12,12px)] h-[40px] items-start overflow-clip relative shrink-0 w-[340px]" data-node-id="11:186" data-name="Lock actions">
+            <div className="bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex h-[40px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[164px]" data-node-id="11:187" data-name="稍后提醒">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="11:188">
+                稍后提醒
+              </p>
+            </div>
+            <div className="bg-[rgba(255,255,255,0.22)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex h-[40px] items-center justify-center overflow-clip relative rounded-[var(--radius\/12,12px)] shrink-0 w-[164px]" data-node-id="11:189" data-name="查看通勤">
+              <p className="[word-break:break-word] font-['Noto_Sans_SC:Medium'] font-medium leading-[17px] relative shrink-0 text-[12px] text-[color:var(--color\/white,white)] whitespace-nowrap" data-node-id="11:190">
+                查看通勤
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="h-[190px] relative shrink-0 w-px" data-node-id="11:191" data-name="Spacer" />
+        <div className="content-stretch flex h-[46px] items-start justify-center overflow-clip relative shrink-0 w-[380px]" data-node-id="11:192" data-name="Unlock">
+          <div className="bg-[rgba(255,255,255,0.12)] border border-[rgba(255,255,255,0.2)] border-solid content-stretch flex items-center justify-center overflow-clip relative rounded-[var(--radius\/full,999px)] shrink-0 size-[46px]" data-node-id="11:193" data-name="Icon button/lock">
+            <div className="relative shrink-0 size-[21px]" data-node-id="11:194" data-name="Icon/lock">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgIconLock1} />
+            </div>
+          </div>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[16px] relative shrink-0 text-[11px] text-[color:var(--color\/white,white)] text-center w-[380px]" data-node-id="11:197">
+          上滑解锁，查看详细路线
+        </p>
+        <p className="[word-break:break-word] font-['Noto_Sans_SC:Regular'] font-normal leading-[13px] relative shrink-0 text-[#c5dfde] text-[9px] text-center w-[380px]" data-node-id="11:198">
+          锁屏通知效果示意 · 不显示具体地址
+        </p>
+      </div>
+      <div className="content-stretch flex h-[24px] items-center justify-center overflow-clip relative shrink-0 w-[412px]" data-node-id="11:199" data-name="Gesture navigation">
+        <div className="bg-[var(--color\/white,white)] h-[4px] relative rounded-[2px] shrink-0 w-[112px]" data-node-id="11:200" data-name="Rectangle" />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+These styles are contained in the design: 知途/Caption: Font(family: "Noto Sans SC", style: Regular, size: 11, weight: 400, lineHeight: 16, letterSpacing: 0), 知途/Device: Effect(type: DROP_SHADOW, color: #0D26331A, offset: (0, 12), radius: 28, spread: 0).
+
+Images and SVGs will be stored as constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These constants will be used in the code as the source for the image, ex: <img src={image} />. Image assets are stored on a remote server for 7 days and can be fetched using the provided URLs until they expire.

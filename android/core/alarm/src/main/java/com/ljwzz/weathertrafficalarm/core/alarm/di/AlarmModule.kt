@@ -6,12 +6,18 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmSchedulingGateway
+import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.ExactAlarmScheduler
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object AlarmModule {
+
+    @Provides
+    @Singleton
+    fun provideAlarmSchedulingGateway(scheduler: ExactAlarmScheduler): AlarmSchedulingGateway = scheduler
 
     @Provides
     @Singleton

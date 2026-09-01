@@ -24,7 +24,7 @@ import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [30])
 class ExactAlarmSchedulerTest {
 
     private lateinit var scheduler: ExactAlarmScheduler

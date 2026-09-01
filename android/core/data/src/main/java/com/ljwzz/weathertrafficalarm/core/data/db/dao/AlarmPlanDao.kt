@@ -1,18 +1,18 @@
 package com.ljwzz.weathertrafficalarm.core.data.db.dao
 
 import androidx.room3.Dao
-import androidx.room3.Insert
-import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Transaction
 import androidx.room3.Update
+import androidx.room3.Upsert
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmPlanEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlarmPlanDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Updates the existing parent row without SQLite REPLACE/CASCADE deletion. */
+    @Upsert
     suspend fun upsert(plan: AlarmPlanEntity)
 
     @Transaction

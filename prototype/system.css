@@ -1,0 +1,105 @@
+/* Four Figma system-concept screens. All interactions remain local simulations. */
+
+.prototype-scroll:has(.system-screen) { padding: 0; overflow: hidden; }
+.system-screen { --system-ink: #123f4d; --system-mint: #61dcc0; position: relative; width: 412px; height: 892px; overflow: hidden; isolation: isolate; color: #fff; font-family: var(--font-zh, "Noto Sans SC", sans-serif); }
+.system-screen *, .system-screen *::before, .system-screen *::after { box-sizing: border-box; }
+.system-screen button { font: inherit; cursor: pointer; }
+.system-asset { display: block; }
+.system-wallpaper { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.system-status { position: absolute; z-index: 5; top: 0; left: 0; display: flex; align-items: center; justify-content: space-between; width: 100%; height: 44px; padding: 0 24px 0 26px; color: #fff; font-family: var(--font-number, Roboto, sans-serif); font-size: 13px; font-weight: 500; line-height: 15px; }
+.system-status.is-light { color: #172d3c; }
+.system-status-dot { position: absolute; top: 14px; left: 201px; width: 10px; height: 10px; }
+.system-status-signal { width: 66px; height: 14px; }
+.system-gesture { position: absolute; z-index: 5; bottom: 0; left: 0; display: grid; width: 100%; height: 24px; place-items: center; }
+.system-gesture i { width: 112px; height: 4px; border-radius: 999px; background: #17303d; }
+.system-gesture.is-light i { background: #fff; }
+
+.system-lock-body { display: flex; flex-direction: column; align-items: center; height: 824px; margin-top: 44px; padding: 24px 16px 16px; }
+.system-lock-icon { width: 20px; height: 20px; margin: 8px 0; }
+.system-lock-clock { display: flex; flex-direction: column; align-items: center; width: 380px; height: 194px; gap: 6px; }
+.system-lock-clock time { height: 98px; font-family: var(--font-number, Roboto, sans-serif); font-size: 86px; font-weight: 300; line-height: 98px; }
+.system-lock-clock strong { font-size: 15px; font-weight: 500; line-height: 22px; }
+.system-lock-clock span { display: flex; align-items: center; gap: 8px; height: 28px; font-size: 13px; line-height: 19px; }
+.system-weather-icon { width: 20px; height: 20px; }
+.system-lock-notification { width: 380px; height: 212px; margin-top: 34px; padding: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,.2); border-radius: 24px; background: rgba(255,255,255,.16); backdrop-filter: blur(7px); }
+.system-lock-notification header { display: flex; align-items: center; height: 28px; gap: 8px; }
+.system-lock-notification header > span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 12px; background: #def4ec; }
+.system-notification-icon { width: 21px; height: 21px; }
+.system-lock-notification header b { flex: 1; font-size: 12px; font-weight: 500; line-height: 17px; }
+.system-lock-notification header small { font-size: 10px; line-height: 15px; }
+.system-lock-notification h2 { margin: 12px 0 8px; font-size: 22px; font-weight: 700; line-height: 32px; }
+.system-lock-notification p { margin: 0; font-size: 13px; line-height: 19px; }
+.system-lock-notification > div { display: flex; gap: 12px; margin-top: 12px; }
+.system-action { display: grid; height: 40px; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font-size: 12px; font-weight: 500; line-height: 17px; }
+.system-lock-notification .system-action { width: 164px; }
+.system-lock-notification .is-strong { background: rgba(255,255,255,.22); }
+.system-unlock { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: end; min-height: 0; padding-bottom: 2px; text-align: center; }
+.system-unlock-icon { display: grid; width: 46px; height: 46px; padding: 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.12); }
+.system-unlock p { margin: 8px 0 0; font-size: 11px; line-height: 16px; }
+.system-unlock small { display: block; color: #c5dfde; font-size: 9px; line-height: 13px; }
+
+.system-island { color: var(--system-ink); }
+.system-launcher { position: relative; z-index: 1; display: flex; flex-direction: column; width: 364px; height: 824px; margin: 44px 24px 0; padding: 88px 0 16px; }
+.system-launcher-time { display: flex; flex-direction: column; gap: 4px; height: 140px; }
+.system-launcher-time time { font-family: var(--font-number, Roboto, sans-serif); font-size: 72px; font-weight: 300; line-height: 82px; }
+.system-launcher-time strong { font-size: 14px; font-weight: 500; line-height: 20px; }
+.system-launcher-time span { font-size: 11px; line-height: 16px; }
+.system-weather-widget { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: 54px 16px; column-gap: 16px; width: 364px; height: 122px; padding: 20px; border: 1px solid rgba(255,255,255,.2); border-radius: 24px; background: rgba(255,255,255,.63); }
+.system-widget-rain { width: 44px; height: 44px; }
+.system-weather-widget div { display: flex; flex-direction: column; gap: 3px; }
+.system-weather-widget strong { font-size: 13px; font-weight: 500; line-height: 19px; }
+.system-weather-widget b { font-family: var(--font-number, Roboto, sans-serif); font-size: 30px; font-weight: 300; line-height: 34px; }
+.system-weather-widget small { grid-column: 1 / 3; font-size: 11px; line-height: 16px; color: #647782; }
+.system-app-grid { display: grid; grid-template-columns: repeat(4, 70px); gap: 24px 28px; width: 364px; margin-top: 32px; }
+.system-app { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 70px; height: 100px; }
+.system-app > span { display: grid; width: 62px; height: 62px; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 16px; background: rgba(255,255,255,.63); }
+.system-app > span.is-active { background: #123f4d; }
+.system-app-icon { width: 29px; height: 29px; }
+.system-app small { font-size: 11px; font-weight: 500; line-height: 16px; }
+.system-dock { display: flex; align-items: start; justify-content: center; gap: 42px; width: 364px; height: 76px; margin-top: 32px; padding: 16px; border: 1px solid rgba(255,255,255,.2); border-radius: 32px; background: rgba(255,255,255,.32); }
+.system-dock span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; background: #fff; }
+.system-dock-icon { width: 21px; height: 21px; }
+.system-launcher > p { margin: 0; text-align: center; font-size: 9px; line-height: 13px; }
+.system-island-pill { position: absolute; z-index: 4; top: 53px; left: 68px; display: flex; align-items: center; width: 276px; height: 50px; gap: 10px; padding: 0 16px; border: 0; border-radius: 999px; background: #090f12; color: #fff; }
+.system-pill-car { width: 24px; height: 24px; }
+.system-island-pill span { font-size: 12px; font-weight: 500; line-height: 17px; }
+.system-island-pill i { width: 1px; height: 20px; background: rgba(255,255,255,.24); }
+.system-island-pill b { color: var(--system-mint); font-family: var(--font-number, Roboto, sans-serif); font-size: 18px; font-weight: 500; line-height: 21px; }
+.system-pill-down { width: 14px; height: 14px; margin-left: auto; }
+.system-island-shade { position: absolute; z-index: 3; inset: 0; background: rgba(9,15,18,.2); }
+.system-island-card { position: absolute; z-index: 4; top: 53px; left: 16px; width: 380px; height: 268px; padding: 20px; overflow: hidden; border-radius: 32px; background: #090f12; color: #fff; }
+.system-island-card header { display: flex; align-items: start; height: 26px; gap: 8px; }
+.system-card-route { width: 24px; height: 24px; }
+.system-island-card header b { flex: 1; font-size: 12px; font-weight: 500; line-height: 17px; }
+.system-island-card header button { width: 17px; height: 17px; padding: 0; border: 0; background: transparent; }
+.system-card-down { width: 17px; height: 17px; }
+.system-island-count { display: flex; align-items: end; height: 52px; gap: 8px; }
+.system-island-count strong { color: var(--system-mint); font-family: var(--font-number, Roboto, sans-serif); font-size: 48px; font-weight: 500; line-height: 55px; }
+.system-island-count b { flex: 1; font-size: 17px; font-weight: 500; line-height: 25px; }
+.system-island-count time { font-family: var(--font-number, Roboto, sans-serif); font-size: 28px; font-weight: 300; line-height: 32px; }
+.system-island-card > p { margin: 12px 0 10px; color: #c7d9dd; font-size: 12px; line-height: 17px; }
+.system-progress { display: flex; align-items: center; gap: 10px; height: 26px; }
+.system-progress-icon { width: 18px; height: 18px; }
+.system-progress i { width: 264px; height: 8px; overflow: hidden; border-radius: 99px; background: #253a3c; }
+.system-progress i b { display: block; width: 92px; height: 8px; border-radius: 4px; background: var(--system-mint); }
+.system-island-actions { display: flex; gap: 12px; margin-top: 10px; }
+.system-island-actions .system-action { width: 164px; height: 42px; border: 0; border-radius: 999px; background: #253a3c; font-size: 13px; line-height: 19px; }
+.system-island-actions .is-bright { background: var(--system-mint); color: #090f12; }
+
+.system-ringing-body { display: flex; flex-direction: column; align-items: center; height: 824px; margin-top: 44px; padding: 38px 24px 24px; }
+.system-ringing-body > header { display: flex; align-items: center; justify-content: center; gap: 8px; height: 28px; }
+.system-ringing-clock { width: 22px; height: 22px; }
+.system-ringing-body > header b { font-size: 14px; font-weight: 500; line-height: 20px; }
+.system-ringing-time { display: flex; flex-direction: column; align-items: center; width: 364px; height: 216px; margin-top: 30px; gap: 10px; }
+.system-ringing-time span { color: #c5dfde; font-size: 13px; line-height: 19px; }
+.system-ringing-time time { height: 107px; font-family: var(--font-number, Roboto, sans-serif); font-size: 94px; font-weight: 300; line-height: 107px; }
+.system-ringing-time b { display: grid; width: 208px; height: 30px; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.13); font-size: 12px; font-weight: 500; line-height: 17px; }
+.system-ringing-reason { width: 364px; height: 112px; padding: 18px; border: 1px solid rgba(255,255,255,.2); border-radius: 24px; background: rgba(255,255,255,.13); }
+.system-ringing-reason h2 { display: flex; align-items: center; height: 32px; gap: 10px; margin: 0 0 10px; font-size: 17px; font-weight: 500; line-height: 25px; }
+.system-ringing-rain { width: 28px; height: 28px; }
+.system-ringing-reason p { margin: 0; font-size: 12px; line-height: 17px; }
+.system-ringing-actions { display: flex; flex-direction: column; gap: 12px; width: 364px; margin-top: 104px; }
+.system-ringing-actions .system-action { width: 364px; height: 64px; border: 0; border-radius: 16px; background: #fff; color: #007f78; font-size: 20px; font-weight: 500; line-height: 28px; }
+.system-ringing-actions .is-snooze { height: 56px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font-size: 15px; line-height: 22px; }
+.system-simulation-state { margin: -4px 0 0; color: #c5dfde; text-align: center; font-size: 10px; line-height: 14px; }
+.system-ringing-foot { margin: 20px 0 0; color: #c5dfde; text-align: center; font-size: 11px; line-height: 16px; }
