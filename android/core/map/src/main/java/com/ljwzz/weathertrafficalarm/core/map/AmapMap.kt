@@ -1,6 +1,5 @@
 package com.ljwzz.weathertrafficalarm.core.map
 
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import androidx.compose.runtime.Composable
@@ -45,11 +44,22 @@ data class AmapMapUiState(
 ) {
     fun selectedRoute(): RouteAlternative? =
         routes.firstOrNull { it.id == selectedRouteId } ?: routes.firstOrNull()
+
+    /**
+     * Draw at most three usable alternatives. The selected alternative is
+     * rendered last so it stays above overlapping candidate routes.
+     */
+    internal fun routesForMap(): List<RouteAlternative> {
+        val usable = routes.asSequence().filter { it.polyline.size >= 2 }.take(MAX_DISPLAYED_ROUTES).toList()
+        val selected = usable.firstOrNull { it.id == selectedRouteId } ?: usable.firstOrNull()
+        return usable.filterNot { it.id == selected?.id } + listOfNotNull(selected)
+    }
 }
 
 /**
- * Lifecycle-aware Compose host for [TextureMapView]. The callback returns a
- * [GeoPoint], so callers never need to access a SDK [LatLng].
+ * Lifecycle-aware Compose host for [TextureMapView]. Callers receive either a
+ * [GeoPoint] for a map tap or a business route ID for a polyline tap, and
+ * never need to access SDK map objects.
  */
 @Composable
 fun AmapMap(
@@ -57,6 +67,7 @@ fun AmapMap(
     modifier: Modifier = Modifier,
     stateKey: String = DEFAULT_STATE_KEY,
     onMapClick: ((GeoPoint) -> Unit)? = null,
+    onRouteClick: ((String) -> Unit)? = null,
 ) {
     if (!isAmapNativeRendererSupported()) return
 
@@ -85,8 +96,13 @@ fun AmapMap(
                     GeoPoint(longitudeGcj02 = point.longitude, latitudeGcj02 = point.latitude),
                 )
             }
+            view.map.setOnPolylineClickListener { polyline ->
+                mapViewHolder.routeIdsByPolylineId[polyline.id]?.let { routeId ->
+                    onRouteClick?.invoke(routeId)
+                }
+            }
             if (renderedState != state) {
-                view.render(state)
+                mapViewHolder.routeIdsByPolylineId = view.render(state)
                 renderedState = state
             }
         },
@@ -116,12 +132,14 @@ fun AmapMap(
 
 private class MapViewHolder {
     var view: TextureMapView? = null
+    var routeIdsByPolylineId: Map<String, String> = emptyMap()
 }
 
-private fun TextureMapView.render(state: AmapMapUiState) {
+private fun TextureMapView.render(state: AmapMapUiState): Map<String, String> {
     val aMap = map
     aMap.clear()
     aMap.isTrafficEnabled = state.trafficEnabled
+    val routeIdsByPolylineId = mutableMapOf<String, String>()
 
     state.markers.forEach { marker ->
         aMap.addMarker(
@@ -138,22 +156,28 @@ private fun TextureMapView.render(state: AmapMapUiState) {
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)),
         )
     }
-    state.selectedRoute()?.polyline?.takeIf { it.size >= 2 }?.let { points ->
-        aMap.addPolyline(
+    val routes = state.routesForMap()
+    val selectedRouteId = routes.lastOrNull()?.id
+    routes.forEach { route ->
+        val selected = route.id == selectedRouteId
+        val polyline = aMap.addPolyline(
             PolylineOptions()
-                .addAll(points.map(GeoPoint::toLatLng))
-                .width(14f)
-                .color(Color.rgb(23, 125, 255)),
+                .addAll(route.polyline.map(GeoPoint::toLatLng))
+                .width(if (selected) SELECTED_ROUTE_WIDTH_PX else CANDIDATE_ROUTE_WIDTH_PX)
+                .color(if (selected) SELECTED_ROUTE_COLOR else CANDIDATE_ROUTE_COLOR)
+                .zIndex(if (selected) SELECTED_ROUTE_Z_INDEX else CANDIDATE_ROUTE_Z_INDEX),
         )
+        routeIdsByPolylineId[polyline.id] = route.id
     }
     aMap.moveCameraFor(state)
+    return routeIdsByPolylineId
 }
 
 private fun AMap.moveCameraFor(state: AmapMapUiState) {
     val points = buildList {
         addAll(state.markers.map(MapMarker::point))
         state.selectedPoint?.let(::add)
-        state.selectedRoute()?.polyline?.let(::addAll)
+        state.routesForMap().forEach { route -> addAll(route.polyline) }
     }
     when (points.size) {
         0 -> Unit
@@ -194,3 +218,10 @@ internal fun isAmapNativeRendererSupported(
 private const val DEFAULT_ZOOM = 15f
 private const val CAMERA_PADDING_PX = 96
 private const val DEFAULT_STATE_KEY = "amap-map"
+private const val MAX_DISPLAYED_ROUTES = 3
+private const val SELECTED_ROUTE_WIDTH_PX = 14f
+private const val CANDIDATE_ROUTE_WIDTH_PX = 10f
+private const val SELECTED_ROUTE_Z_INDEX = 2f
+private const val CANDIDATE_ROUTE_Z_INDEX = 1f
+private val SELECTED_ROUTE_COLOR = 0xFF007F78.toInt()
+private val CANDIDATE_ROUTE_COLOR = 0x874F94C4.toInt()

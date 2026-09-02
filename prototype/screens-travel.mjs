@@ -17,18 +17,27 @@ export function createTravelScreens({ action, overlayAction, asset, state }) {
   const image = (file, alt, className = '') => asset(file, alt, className);
   const fixture = () => { const s = read(); return amapFixtureState(s.runtime?.credentials, s.runtime?.amapFixture || AMAP_FIXTURE_STATES.SUCCESS); };
   const blank = (title, caption, className = '') => `<section class="provider-placeholder ${className}"><span aria-hidden="true">⌁</span><strong>${esc(title)}</strong><p>${esc(caption)}</p></section>`;
-  const map = (className = '') => {
+  const selectedRouteIndex = count => {
+    const index = Number(read().runtime?.selectedRouteIndex);
+    return Number.isInteger(index) && index >= 0 && index < count ? index : 0;
+  };
+  const routeLines = (options, selectedIndex) => options.map(([name], index) =>
+    `<button type="button" class="amap-route-line${index === selectedIndex ? ' is-selected' : ''}" data-action="select-route" data-value="${index}" aria-label="选择${esc(name)}" aria-pressed="${index === selectedIndex}"></button>`,
+  ).join('');
+  const map = (className = '', options = [], selectedIndex = 0) => {
     const status = fixture();
     if (status === AMAP_FIXTURE_STATES.NO_KEY) return blank('需要运行时高德 Key', '在“数据与凭据”配置 Web 或 Android SDK Key 后查看离线演示。', className);
     if (status === AMAP_FIXTURE_STATES.LOADING) return blank('高德地图加载中', '离线 fixture 正在模拟加载状态。', className);
     if (status === AMAP_FIXTURE_STATES.DENIED) return blank('定位权限未授权', '可继续手动搜索或地图选点；不会请求后台定位。', className);
     if (status === AMAP_FIXTURE_STATES.ERROR) return blank('高德地图暂不可用', '离线 fixture 模拟服务或原生渲染失败；地点搜索与路线结果可继续使用。', className);
-    return `<section class="amap-fixture-map ${className}" aria-label="高德地图离线 fixture"><i>高德地图 · 离线 fixture</i><b>起点</b><em>终点</em><span>当前路况：主路畅通，局部缓行</span></section>`;
+    const lines = options.length ? `<div class="amap-route-lines" aria-label="可选择的路线折线">${routeLines(options, selectedIndex)}</div>` : '';
+    return `<section class="amap-fixture-map ${className}" aria-label="高德地图离线 fixture">${lines}<i>高德地图 · 离线 fixture</i><b>起点</b><em>终点</em><span>当前路况：主路畅通，局部缓行</span></section>`;
   };
   const routeResult = commute => {
     if (fixture() !== AMAP_FIXTURE_STATES.SUCCESS) return map('travel-route-map');
     const options = (routeFixtures[commute.selectedTransport] || routeFixtures.driving).slice(0, 3);
-    return `${map('travel-route-map')}<section class="amap-route-options"><h2>路线方案 <small>最多 3 条 · 当前路况 fixture</small></h2>${options.map(([name, duration, traffic], index) => `<button type="button" class="${index === 0 ? 'is-selected' : ''}"><b>${esc(name)}</b><strong>${esc(duration)}</strong><span>${esc(traffic)}</span></button>`).join('')}</section>`;
+    const selectedIndex = selectedRouteIndex(options.length);
+    return `${map('travel-route-map', options, selectedIndex)}<section class="amap-route-options"><h2>路线方案 <small>最多 3 条 · 当前路况 fixture</small></h2>${options.map(([name, duration, traffic], index) => `<button type="button" class="${index === selectedIndex ? 'is-selected' : ''}" data-action="select-route" data-value="${index}" aria-pressed="${index === selectedIndex}"><b>${esc(name)}</b><strong>${esc(duration)}</strong><span>${esc(traffic)}</span></button>`).join('')}</section>`;
   };
   return {
     home() { const c = read().config || {}; const plans = c.alarmPlans || []; const first = plans.find(plan => plan.enabled); return `<div class="travel-home"><section class="travel-home-weather provider-placeholder provider-home"><span>⌁</span><strong>天气服务暂未接入</strong><p>接入彩云后显示天气与预报。</p></section><button type="button" class="travel-alarm" data-route="plans"><div class="travel-alarm-top">本地闹钟 <em>${first ? '已创建' : '空列表'}</em></div><div class="travel-alarm-time">${first ? esc(first.time) : '—'} <span>${first ? esc(first.name) : '添加第一个闹钟'}<small>${first ? '由 Android 注册与响铃' : '支持单次、每周和工作日'}</small></span></div><div class="travel-alarm-result"><div>已启用<b>${plans.filter(plan => plan.enabled).length} 个</b></div><div>下一步<b>${first ? '查看闹钟' : '立即添加'}</b></div></button><section class="travel-title"><h2>今天的通勤</h2>${link('查看路线', 'route')}</section>${map('travel-commute')}<p class="travel-assurance">高德地图仅在用户同意后初始化。</p></div>`; },

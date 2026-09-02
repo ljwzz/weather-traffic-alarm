@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -241,43 +242,39 @@ fun LocalRouteScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { RouteMapPanel(routeMapState(settings, routeState), mapStatus) }
             item {
-                LocalCard {
+                LocalCard(border = BorderStroke(1.dp, ZhituColors.Brand)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("出行方式", fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text("全局通勤", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                            Text("计划可单独覆盖", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+                        }
                         TextButton(onClick = onRefresh) { Text("刷新") }
                     }
-                    Spacer(Modifier.height(10.dp))
+                    PlaceSummaryRow("起点", favorites.firstOrNull { it.id == originId }?.name ?: "请选择", onClick = { onPickPlace?.invoke(PlaceSelectionTarget.ORIGIN) })
+                    PlaceSummaryRow("终点", favorites.firstOrNull { it.id == destinationId }?.name ?: "请选择", onClick = { onPickPlace?.invoke(PlaceSelectionTarget.DESTINATION) })
+                    Text("出行方式", fontWeight = FontWeight.Medium, color = ZhituColors.Ink)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         commuteModes.forEach { item ->
                             FilterChip(selected = mode == item.first, onClick = { mode = item.first; onModeChange(item.first) }, label = { Text(item.second) })
                         }
                     }
-                }
-            }
-            item {
-                LocalCard {
-                    Text("起点与终点", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    Spacer(Modifier.height(8.dp))
-                    Text("可搜索 POI、使用当前位置或在地图上点选。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.height(8.dp))
-                    PlaceSummaryRow("起点", favorites.firstOrNull { it.id == originId }?.name ?: "请选择", onClick = { onPickPlace?.invoke(PlaceSelectionTarget.ORIGIN) })
-                    PlaceSummaryRow("终点", favorites.firstOrNull { it.id == destinationId }?.name ?: "请选择", onClick = { onPickPlace?.invoke(PlaceSelectionTarget.DESTINATION) })
-                }
-            }
-            item {
-                LocalCard {
+                    Spacer(Modifier.height(4.dp))
+                    RouteMapPanel(routeMapState(settings, routeState), mapStatus, onSelectRoute)
+                    Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("候选路线", fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text("路线方案", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                            Text("最多 3 条", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+                        }
                         FilterChip(selected = routeState.trafficEnabled, onClick = { onTrafficChange(!routeState.trafficEnabled) }, label = { Text("实时路况") })
                     }
-                    Spacer(Modifier.height(6.dp))
                     when {
                         routeState.loading -> Text("正在查询路线…", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
-                        routeState.alternatives.isNotEmpty() -> routeState.alternatives.forEach { alternative -> RouteAlternativeRow(alternative, routeState.selectedRouteId == alternative.id) { onSelectRoute(alternative.id) }
+                        routeState.alternatives.isNotEmpty() -> routeState.alternatives.forEachIndexed { index, alternative ->
+                            RouteAlternativeRow(alternative, index, routeState.selectedRouteId == alternative.id) { onSelectRoute(alternative.id) }
                         }
-                        else -> RouteEmptyState(routeState.message ?: "选择起点和终点后显示最多三条路线、距离、预计时间和实时路况。")
+                        else -> RouteEmptyState(routeState.message ?: "选择起点和终点后显示最多三条路线、距离和预计时间。")
                     }
                 }
             }
@@ -480,7 +477,7 @@ fun PlanCommuteScreen(
                         }
                     }
                 }
-                item { RouteMapPanel(mapState, mapStatus) }
+                item { RouteMapPanel(mapState, mapStatus, onSelectRoute) }
                 item {
                     LocalCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +487,9 @@ fun PlanCommuteScreen(
                         FilterChip(selected = editor.route.trafficEnabled, onClick = { onTrafficChange(!editor.route.trafficEnabled) }, label = { Text("实时路况") })
                         when {
                             editor.route.loading -> Text("正在查询路线…", color = ZhituColors.Muted)
-                            editor.route.alternatives.isNotEmpty() -> editor.route.alternatives.forEach { route -> RouteAlternativeRow(route, editor.route.selectedRouteId == route.id) { onSelectRoute(route.id) } }
+                            editor.route.alternatives.isNotEmpty() -> editor.route.alternatives.forEachIndexed { index, route ->
+                                RouteAlternativeRow(route, index, editor.route.selectedRouteId == route.id) { onSelectRoute(route.id) }
+                            }
                             else -> RouteEmptyState(editor.route.message ?: "请选择地点后查询路线。")
                         }
                     }
@@ -511,11 +510,15 @@ private fun PlaceSummaryRow(label: String, value: String, onClick: () -> Unit) =
 }
 
 @Composable
-private fun RouteMapPanel(state: AmapMapUiState, mapStatus: MapStatus) = Box(
+private fun RouteMapPanel(
+    state: AmapMapUiState,
+    mapStatus: MapStatus,
+    onRouteClick: ((String) -> Unit)? = null,
+) = Box(
     Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp)).background(ZhituColors.Mint),
     contentAlignment = Alignment.Center,
 ) {
-    if (mapStatus == MapStatus.Ready) AmapMap(state, Modifier.fillMaxSize())
+    if (mapStatus == MapStatus.Ready) AmapMap(state, Modifier.fillMaxSize(), onRouteClick = onRouteClick)
     else Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
         Text("地图未就绪", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
         Spacer(Modifier.height(4.dp))
@@ -551,18 +554,32 @@ private fun MapStatus.label(): String = when (this) {
 }
 
 @Composable
-private fun RouteAlternativeRow(route: RouteAlternative, selected: Boolean, onClick: () -> Unit) = Card(
+private fun RouteAlternativeRow(
+    route: RouteAlternative,
+    index: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) = Card(
     modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable(onClick = onClick),
     shape = RoundedCornerShape(16.dp),
     colors = CardDefaults.cardColors(containerColor = if (selected) ZhituColors.Mint else ZhituColors.Surface),
+    border = BorderStroke(1.dp, if (selected) ZhituColors.Brand else ZhituColors.Line),
 ) {
-    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (selected) "已选" else "备选", color = ZhituColors.Brand, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
-        Spacer(Modifier.width(12.dp))
-        Text("${route.durationSeconds / 60} 分钟 · ${formatDistance(route.distanceMeters)}", color = ZhituColors.Ink)
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(routeOptionName(index), color = ZhituColors.Ink, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text("${route.durationMinutes()} 分钟", color = ZhituColors.Ink, fontWeight = FontWeight.Medium)
+        }
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(formatDistance(route.distanceMeters), color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+            if (selected) Text("当前选择", color = ZhituColors.Brand, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
+private fun routeOptionName(index: Int): String = if (index == 0) "推荐路线" else "备选 $index"
+private fun RouteAlternative.durationMinutes(): Long = ((durationSeconds + 59L) / 60L).coerceAtLeast(1L)
 private fun formatDistance(meters: Long): String = if (meters >= 1_000) "%.1f km".format(meters / 1_000.0) else "$meters m"
 
 private val commuteModes = listOf(
@@ -587,7 +604,15 @@ private val commuteModes = listOf(
 @Composable private fun FavoriteSelector(label: String, selectedId: String?, favorites: List<FavoritePlace>, onSelected: (String?) -> Unit) { Column { Text(label, color = ZhituColors.Ink); LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) { item { FilterChip(selected = selectedId == null, onClick = { onSelected(null) }, label = { Text("未选择") }) }; items(favorites, key = FavoritePlace::id) { place -> FilterChip(selected = selectedId == place.id, onClick = { onSelected(place.id) }, label = { Text(place.name) }) } } } }
 @Composable private fun OverrideChoice(label: String, selected: Boolean, onClick: () -> Unit) = FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
 @Composable private fun LocalMapPlaceholder() = Box(Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp)).background(ZhituColors.Mint), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("地图暂未接入", fontWeight = FontWeight.Bold, color = ZhituColors.Ink); Text("可保存地点文字；不会请求定位、路线或距离。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) } }
-@Composable private fun LocalCard(background: Color = ZhituColors.Surface, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) = Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = background)) { Column(Modifier.fillMaxWidth().padding(16.dp), content = content) }
+@Composable private fun LocalCard(
+    background: Color = ZhituColors.Surface,
+    border: BorderStroke? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) = Card(
+    shape = RoundedCornerShape(24.dp),
+    colors = CardDefaults.cardColors(containerColor = background),
+    border = border,
+) { Column(Modifier.fillMaxWidth().padding(16.dp), content = content) }
 @Composable private fun LocalInfoCard(title: String, body: String, background: Color = ZhituColors.Surface, color: Color = ZhituColors.Ink) = LocalCard(background) { Text(title, fontWeight = FontWeight.Bold, color = color); Spacer(Modifier.height(6.dp)); Text(body, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
 private fun fallbackStatus(date: LocalDate) = if (date.dayOfWeek.value <= 5) DayStatus.WORKDAY else DayStatus.HOLIDAY
 private fun statusLabel(status: DayStatus) = if (status == DayStatus.WORKDAY) "工作日" else "休息日"
