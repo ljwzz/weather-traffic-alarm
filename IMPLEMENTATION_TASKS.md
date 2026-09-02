@@ -338,7 +338,7 @@ cd android && ./gradlew :core:model:test
 cd android && ./gradlew :core:model:test
 ```
 
-### [ ] T014 定义路线与天气领域端口
+### [x] T014 定义路线与天气领域端口
 
 依赖：T010。
 
@@ -346,11 +346,11 @@ cd android && ./gradlew :core:model:test
 
 - `RouteProvider`（`suspend fun estimate(request): RouteEstimate`）与 `WeatherProvider`（`suspend fun evaluate(request): WeatherEvaluation`）接口。
 - `RouteRequest`/`RouteEstimate`、`WeatherRequest`/`WeatherEvaluation` 纯数据模型（含 `providerReportTime`、时间窗口等，见 SPEC 5.6）。
-- `ProviderError` 错误分类（`NETWORK|TIMEOUT|HTTP|AUTH|QUOTA|NOT_FOUND|PARSE|UNKNOWN`，`retryable` 标志）。
+- `ProviderError` 错误分类沿用 `CONSENT_REQUIRED|MISSING_KEY|INVALID_REQUEST|INVALID_KEY|QUOTA_EXCEEDED|RATE_LIMITED|ROUTE_NOT_FOUND|NETWORK|TIMEOUT|MALFORMED_RESPONSE|PROVIDER_FAILURE`；Provider 失败不携带原始响应 body。
 
 实施：
 
-1. `QUOTA` 与 `AUTH` 不可重试；`NETWORK`/`TIMEOUT`/`HTTP(5xx)` 可重试。
+1. `NETWORK`、`TIMEOUT` 与 `RATE_LIMITED` 标记为可重试；`INVALID_KEY`、`QUOTA_EXCEEDED`、参数与解析错误不可重试，429 的 `Retry-After` 单独保存。
 2. 实现方在 `core/network`，端口在 `core/model`。
 
 验收：
@@ -359,7 +359,7 @@ cd android && ./gradlew :core:model:test
 cd android && ./gradlew :core:model:test
 ```
 
-### [ ] T015 定义天气严重等级规则契约
+### [x] T015 定义天气严重等级规则契约
 
 依赖：T014。
 
