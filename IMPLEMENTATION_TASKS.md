@@ -518,12 +518,12 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 产物：
 
 - `core/network`：OkHttp + Retrofit + kotlinx-serialization 基础装配（高德 baseUrl、彩云 baseUrl）。
-- `RedactingInterceptor`：对 URL 中的 `key`、`token`、`scode` 参数，`Authorization` 头，`x-cy-token`/`x-cy-signature`/`x-cy-timestamp` 头强制脱敏；请求/响应 body 不写日志。
+- `RedactingInterceptor`：对 URL 中的 `key`、`token`、`scode` 参数及彩云 `/v2.6/{app_key}/` 路径段，`Authorization` 头，`x-cy-nonce`/`x-cy-signature`/`x-cy-timestamp` 头强制脱敏；请求/响应 body 不写日志。
 
 实施：
 
 1. 脱敏拦截器有单元测试（含明文泄漏回归：任何日志输出不得包含测试密钥）。
-2. 不打印完整 URL（只打 host + path + 脱敏 query）。
+2. 不打印完整 URL；即使记录 host + path，也必须先脱敏彩云 App Key 路径段。
 
 验收：
 
@@ -1127,14 +1127,14 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 ## 10. P8：彩云天气 Provider
 
-### [ ] T090 实现彩云 v2.6 HMAC 签名器
+### [x] T090 实现彩云 v2.6 HMAC 签名器
 
 依赖：T026。
 
 实施：
 
-1. App Key + App Secret 生成 `x-cy-token` / `x-cy-timestamp` / `x-cy-signature`（HMAC-SHA256，明文规则见 SPEC 3.2/7.2）。
-2. 固定测试向量（官方文档样例或自算值）的单元测试。
+1. App Key 进入 `/v2.6/{app_key}/...` 路径；App Key + App Secret 生成 `x-cy-nonce` / `x-cy-timestamp` / `x-cy-signature`（HMAC-SHA256 与 URL-safe Base64，明文规则见 SPEC 3.2/7.2）。
+2. 使用官方固定向量，覆盖 query 排序、URL 编码、含 App Key 的 path 和 nonce 唯一性。
 3. 签名器不落日志；Secret 只在内存存在。
 
 验收：
@@ -1143,15 +1143,15 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T091 实现彩云 HTTP 客户端与 DTO
+### [x] T091 实现彩云 HTTP 客户端与 DTO
 
 依赖：T090。
 
 实施：
 
-1. v2.6 `weather` 接口（含 `hourlysteps`、`unit=metric:v2`、`lang=zh_CN`）；`{lng},{lat}` 路径顺序。
-2. DTO：`status`、`api_version`、`location`、`server_time`、`result.hourly`；location 数组必须命名字段转换。
-3. 错误分类：鉴权失败、限流、网络、超时、解析。
+1. v2.6 `/v2.6/{app_key}/{lng},{lat}/weather`（含 `dailysteps=1`、`hourlysteps`、`unit=metric:v2`、`lang=zh_CN`）；`{lng},{lat}` 路径顺序，`hourlysteps` 1–360，返回不足请求值时作为不可用小时处理。
+2. DTO：`status`、`api_version`、`api_status`、`unit`、`timezone`、`tzshift`、`location`、`server_time`、`result.hourly`；location 数组必须命名字段转换，小时字段按 `datetime` 对齐。
+3. 仅 HTTP 200 为成功；处理非 JSON 错误体、400/401/403/422/429/500，429 读取 `Retry-After`。
 
 验收：
 
@@ -1159,13 +1159,13 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T092 建立彩云 DTO 和协议 fixture
+### [x] T092 建立彩云 DTO 和协议 fixture
 
 依赖：T091。
 
 实施：
 
-1. MockWebServer fixture：成功、过期 `server_time`、未知 `skycon`、缺失小时、重复时间戳、错误码响应。
+1. MockWebServer fixture：成功、过期 `server_time`、未知 `skycon`、缺失小时、重复时间戳，以及 HTML/TXT 错误体、400/401/403/422/429（含 `Retry-After`）/500 响应。
 2. fixture 不含真实密钥。
 
 验收：
@@ -1174,13 +1174,13 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T093 实现天气时间窗口选择
+### [x] T093 实现天气时间窗口选择
 
 依赖：T091。
 
 实施：
 
-1. 从 `[defaultWake-maxAdvance, arrivalTime]` 窗口取小时数据；`hourlysteps` 按当前时间到 arrivalTime 动态计算；超出 360 小时 → `WEATHER_HORIZON_UNAVAILABLE` + 0 缓冲。
+1. 从 `[defaultWake-maxAdvance, arrivalTime]` 窗口取小时数据；`hourlysteps` 按当前时间到 arrivalTime 动态计算；超出 360 小时或返回小时数不足以覆盖窗口 → `WEATHER_HORIZON_UNAVAILABLE` + 0 缓冲。
 2. 保存参与决策的小时时间范围，不保存完整响应。
 
 验收：
@@ -1189,13 +1189,13 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T094 实现彩云天气严重等级映射
+### [x] T094 实现彩云天气严重等级映射
 
 依赖：T015、T093。
 
 实施：
 
-1. 全 `skycon` 枚举 → 等级 0–3（SPEC FR-004 表）；未知代码 → `WEATHER_UNKNOWN_CODE`。
+1. 全 `skycon` 枚举 → 等级 0–3（SPEC FR-004 表；`LIGHT_HAZE` 为 1，`MODERATE_HAZE`/`HEAVY_HAZE` 为 2）；未知代码 → `WEATHER_UNKNOWN_CODE`。
 2. 输入含降水概率/强度、风速、能见度；两地取高；冻雨不推断（只接受预警明确冰冻类）。
 
 验收：
@@ -1204,19 +1204,19 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-### [ ] T095 实现彩云 WeatherProvider
+### [x] T095 实现彩云 WeatherProvider
 
 依赖：T091–T094。
 
 实施：
 
-1. `WeatherProvider.evaluate`：返回等级、缓冲、`server_time` 与时间窗口；预警（`alert`）作为可选增值输入，不阻塞核心计算。
-2. 缓存：家庭地/工作地分别缓存，TTL 与降级策略（超时/失败回退上一轮结果或 0 缓冲）。
+1. `WeatherProvider.evaluate`：返回等级、缓冲、`server_time` 与时间窗口；只生成 Provider 评估结果，不得创建、取消或修改本地闹钟。本阶段固定 `alert=false`，预警不参与核心计算；取得权限并另行定义规则后才允许作为上调输入。
+2. 缓存：家庭地/工作地分别按坐标和请求参数作进程内 15 分钟成功结果缓存；不落盘，失败不写缓存。仅网络、超时、HTTP 5xx 或 429 可回退完整覆盖窗口的有效缓存；其他失败直接返回错误。
 
 验收：
 
 ```bash
-cd android && ./gradlew :core:network:testDebugUnitTest
+cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
 
 ### [ ] T096 彩云连接测试与配额提示
@@ -1235,12 +1235,12 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 ### [ ] T097 关闭彩云坐标门禁（外部条件）
 
-依赖：彩云官方书面确认或控制点对照测试。
+依赖：彩云对一般 v2.6 天气查询接口输入坐标基准的官方书面确认。
 
 实施：
 
-1. 用已知 GCJ-02 控制点（如北京天安门）对照彩云返回的 `location` 与实况数据，记录偏差。
-2. 门禁未关闭前：`core/network` 标记“未确认”，评估流水线可运行但不用于生产发布（SPEC 14 章）。
+1. 控制点测试仅可记录风险证据；不得以 `location` 回显或实况差异推定坐标基准，也不得关闭门禁。
+2. 门禁未关闭前：`core/network` 标记“未确认”，Provider 可用于开发测试但不得用于生产发布（SPEC 14 章）。
 
 验收：
 
