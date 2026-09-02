@@ -28,6 +28,29 @@ class AmapMapUiStateTest {
         assertNull(AmapMapUiState().selectedRoute())
     }
 
+    @Test
+    fun `map renders no more than three valid routes and selected route last`() {
+        val first = route("first")
+        val second = route("second")
+        val third = route("third")
+        val fourth = route("fourth")
+
+        val actual = AmapMapUiState(
+            routes = listOf(first, second, third, fourth),
+            selectedRouteId = second.id,
+        ).routesForMap()
+
+        assertEquals(listOf(first, third, second), actual)
+    }
+
+    @Test
+    fun `map excludes routes without a drawable polyline`() {
+        val invalid = RouteAlternative("invalid", 1, 1, listOf(GeoPoint(116.397, 39.908)))
+        val valid = route("valid")
+
+        assertEquals(listOf(valid), AmapMapUiState(routes = listOf(invalid, valid)).routesForMap())
+    }
+
     private fun route(id: String) = RouteAlternative(
         id = id,
         distanceMeters = 1,

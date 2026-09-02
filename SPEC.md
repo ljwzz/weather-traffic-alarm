@@ -549,7 +549,7 @@ android.permission.ACCESS_FINE_LOCATION
 
 - 全局通勤保存起点、终点和五种出行方式；单个计划可选择继承全局通勤或保存自身覆盖。
 - 高德能力在同意授权后初始化：输入提示与 POI 搜索使用 Web Service Key；地图选点与单次定位使用 Android SDK Key。定位只在点击“使用当前位置”时请求前台权限，禁止后台持续定位。
-- 路线支持驾车、公交、步行、骑行和电动车；每次最多显示三条候选路线并显示当前路况。
+- 路线支持驾车、公交、步行、骑行和电动车；每次最多显示三条候选路线并显示当前路况。候选卡和地图折线都可选择路线，二者更新同一个 `selectedRouteId`，并同步候选卡选中态与地图高亮折线。
 - Android 模拟器使用 `goldfish`／`ranchu` 等虚拟图形栈时不得创建高德原生地图容器；页面显示渲染不可用状态，地点搜索与路线结果继续可用。真机仍使用 `TextureMapView` 并执行完整生命周期。容器规则：https://lbs.amap.com/api/maps-sdk-for-android/guide/create-map/show-map ；模拟器图形配置：https://developer.android.com/studio/run/emulator-acceleration
 - 原型必须展示成功、加载、无 Key、定位拒绝和服务错误 fixture，不得发送请求、使用真实 Key 或输出坐标。
 

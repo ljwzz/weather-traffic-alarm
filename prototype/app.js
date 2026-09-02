@@ -21,7 +21,7 @@ function defaults() {
 }
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
-let runtime = { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未配置', amapFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
+let runtime = { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未配置', amapFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
 let noticeTimer;
 
 function persist() { try { persistSettings(localStorage, STORAGE_KEY, config); } catch { runtime.notice = '浏览器存储不可用；更改仅保留在当前会话。'; } }
@@ -116,7 +116,8 @@ function handleClick(event) {
     if (op === 'save-calendar') return navigate('plan-edit', { replace:true });
     if (op === 'history-filter') { runtime.historyFilter = value; closeOverlay(); render(); return; }
     if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); runtime.routeDraft = null; persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
-    if (op === 'mode') { activeCommute().selectedTransport = value; render(); return; }
+    if (op === 'mode') { activeCommute().selectedTransport = value; runtime.selectedRouteIndex = 0; render(); return; }
+    if (op === 'select-route') { const index = Number(value); if (!Number.isInteger(index) || index < 0 || index > 2) throw Error('路线选择无效。'); runtime.selectedRouteIndex = index; render(); return; }
     if (op === 'open-place') { runtime.placeTarget = value; runtime.selectedPlace = null; return navigate('place-search'); }
     if (op === 'choose-place') { runtime.selectedPlace = [...AMAP_DEMO_TIPS, ...(currentConfig().favorites || [])].find(place => place.id === value) || null; render(); return; }
     if (op === 'use-place') { const place = runtime.selectedPlace; if (!place) throw Error('请先选择一个地点。'); const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; return navigate('route-edit', { replace:true }); }
@@ -150,7 +151,7 @@ function handleChange(event) {
   if (target.dataset.amapFixture) { runtime.amapFixture = target.value; render(); }
   if (target.dataset.overlayField === 'vibration') handleInput(event);
 }
-function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'onboarding', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', credentials:{}, credentialStatus:'未配置', amapFixture:'success', selectedDate:todayIso(), calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
+function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'onboarding', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', credentials:{}, credentialStatus:'未配置', amapFixture:'success', selectedDate:todayIso(), selectedRouteIndex:0, calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
 document.addEventListener('click', handleClick);
 document.addEventListener('input', handleInput);
 document.addEventListener('change', handleChange);
