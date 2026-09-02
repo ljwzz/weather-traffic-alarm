@@ -21,7 +21,7 @@ function defaults() {
 }
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
-let runtime = { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未配置', amapFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
+let runtime = { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
 let noticeTimer;
 
 function persist() { try { persistSettings(localStorage, STORAGE_KEY, config); } catch { runtime.notice = '浏览器存储不可用；更改仅保留在当前会话。'; } }
@@ -128,10 +128,11 @@ function handleClick(event) {
     if (op === 'use-global-commute') { alarmDraft().commuteOverride = { enabled:false }; render(); return; }
     if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
     if (op === 'locate-once') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); if (runtime.amapFixture === 'denied') throw Error('定位权限被拒绝；可改用搜索或地图选点。'); const place = { id:'demo-current-location', name:'当前位置（演示）', address:'仅本次定位 fixture · 不含坐标' }; if (runtime.route === 'place-search') { runtime.selectedPlace = place; notice('已获取一次性定位 fixture。'); render(); return; } const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; notice('已应用一次性定位 fixture。'); render(); return; }
-    if (op === 'save-credentials') { runtime.credentialStatus = '运行时凭据已保存 · 仅当前页面会话'; render(); return; }
+    if (op === 'save-credentials') { runtime.credentialStatus = '模拟配置已更新；原型未保存真实凭证'; render(); return; }
     if (op === 'test-credentials') { runtime.credentialStatus = '高德离线 fixture 已验证；未发送网络请求'; render(); return; }
+    if (op === 'test-caiyun-credentials') { runtime.credentialStatus = '彩云天气模拟凭证测试完成；未发送网络请求'; render(); return; }
     if (op === 'clear-credentials') return openOverlay('clear-credentials');
-    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.credentialStatus = '运行时凭据已清空'; closeOverlay(); render(); return; }
+    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.credentialStatus = '当前会话模拟状态已清空'; closeOverlay(); render(); return; }
     if (op === 'preview-sound') { notice('浏览器原型不播放声音；Android 应用可试听。'); return; }
     if (op === 'recheck-diagnostics') { notice('浏览器原型不读取系统状态，请在 Android 应用中检查。'); return; }
   } catch (error) { notice(error.message); render(); }
@@ -149,9 +150,10 @@ function handleChange(event) {
   if (target.dataset.action === 'toggle-alarm') return toggleAlarm(target.dataset.value, target.checked);
   if (target.dataset.setting) { config[target.dataset.setting] = target.checked; persist(); render(); }
   if (target.dataset.amapFixture) { runtime.amapFixture = target.value; render(); }
+  if (target.dataset.caiyunFixture) { runtime.caiyunFixture = target.value; render(); }
   if (target.dataset.overlayField === 'vibration') handleInput(event);
 }
-function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'onboarding', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', credentials:{}, credentialStatus:'未配置', amapFixture:'success', selectedDate:todayIso(), selectedRouteIndex:0, calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
+function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'onboarding', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', selectedDate:todayIso(), selectedRouteIndex:0, calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
 document.addEventListener('click', handleClick);
 document.addEventListener('input', handleInput);
 document.addEventListener('change', handleChange);

@@ -4,6 +4,8 @@ import {
   defaultAlarmDraft,
   AMAP_FIXTURE_STATES,
   amapFixtureState,
+  CAIYUN_FIXTURE_STATES,
+  caiyunFixtureState,
   nextAlarmOccurrence,
   normalizeAlarmPlan,
   persistentSettingsSnapshot,
@@ -94,7 +96,7 @@ test('plan normalization keeps registration state, ringtone and snooze configura
 });
 
 test('browser persistence excludes credentials but preserves local alarm plans', () => {
-  const snapshot = persistentSettingsSnapshot({ alarmPlans:[{ id:'alarm' }], credentials:{ amapWebKey:'secret' } });
+  const snapshot = persistentSettingsSnapshot({ alarmPlans:[{ id:'alarm' }], credentials:{ amapWebKey:'secret', caiyunAppKey:'fixture-key', caiyunAppSecret:'fixture-secret' } });
   assert.deepEqual(snapshot, { alarmPlans:[{ id:'alarm' }] });
 });
 
@@ -106,6 +108,14 @@ test('AMap fixture state never needs a real key and exposes explicit unavailable
   assert.equal(amapFixtureState({}), AMAP_FIXTURE_STATES.NO_KEY);
   assert.equal(amapFixtureState({ amapWebKey: 'runtime-only' }), AMAP_FIXTURE_STATES.SUCCESS);
   assert.equal(amapFixtureState({}, AMAP_FIXTURE_STATES.DENIED), AMAP_FIXTURE_STATES.DENIED);
+});
+
+test('Caiyun fixture supports loading, success, cached and error without credentials', () => {
+  assert.equal(caiyunFixtureState(), CAIYUN_FIXTURE_STATES.SUCCESS);
+  for (const fixture of Object.values(CAIYUN_FIXTURE_STATES)) {
+    assert.equal(caiyunFixtureState(fixture), fixture);
+  }
+  assert.throws(() => caiyunFixtureState('network'), /Unknown Caiyun fixture state/);
 });
 
 test('plan commute override replaces only that plan effective commute', () => {

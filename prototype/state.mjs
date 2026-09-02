@@ -20,6 +20,21 @@ export const AMAP_FIXTURE_STATES = Object.freeze({
   ERROR: 'error',
 });
 
+/** Deterministic, network-free weather-provider states for the prototype. */
+export const CAIYUN_FIXTURE_STATES = Object.freeze({
+  LOADING: 'loading',
+  SUCCESS: 'success',
+  CACHED: 'cached',
+  ERROR: 'error',
+});
+
+export function caiyunFixtureState(fixture = CAIYUN_FIXTURE_STATES.SUCCESS) {
+  if (!Object.values(CAIYUN_FIXTURE_STATES).includes(fixture)) {
+    throw new RangeError(`Unknown Caiyun fixture state: ${fixture}`);
+  }
+  return fixture;
+}
+
 export const AMAP_DEMO_TIPS = Object.freeze([
   Object.freeze({ id: 'demo-campus-north', name: '示例园区北门', address: '演示地点 · 不含坐标' }),
   Object.freeze({ id: 'demo-station-east', name: '示例换乘站东口', address: '演示地点 · 不含坐标' }),

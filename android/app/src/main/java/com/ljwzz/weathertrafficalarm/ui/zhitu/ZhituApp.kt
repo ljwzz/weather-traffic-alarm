@@ -79,6 +79,7 @@ fun ZhituApp(
     val placePickerState by viewModel.placePickerState.collectAsStateWithLifecycle()
     val mapStatus by viewModel.mapStatus.collectAsStateWithLifecycle()
     val planCommuteEditor by viewModel.planCommuteEditor.collectAsStateWithLifecycle()
+    val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var destination by remember { mutableStateOf(if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING) }
     var initialized by remember { mutableStateOf(false) }
@@ -105,7 +106,14 @@ fun ZhituApp(
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         Surface(color = ZhituColors.Background, modifier = Modifier.fillMaxSize()) {
             when (destination) {
-                ZhituDestination.HOME -> HomeScreen(upcomingPlans, { destination = ZhituDestination.PLANS }, openEditor, { destination = ZhituDestination.ROUTE }, { destination = ZhituDestination.SETTINGS })
+                ZhituDestination.HOME -> HomeScreen(
+                    plans = upcomingPlans,
+                    onPlans = { destination = ZhituDestination.PLANS },
+                    onAdd = openEditor,
+                    onRoute = { destination = ZhituDestination.ROUTE },
+                    onWeather = { destination = ZhituDestination.WEATHER },
+                    onSettings = { destination = ZhituDestination.SETTINGS },
+                )
                 ZhituDestination.PLANS -> PlansScreen(plans, openEditor, { destination = ZhituDestination.HOME }, viewModel::setEnabled, { destination = it })
                 ZhituDestination.EDITOR -> AlarmEditorScreen(editorDraft, { editorDraft = it }, { destination = ZhituDestination.PLANS }, { viewModel.save(editorDraft) { destination = ZhituDestination.PLANS } }, { editorDraft.id?.let(viewModel::delete); destination = ZhituDestination.PLANS })
                 ZhituDestination.ROUTE -> LocalRouteScreen(
@@ -191,11 +199,16 @@ fun ZhituApp(
                     },
                     onClear = viewModel::clearCredentialsWithCompletion,
                     onTestAmapWebKey = viewModel::testAmapWebKey,
+                    onTestCaiyun = viewModel::testCaiyun,
                     onBack = { destination = ZhituDestination.SETTINGS },
                 )
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen { destination = ZhituDestination.SETTINGS }
                 ZhituDestination.HISTORY -> HistoryScreen(events) { destination = ZhituDestination.SETTINGS }
-                ZhituDestination.WEATHER -> WeatherEmptyScreen { destination = ZhituDestination.SETTINGS }
+                ZhituDestination.WEATHER -> WeatherScreen(
+                    state = weatherState,
+                    onRefresh = viewModel::refreshWeather,
+                    onBack = { destination = ZhituDestination.SETTINGS },
+                )
                 ZhituDestination.RINGING -> RingingScreen(occurrenceId = ringingOccurrenceId, onDismiss = { ringingOccurrenceId?.let(viewModel::dismiss); destination = ZhituDestination.HOME }, onSnooze = { ringingOccurrenceId?.let(viewModel::snooze); destination = ZhituDestination.HOME })
                 ZhituDestination.ONBOARDING -> OnboardingScreen(
                     onGrantAmap = { viewModel.setAmapConsent(true); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.CREDENTIALS },
@@ -232,6 +245,7 @@ private fun HomeScreen(
     onPlans: () -> Unit,
     onAdd: (AlarmPlan?) -> Unit,
     onRoute: () -> Unit,
+    onWeather: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Scaffold(
@@ -245,7 +259,7 @@ private fun HomeScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { EmptyProviderCard("天气暂未接入", "天气图与预报将在服务接入后显示；当前不使用模拟数据。") }
+            item { EmptyProviderCard("彩云天气", "手动刷新通勤天气预览。", onClick = onWeather) }
             item { SectionTitle("最近的有效闹钟", action = "全部闹钟", onAction = onPlans) }
             if (plans.isEmpty()) item { HomeAlarmHero(onAdd) }
             else items(plans.take(3), key = { it.plan.id }) { item -> HomePlanCard(item, { onAdd(item.plan) }) }
