@@ -38,6 +38,7 @@ interface AmapWebApi {
         @Query("waypoints") waypoints: String? = null,
         @Query("strategy") strategy: String? = null,
         @Query("alternative_route") alternativeRoute: Int? = null,
+        @Query("show_fields") showFields: String = ROUTE_SHOW_FIELDS,
     ): Response<AmapRouteResponse>
 
     @GET("v5/direction/walking")
@@ -46,6 +47,7 @@ interface AmapWebApi {
         @Query("origin") origin: String,
         @Query("destination") destination: String,
         @Query("alternative_route") alternativeRoute: Int? = null,
+        @Query("show_fields") showFields: String = ROUTE_SHOW_FIELDS,
     ): Response<AmapRouteResponse>
 
     @GET("v5/direction/bicycling")
@@ -53,6 +55,7 @@ interface AmapWebApi {
         @Query("key") key: String,
         @Query("origin") origin: String,
         @Query("destination") destination: String,
+        @Query("show_fields") showFields: String = ROUTE_SHOW_FIELDS,
     ): Response<AmapRouteResponse>
 
     @GET("v5/direction/electrobike")
@@ -60,6 +63,7 @@ interface AmapWebApi {
         @Query("key") key: String,
         @Query("origin") origin: String,
         @Query("destination") destination: String,
+        @Query("show_fields") showFields: String = ROUTE_SHOW_FIELDS,
     ): Response<AmapRouteResponse>
 
     @GET("v5/direction/transit/integrated")
@@ -73,7 +77,12 @@ interface AmapWebApi {
         @Query("date") date: String? = null,
         @Query("time") time: String? = null,
         @Query("AlternativeRoute") alternativeRoute: Int? = null,
+        @Query("show_fields") showFields: String = ROUTE_SHOW_FIELDS,
     ): Response<AmapRouteResponse>
+
+    private companion object {
+        const val ROUTE_SHOW_FIELDS = "cost,polyline"
+    }
 }
 
 @Serializable

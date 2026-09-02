@@ -5,6 +5,7 @@ import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
 import com.ljwzz.weathertrafficalarm.core.model.ProviderError
 import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
 import com.ljwzz.weathertrafficalarm.core.network.di.NetworkModule
+import java.time.LocalDateTime
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -88,7 +89,8 @@ class AmapWebProviderTest {
 
     @Test
     fun routesSelectEveryAmapEndpointLimitAlternativesAndParsePolylines() = runTest {
-        repeat(5) { server.enqueue(success(routeBody(paths = 4))) }
+        repeat(4) { server.enqueue(success(routeBody(paths = 4))) }
+        server.enqueue(success(transitBody(transits = 4)))
         val expectedPaths = listOf(
             CommuteMode.DRIVING to "/v5/direction/driving",
             CommuteMode.WALKING to "/v5/direction/walking",
@@ -103,9 +105,11 @@ class AmapWebProviderTest {
             )
             assertEquals(3, estimate.alternatives.size)
             assertEquals("${mode.name}:0", estimate.alternatives.first().id)
+            assertEquals(100L, estimate.alternatives.first().durationSeconds)
             assertEquals(2, estimate.alternatives.first().polyline.size)
             val received = server.takeRequest().requestUrl!!
             assertEquals(path, received.encodedPath)
+            assertEquals("cost,polyline", received.queryParameter("show_fields"))
             when (mode) {
                 CommuteMode.DRIVING -> {
                     assertEquals("32", received.queryParameter("strategy"))
@@ -116,6 +120,46 @@ class AmapWebProviderTest {
                 CommuteMode.BICYCLING, CommuteMode.ELECTRIC_BICYCLE -> assertEquals(null, received.queryParameter("alternative_route"))
             }
         }
+    }
+
+    @Test
+    fun routesUseTopLevelDurationWhenCostIsAbsent() = runTest {
+        server.enqueue(success(legacyRouteBody()))
+
+        val estimate = provider.estimate(RouteRequest(point(), GeoPoint(116.407428, 39.91923), CommuteMode.DRIVING))
+
+        assertEquals(600L, estimate.alternatives.single().durationSeconds)
+        assertEquals("cost,polyline", server.takeRequest().requestUrl!!.queryParameter("show_fields"))
+    }
+
+    @Test
+    fun transitRejectsMissingCityCodesBeforeSendingARequest() = runTest {
+        val error = runCatching {
+            provider.estimate(RouteRequest(point(), GeoPoint(116.407428, 39.91923), CommuteMode.TRANSIT))
+        }.exceptionOrNull() as ProviderError
+
+        assertEquals(ProviderError.Category.INVALID_REQUEST, error.category)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun transitUsesAmapDateAndHyphenatedTimeFormat() = runTest {
+        server.enqueue(success(transitBody(transits = 1)))
+
+        provider.estimate(
+            RouteRequest(
+                origin = point(),
+                destination = GeoPoint(116.407428, 39.91923),
+                mode = CommuteMode.TRANSIT,
+                originCity = "010",
+                destinationCity = "010",
+                departureAt = LocalDateTime.of(2026, 9, 2, 9, 54),
+            ),
+        )
+
+        val request = server.takeRequest().requestUrl!!
+        assertEquals("2026-09-02", request.queryParameter("date"))
+        assertEquals("9-54", request.queryParameter("time"))
     }
 
     @Test
@@ -190,10 +234,21 @@ class AmapWebProviderTest {
         append("{\"route\":{\"paths\":[")
         repeat(paths) { index ->
             if (index > 0) append(',')
-            append("{\"duration\":\"${100 + index}\",\"distance\":\"${200 + index}\",\"steps\":[{\"polyline\":\"116.397428,39.90923;116.407428,39.91923\"}]}")
+            append("{\"duration\":\"999\",\"distance\":\"${200 + index}\",\"cost\":{\"duration\":\"${100 + index}\"},\"steps\":[{\"polyline\":\"116.397428,39.90923;116.407428,39.91923\"}]}")
         }
         append("]}}")
     }
+
+    private fun transitBody(transits: Int): String = buildString {
+        append("{\"route\":{\"transits\":[")
+        repeat(transits) { index ->
+            if (index > 0) append(',')
+            append("{\"distance\":\"${200 + index}\",\"cost\":{\"duration\":\"${100 + index}\"},\"segments\":[{\"walking\":{\"polyline\":\"116.397428,39.90923;116.407428,39.91923\"}}]}")
+        }
+        append("]}}")
+    }
+
+    private fun legacyRouteBody() = """{"route":{"paths":[{"duration":"600","distance":"200","steps":[{"polyline":"116.397428,39.90923;116.407428,39.91923"}]}]}}"""
 
     private fun routeCacheSize(): Int {
         val field = AmapWebProvider::class.java.getDeclaredField("cache")

@@ -67,6 +67,14 @@ class AmapWebProvider(
 
     override suspend fun estimate(request: RouteRequest): RouteEstimate {
         requireConsent()
+        if (request.mode == CommuteMode.TRANSIT &&
+            (request.originCity.isNullOrBlank() || request.destinationCity.isNullOrBlank())
+        ) {
+            throw ProviderError(
+                ProviderError.Category.INVALID_REQUEST,
+                message = "Transit routes require originCity and destinationCity",
+            )
+        }
         return cached("route|$request") {
             val key = key()
             val origin = request.origin.asAmapParameter()
@@ -92,7 +100,7 @@ class AmapWebProvider(
                         destinationCity = request.destinationCity,
                         strategy = request.policy.transitStrategy(),
                         date = request.departureAt?.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                        time = request.departureAt?.format(DateTimeFormatter.ofPattern("HH:mm:ss")),
+                        time = request.departureAt?.format(DateTimeFormatter.ofPattern("H-mm")),
                         alternativeRoute = MAX_ROUTE_ALTERNATIVES,
                     )
                 }
@@ -183,7 +191,7 @@ class AmapWebProvider(
 
     private fun toRouteAlternative(item: JsonElement, id: String): RouteAlternative? {
         val objectValue = item as? JsonObject ?: return null
-        val duration = objectValue.string("duration")?.toLongOrNull() ?: return null
+        val duration = objectValue.costDurationOrNull() ?: objectValue.string("duration")?.toLongOrNull() ?: return null
         val distance = objectValue.string("distance")?.toLongOrNull() ?: 0L
         return RouteAlternative(id, duration, distance, objectValue.polylines().flatMap(::parsePolyline))
     }
@@ -228,6 +236,10 @@ class AmapWebProvider(
 }
 
 private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.contentOrNull
+
+private fun JsonObject.costDurationOrNull(): Long? = (this["cost"] as? JsonObject)
+    ?.string("duration")
+    ?.toLongOrNull()
 
 private fun String.toGeoPointOrNull(): GeoPoint? {
     val parts = split(',')

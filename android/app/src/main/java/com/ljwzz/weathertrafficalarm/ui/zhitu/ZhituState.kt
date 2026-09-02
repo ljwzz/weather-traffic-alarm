@@ -213,16 +213,33 @@ class ZhituViewModel @Inject constructor(
     }
 
     private suspend fun estimateRoute(origin: PlaceRef, destination: PlaceRef, mode: CommuteMode) = runCatching {
+        val (routeOrigin, routeDestination) = resolveRoutePlaces(origin, destination, mode)
         amapProvider.estimate(
             RouteRequest(
-                origin = GeoPoint(origin.longitudeGcj02, origin.latitudeGcj02),
-                destination = GeoPoint(destination.longitudeGcj02, destination.latitudeGcj02),
+                origin = GeoPoint(routeOrigin.longitudeGcj02, routeOrigin.latitudeGcj02),
+                destination = GeoPoint(routeDestination.longitudeGcj02, routeDestination.latitudeGcj02),
                 mode = mode,
-                originCity = origin.citycode.takeIf(String::isNotBlank),
-                destinationCity = destination.citycode.takeIf(String::isNotBlank),
+                originCity = routeOrigin.citycode.takeIf(String::isNotBlank),
+                destinationCity = routeDestination.citycode.takeIf(String::isNotBlank),
                 departureAt = java.time.LocalDateTime.now(),
             ),
         )
+    }
+
+    private suspend fun resolveRoutePlaces(
+        origin: PlaceRef,
+        destination: PlaceRef,
+        mode: CommuteMode,
+    ): Pair<PlaceRef, PlaceRef> {
+        if (mode != CommuteMode.TRANSIT) return origin to destination
+        return when (
+            val resolution = resolveTransitCityCodes(origin, destination) { point ->
+                amapProvider.reverseGeocode(point)
+            }
+        ) {
+            is TransitCityCodeResolution.Ready -> resolution.origin to resolution.destination
+            TransitCityCodeResolution.Unavailable -> throw TransitCityCodeUnavailable
+        }
     }
 
     fun selectRoute(routeId: String) { _routeState.update { it.copy(selectedRouteId = routeId) } }
@@ -354,6 +371,7 @@ class ZhituViewModel @Inject constructor(
     private fun safe(block: suspend () -> Unit) = viewModelScope.launch { runCatching { block() }.onFailure { _error.value = it.message ?: "操作失败" } }
 
     private fun providerMessage(failure: Throwable): String = when (failure) {
+        TransitCityCodeUnavailable -> TRANSIT_CITY_CODE_UNAVAILABLE_MESSAGE
         is ProviderError -> when (failure.category) {
             ProviderError.Category.MISSING_KEY -> "请先配置高德 Web Key"
             ProviderError.Category.INVALID_KEY -> "高德 Web Key 无效或未授权"
@@ -368,6 +386,42 @@ class ZhituViewModel @Inject constructor(
 
     private companion object { const val AMAP_CONSENT_VERSION = 1 }
 }
+
+internal sealed interface TransitCityCodeResolution {
+    data class Ready(val origin: PlaceRef, val destination: PlaceRef) : TransitCityCodeResolution
+    data object Unavailable : TransitCityCodeResolution
+}
+
+/** Resolves only the city codes needed by AMap transit routes, preserving selected POI details. */
+internal suspend fun resolveTransitCityCodes(
+    origin: PlaceRef,
+    destination: PlaceRef,
+    reverseGeocode: suspend (GeoPoint) -> PlaceRef,
+): TransitCityCodeResolution {
+    val reverseResults = mutableMapOf<GeoPoint, PlaceRef>()
+
+    suspend fun resolve(place: PlaceRef): PlaceRef {
+        if (place.citycode.isNotBlank()) return place
+        val point = GeoPoint(place.longitudeGcj02, place.latitudeGcj02)
+        val reverse = reverseResults[point] ?: reverseGeocode(point).also { reverseResults[point] = it }
+        return place.copy(
+            adcode = place.adcode.ifBlank { reverse.adcode },
+            citycode = reverse.citycode,
+        )
+    }
+
+    val resolvedOrigin = resolve(origin)
+    val resolvedDestination = resolve(destination)
+    return if (resolvedOrigin.citycode.isBlank() || resolvedDestination.citycode.isBlank()) {
+        TransitCityCodeResolution.Unavailable
+    } else {
+        TransitCityCodeResolution.Ready(resolvedOrigin, resolvedDestination)
+    }
+}
+
+private object TransitCityCodeUnavailable : IllegalStateException(TRANSIT_CITY_CODE_UNAVAILABLE_MESSAGE)
+
+private const val TRANSIT_CITY_CODE_UNAVAILABLE_MESSAGE = "无法确定起点或终点所在城市，请重新选择地点或稍后重试"
 
 enum class ZhituDestination {
     HOME, PLANS, EDITOR, ROUTE, CALENDAR, SETTINGS, CREDENTIALS,
