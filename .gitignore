@@ -1,6 +1,8 @@
 # Android/Gradle
 android/.gradle/
+android/.kotlin/
 android/**/build/
+android/app/release/
 android/local.properties
 android/captures/
 *.iml
