@@ -7,6 +7,8 @@ import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
+import com.ljwzz.weathertrafficalarm.core.model.WeatherProvider
+import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunWeatherProvider
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -22,4 +24,6 @@ interface DeviceTestDependencies {
     fun credentials(): CredentialStore
     fun settings(): LocalSettingsStore
     fun calendar(): WorkdayCalendarRepository
+    fun caiyunWeatherProvider(): CaiyunWeatherProvider
+    fun weatherProvider(): WeatherProvider
 }
