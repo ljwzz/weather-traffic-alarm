@@ -379,6 +379,7 @@ class ZhituViewModel @Inject constructor(
             ProviderError.Category.RATE_LIMITED -> "请求过于频繁，请稍后重试"
             ProviderError.Category.ROUTE_NOT_FOUND -> "未找到可用路线"
             ProviderError.Category.NETWORK -> "网络不可用，请检查连接"
+            ProviderError.Category.TIMEOUT -> "服务响应超时，请稍后重试"
             else -> "高德服务暂不可用"
         }
         else -> "请求失败，请稍后重试"

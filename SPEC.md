@@ -352,6 +352,16 @@ testFailReason: String?              // 只存错误类别，不存 body
 - 密文存 `filesDir/credentials/` 下按 provider 命名的文件；`core/security` 负责 Keystore 密钥与密文读写。
 - 提供“清除凭证”操作：删除密文文件，可选删除 Keystore 别名。
 
+### 5.6.1 `WeatherProvider`
+
+```text
+WeatherProvider.evaluate(WeatherRequest): WeatherEvaluation
+```
+
+- `WeatherRequest` 由家庭地、工作地、目标时间窗口、天气缓冲 profile、规则版本和请求时间组成；不携带 DTO 或凭证。
+- `WeatherEvaluation` 保存最高严重等级、缓冲分钟、规则版本、两地参与窗口、最旧 `providerReportTime`、数据来源、未知 `skycon` 代码和 `fallbackReason`；`isUsableForScheduling=false` 的结果不得被后续统一评估采用。
+- 网络与 Provider 失败抛 `ProviderError`；超出小时预报范围则返回 `WEATHER_HORIZON_UNAVAILABLE` 的 0 分钟评估，不伪造 Provider 数据。
+
 ### 5.7 `AlarmDecision`
 
 ```text
@@ -453,7 +463,7 @@ finalWake = min(existingTempWake?, recommendedWake)
 - 使用小时级接口，按当前时间到 `arrivalTime` 动态计算 `hourlysteps`；请求固定使用 `unit=metric:v2` 和 `lang=zh_CN`。
 - 彩云请求路径坐标顺序为 `{longitude},{latitude}`；响应 `location` 数组为 `[latitude, longitude]`；DTO 必须用命名字段转换，禁止传播裸数组。
 - 规则输入至少包括 `skycon`、逐小时降水概率/强度、风速和能见度；映射以 `skycon` 枚举为主，不解析自然语言描述。
-- `CLEAR_*`、`PARTLY_CLOUDY_*`、`CLOUDY` 为等级 0；`LIGHT_RAIN`、`LIGHT_SNOW` 为等级 1；`MODERATE_*`、`HEAVY_*`、`FOG`、`DUST`、`SAND`、`WIND` 为等级 2；`STORM_RAIN`、`STORM_SNOW` 为等级 3。未知代码不默认视为晴天，返回 `WEATHER_UNKNOWN_CODE` 并使用 0 分钟缓冲。
+- `CLEAR_*`、`PARTLY_CLOUDY_*`、`CLOUDY` 为等级 0；`LIGHT_RAIN`、`LIGHT_SNOW`、`LIGHT_HAZE` 为等级 1；`MODERATE_RAIN`、`MODERATE_SNOW`、`MODERATE_HAZE`、`HEAVY_RAIN`、`HEAVY_SNOW`、`HEAVY_HAZE`、`FOG`、`DUST`、`SAND`、`WIND` 为等级 2；`STORM_RAIN`、`STORM_SNOW` 为等级 3。未知代码不默认视为晴天，返回 `WEATHER_UNKNOWN_CODE` 并使用 0 分钟缓冲。彩云枚举定义见：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html
 - 严重等级映射带 `weatherRuleVersion`，每个彩云枚举必须有契约测试。
 - 保存响应顶层 `server_time` 为 `weatherProviderReportTime`，保存参与决策的小时数据时间范围，不保存完整响应。
 - 彩云预警数据属于增值能力，首版核心计算不得依赖 `alert=true`；开通后只能作为等级上调信号。
@@ -653,8 +663,11 @@ android.permission.ACCESS_FINE_LOCATION
 
 ```text
 ProviderError(
-  category: NETWORK | TIMEOUT | HTTP | AUTH | QUOTA | NOT_FOUND | PARSE | UNKNOWN,
+  category: CONSENT_REQUIRED | MISSING_KEY | INVALID_REQUEST | INVALID_KEY |
+            QUOTA_EXCEEDED | RATE_LIMITED | ROUTE_NOT_FOUND | NETWORK |
+            TIMEOUT | MALFORMED_RESPONSE | PROVIDER_FAILURE,
   providerCode: String?,
+  retryAfterSeconds: Long?,
   retryable: Boolean
 )
 ```

@@ -67,7 +67,11 @@ class ProviderError(
     val providerCode: String? = null,
     message: String,
     cause: Throwable? = null,
+    val retryAfterSeconds: Long? = null,
 ) : RuntimeException(message, cause) {
+    val retryable: Boolean
+        get() = category == Category.NETWORK || category == Category.TIMEOUT || category == Category.RATE_LIMITED
+
     enum class Category {
         CONSENT_REQUIRED,
         MISSING_KEY,
@@ -77,6 +81,7 @@ class ProviderError(
         RATE_LIMITED,
         ROUTE_NOT_FOUND,
         NETWORK,
+        TIMEOUT,
         MALFORMED_RESPONSE,
         PROVIDER_FAILURE,
     }
