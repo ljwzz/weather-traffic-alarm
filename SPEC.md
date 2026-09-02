@@ -67,7 +67,7 @@ enum class AlarmArmedState {
 - 无用户账号；计划、决策与日历缓存全部保存在本机，不上传任何服务端。
 - 首次启动要求用户选择同意高德授权或仅用基础功能；只在用户主动点击“使用当前位置”时请求前台定位。
 - 保存或启用闹钟按实际能力注册下一次本地实例；注册失败保留失败原因和可重新检查入口。
-- 高德 Web Service Key、Android SDK Key 与彩云 App Key/App Secret 均由用户在凭证页配置。Android 已实现加密保存、Provider 连接测试与手动天气预览；真实 Key 的设备实网验收仍待完成。原型仅使用离线 fixture。
+- 高德 Web Service Key、Android SDK Key 与彩云 App Key/App Secret 均由用户在凭证页配置。Android 已实现加密保存、Provider 连接测试与手动天气预览；彩云设备实网与界面验证结果见 [2026-09-02 验证记录](./android/qa/caiyun-device-2026-09-02.md)，高德两项 Key 的设备实网验收仍待完成。原型仅使用离线 fixture。
 
 ### 1.2 非目标
 
