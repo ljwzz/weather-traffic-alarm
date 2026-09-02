@@ -844,23 +844,23 @@ cd android && ./gradlew :feature:credentials:assembleDebug
 验收：
 
 ```bash
-cd android && ./gradlew :feature:credentials:testDebugUnitTest
+cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
 
-### [ ] T062 实现彩云连接测试
+### [x] T062 实现彩云连接测试
 
 依赖：T026、T060。
 
 实施：
 
-1. 测试动作：用待保存的 App Key + App Secret 构造 HMAC 签名，调用一次 v2.6 天气查询（家庭地坐标，无坐标时用固定测试坐标）。
-2. 判定：`status=ok` 且可解析 → 通过；签名/鉴权失败、限流、网络、解析失败分别提示。
-3. 与 T061 相同的“测试期间不落盘”约束。
+1. 测试动作：用待保存的 App Key + App Secret 构造 HMAC 签名，调用一次 `/v2.6/{app_key}/{lng},{lat}/weather`；每次生成新的 nonce，排序并 URL 编码 query 后签名。
+2. 判定：仅 HTTP 200、`status=ok` 且可解析 → 通过；鉴权、HTTP 429、网络、解析失败分别提示，429 读取 `Retry-After`。
+3. 优先使用已配置家庭地，缺失时使用工作地；无坐标不请求。测试期间不落盘，成功后才原子保存候选凭证；失败不覆盖旧凭证。
 
 验收：
 
 ```bash
-cd android && ./gradlew :feature:credentials:testDebugUnitTest
+cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
 
 ### [x] T063 实现凭证配置页 UI
@@ -870,7 +870,7 @@ cd android && ./gradlew :feature:credentials:testDebugUnitTest
 实施：
 
 1. 对应页面 19，并从首次引导和设置页进入：高德区块：Web Key（必填）、Android SDK Key（可选）；彩云区块：App Key、App Secret。
-2. 密码掩码输入；保存前必须连接测试通过或用户显式跳过；提供带确认 dialog 的“清除凭证”。
+2. 密码掩码输入；新的彩云候选凭证必须连接测试通过后保存；提供带确认 dialog 的“清除凭证”。
 3. 页面 Activity 设置 `FLAG_SECURE`（防截图/录屏）；确认在截图测试中截图结果为空白。
 
 验收：
@@ -1219,18 +1219,18 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
 
-### [ ] T096 彩云连接测试与配额提示
+### [x] T096 彩云连接测试与配额提示
 
 依赖：T062、T095。
 
 实施：
 
-1. 复用 T062 测试路径；限流/鉴权错误映射到凭证页提示。
+1. 复用 T062 测试路径；HTTP 429（读取 `Retry-After`）与鉴权错误映射到凭证页提示。
 
 验收：
 
 ```bash
-cd android && ./gradlew :core:network:testDebugUnitTest
+cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
 
 ### [ ] T097 关闭彩云坐标门禁（外部条件）

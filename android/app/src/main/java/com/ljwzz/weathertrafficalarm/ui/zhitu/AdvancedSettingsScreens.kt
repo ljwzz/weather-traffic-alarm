@@ -52,6 +52,11 @@ import com.ljwzz.weathertrafficalarm.core.alarm.check.CapabilityDiagnostic
 import com.ljwzz.weathertrafficalarm.core.alarm.check.CapabilityLevel
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
+import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
+import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun CredentialSettingsScreen(
@@ -59,6 +64,7 @@ fun CredentialSettingsScreen(
     onSave: (CredentialInput, onComplete: (String?) -> Unit) -> Unit,
     onClear: (onComplete: (String?) -> Unit) -> Unit,
     onTestAmapWebKey: (((String?) -> Unit) -> Unit)? = null,
+    onTestCaiyun: ((CaiyunCredentialInput?, (String?) -> Unit) -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -73,10 +79,12 @@ fun CredentialSettingsScreen(
 
     DisposableEffect(view) {
         val window = context.findActivity()?.window
-        val previouslySecure = window?.attributes?.flags?.and(WindowManager.LayoutParams.FLAG_SECURE) != 0
+        val previouslySecure = window?.let {
+            it.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0
+        } ?: false
         window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose {
-            if (previouslySecure == false) window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            if (!previouslySecure) window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
@@ -91,15 +99,46 @@ fun CredentialSettingsScreen(
         }
     }
 
+    fun testCaiyun(candidate: CaiyunCredentialInput?) {
+        if (onTestCaiyun == null) {
+            message = "天气服务正在初始化，请稍后重试。"
+            return
+        }
+        pending = true
+        message = null
+        onTestCaiyun(candidate) { error ->
+            pending = false
+            message = error ?: if (candidate == null) "已保存的彩云凭据可用" else "连接成功，彩云凭据已加密保存"
+            if (error == null && candidate != null) {
+                caiyunAppKey = ""
+                caiyunSecret = ""
+            }
+        }
+    }
+
+    fun saveAll() {
+        val appKey = caiyunAppKey.trim()
+        val secret = caiyunSecret.trim()
+        if ((appKey.isEmpty()) != (secret.isEmpty())) {
+            message = "彩云 App Key 和 Secret 必须同时填写。"
+            return
+        }
+        pending = true
+        message = null
+        onSave(CredentialInput(amapWebKey, amapSdkKey)) { saveError ->
+            if (saveError != null) {
+                pending = false
+                message = saveError
+            } else if (appKey.isEmpty()) {
+                complete("凭据已加密保存")(null)
+            } else {
+                testCaiyun(CaiyunCredentialInput(appKey, secret))
+            }
+        }
+    }
+
     ScaffoldWithCredentialFooter(
-        onSave = {
-            pending = true
-            message = null
-            onSave(
-                CredentialInput(amapWebKey, amapSdkKey, caiyunAppKey, caiyunSecret),
-                complete("凭据已加密保存"),
-            )
-        },
+        onSave = ::saveAll,
         onClear = { clearConfirmation = true },
         pending = pending,
         onBack = onBack,
@@ -155,6 +194,36 @@ fun CredentialSettingsScreen(
                         label = "彩云 Secret",
                         placeholder = status.caiyunSecretMask ?: "未配置",
                     )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = status.caiyunTestStateLabel(),
+                        color = ZhituColors.Muted,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            val appKey = caiyunAppKey.trim()
+                            val secret = caiyunSecret.trim()
+                            if ((appKey.isEmpty()) != (secret.isEmpty())) {
+                                message = "彩云 App Key 和 Secret 必须同时填写。"
+                            } else if (appKey.isEmpty()) {
+                                if (!status.hasCaiyunAppKey || !status.hasCaiyunSecret) {
+                                    message = "请先填写并保存彩云 App Key 和 Secret。"
+                                } else {
+                                    testCaiyun(null)
+                                }
+                            } else {
+                                testCaiyun(CaiyunCredentialInput(appKey, secret))
+                            }
+                        },
+                        enabled = !pending,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        val hasCandidate = caiyunAppKey.isNotBlank() || caiyunSecret.isNotBlank()
+                        Text(if (pending) "处理中" else if (hasCandidate) "测试并保存彩云凭据" else "测试已保存的彩云凭据")
+                    }
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = {
@@ -407,6 +476,18 @@ private fun AdvancedNoticeCard(text: String, background: Color, foreground: Colo
 }
 
 private fun Boolean.toChineseStatus(): String = if (this) "已启用" else "未启用"
+
+private fun CredentialStatus.caiyunTestStateLabel(): String {
+    val result = when (caiyunTestResult) {
+        CaiyunConnectionTestResult.PASSED -> "连接测试通过"
+        CaiyunConnectionTestResult.FAILED -> "最近连接测试失败"
+        CaiyunConnectionTestResult.NEVER_TESTED -> "尚未连接测试"
+    }
+    val testedAt = caiyunLastTestedAtEpochMillis?.let {
+        Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+    }
+    return if (testedAt == null) result else "$result · $testedAt"
+}
 
 private fun CapabilityLevel.toChineseLabel(): String = when (this) {
     CapabilityLevel.AVAILABLE -> "可用"

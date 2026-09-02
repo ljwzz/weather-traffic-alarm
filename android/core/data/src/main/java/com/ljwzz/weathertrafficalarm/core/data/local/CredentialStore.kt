@@ -34,18 +34,41 @@ import javax.inject.Singleton
 private const val CREDENTIAL_FORMAT_VERSION = 1
 
 /** Complete replacement values from the credential editor. Values are never logged. */
-data class CredentialInput(
+class CredentialInput(
     val amapWebKey: String = "",
     val amapSdkKey: String = "",
     val caiyunAppKey: String = "",
     val caiyunSecret: String = "",
-)
+) {
+    override fun toString(): String = "CredentialInput(redacted)"
+}
+
+/** A complete Caiyun credential candidate that has passed a connection test. */
+class CaiyunCredentialInput(
+    val appKey: String,
+    val secret: String,
+) {
+    init {
+        require(appKey.isNotBlank()) { "Caiyun App Key must not be blank" }
+        require(secret.isNotBlank()) { "Caiyun Secret must not be blank" }
+    }
+
+    override fun toString(): String = "CaiyunCredentialInput(redacted)"
+}
+
+enum class CaiyunConnectionTestResult {
+    PASSED,
+    FAILED,
+    NEVER_TESTED,
+}
 
 data class CredentialStatus(
     val amapWebKeyMask: String? = null,
     val amapSdkKeyMask: String? = null,
     val caiyunAppKeyMask: String? = null,
     val caiyunSecretMask: String? = null,
+    val caiyunLastTestedAtEpochMillis: Long? = null,
+    val caiyunTestResult: CaiyunConnectionTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
     val loaded: Boolean = false,
     val storageError: Boolean = false,
 ) {
@@ -70,6 +93,8 @@ private data class StoredCredentials(
     val amapSdkKey: String? = null,
     val caiyunAppKey: String? = null,
     val caiyunSecret: String? = null,
+    val caiyunLastTestedAtEpochMillis: Long? = null,
+    val caiyunTestResult: CaiyunConnectionTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
 )
 
 @Serializable
@@ -112,6 +137,76 @@ class CredentialStore internal constructor(
                 val plaintext = json.encodeToString(normalized).toByteArray(StandardCharsets.UTF_8)
                 storage.writeAtomically(json.encodeToString(cipher.encrypt(plaintext)))
                 publish(normalized, storageError = false)
+            }
+        }
+    }
+
+    /**
+     * Stores only a successfully tested Caiyun candidate and preserves all AMap values.
+     * A failed candidate must use [recordCaiyunTestFailure] and cannot replace a working key.
+     */
+    suspend fun saveVerifiedCaiyun(input: CaiyunCredentialInput, testedAtEpochMillis: Long = System.currentTimeMillis()) {
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val previous = readStored() ?: StoredCredentials()
+                val updated = previous.copy(
+                    caiyunAppKey = input.appKey.trim(),
+                    caiyunSecret = input.secret.trim(),
+                    caiyunLastTestedAtEpochMillis = testedAtEpochMillis,
+                    caiyunTestResult = CaiyunConnectionTestResult.PASSED,
+                )
+                writeStored(updated)
+            }
+        }
+    }
+
+    /** Marks the already stored Caiyun credential as successfully tested without rewriting it. */
+    suspend fun recordStoredCaiyunTestSuccess(testedAtEpochMillis: Long = System.currentTimeMillis()) {
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val previous = readStored()
+                    ?: throw IllegalStateException("No Caiyun credential is stored")
+                check(!previous.caiyunAppKey.isNullOrBlank() && !previous.caiyunSecret.isNullOrBlank()) {
+                    "No complete Caiyun credential is stored"
+                }
+                writeStored(
+                    previous.copy(
+                        caiyunLastTestedAtEpochMillis = testedAtEpochMillis,
+                        caiyunTestResult = CaiyunConnectionTestResult.PASSED,
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Records a rejected candidate without overwriting the currently stored Caiyun credential. */
+    suspend fun recordCaiyunTestFailure(testedAtEpochMillis: Long = System.currentTimeMillis()) {
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val previous = readStored() ?: StoredCredentials()
+                writeStored(
+                    previous.copy(
+                        caiyunLastTestedAtEpochMillis = testedAtEpochMillis,
+                        caiyunTestResult = CaiyunConnectionTestResult.FAILED,
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Removes only Caiyun's key, secret, and connection-test metadata. */
+    suspend fun clearCaiyun() {
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val previous = readStored() ?: return@withLock
+                val updated = previous.copy(
+                    caiyunAppKey = null,
+                    caiyunSecret = null,
+                    caiyunLastTestedAtEpochMillis = null,
+                    caiyunTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
+                )
+                if (updated.amapWebKey == null && updated.amapSdkKey == null) storage.clear()
+                else writeStored(updated)
             }
         }
     }
@@ -160,23 +255,38 @@ class CredentialStore internal constructor(
         return stored
     }
 
+    private fun writeStored(stored: StoredCredentials) {
+        val plaintext = json.encodeToString(stored).toByteArray(StandardCharsets.UTF_8)
+        storage.writeAtomically(json.encodeToString(cipher.encrypt(plaintext)))
+        publish(stored, storageError = false)
+    }
+
     private fun publish(stored: StoredCredentials?, storageError: Boolean) {
         _state.value = CredentialStatus(
             amapWebKeyMask = CredentialMasker.mask(stored?.amapWebKey),
             amapSdkKeyMask = CredentialMasker.mask(stored?.amapSdkKey),
             caiyunAppKeyMask = CredentialMasker.mask(stored?.caiyunAppKey),
             caiyunSecretMask = CredentialMasker.mask(stored?.caiyunSecret),
+            caiyunLastTestedAtEpochMillis = stored?.caiyunLastTestedAtEpochMillis,
+            caiyunTestResult = stored?.caiyunTestResult ?: CaiyunConnectionTestResult.NEVER_TESTED,
             loaded = true,
             storageError = storageError,
         )
     }
 
-    private fun CredentialInput.merge(previous: StoredCredentials): StoredCredentials = StoredCredentials(
-        amapWebKey = amapWebKey.trim().takeIf(String::isNotEmpty) ?: previous.amapWebKey,
-        amapSdkKey = amapSdkKey.trim().takeIf(String::isNotEmpty) ?: previous.amapSdkKey,
-        caiyunAppKey = caiyunAppKey.trim().takeIf(String::isNotEmpty) ?: previous.caiyunAppKey,
-        caiyunSecret = caiyunSecret.trim().takeIf(String::isNotEmpty) ?: previous.caiyunSecret,
-    )
+    private fun CredentialInput.merge(previous: StoredCredentials): StoredCredentials {
+        val updatedCaiyunAppKey = caiyunAppKey.trim().takeIf(String::isNotEmpty) ?: previous.caiyunAppKey
+        val updatedCaiyunSecret = caiyunSecret.trim().takeIf(String::isNotEmpty) ?: previous.caiyunSecret
+        val caiyunChanged = updatedCaiyunAppKey != previous.caiyunAppKey || updatedCaiyunSecret != previous.caiyunSecret
+        return StoredCredentials(
+            amapWebKey = amapWebKey.trim().takeIf(String::isNotEmpty) ?: previous.amapWebKey,
+            amapSdkKey = amapSdkKey.trim().takeIf(String::isNotEmpty) ?: previous.amapSdkKey,
+            caiyunAppKey = updatedCaiyunAppKey,
+            caiyunSecret = updatedCaiyunSecret,
+            caiyunLastTestedAtEpochMillis = if (caiyunChanged) null else previous.caiyunLastTestedAtEpochMillis,
+            caiyunTestResult = if (caiyunChanged) CaiyunConnectionTestResult.NEVER_TESTED else previous.caiyunTestResult,
+        )
+    }
 
     private companion object {
         val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }

@@ -76,6 +76,8 @@ import java.util.UUID
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.ljwzz.weathertrafficalarm.core.model.WeatherDataSource
+import com.ljwzz.weathertrafficalarm.core.model.WeatherSeverity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,7 +166,7 @@ fun SettingsScreen(settings: com.ljwzz.weathertrafficalarm.core.data.preferences
         item { BufferEditor("工作日天气缓冲", settings.workdayWeatherBuffers) { onSettingsChange(settings.copy(workdayWeatherBuffers = it)) } }
         item { BufferEditor("周末天气缓冲", settings.weekendWeatherBuffers) { onSettingsChange(settings.copy(weekendWeatherBuffers = it)) } }
         item { BufferEditor("法定休息日天气缓冲", settings.holidayWeatherBuffers) { onSettingsChange(settings.copy(holidayWeatherBuffers = it)) } }
-        item { SettingsGroup("数据服务") { SettingRow("高德地图与路线", "地点、路线与路况", onRoute); SettingRow("接口凭据", "高德与天气", onCredentials) } }
+        item { SettingsGroup("数据服务") { SettingRow("高德地图与路线", "地点、路线与路况", onRoute); SettingRow("彩云天气", "手动预览", onWeather); SettingRow("接口凭据", "高德与天气", onCredentials) } }
         item { SettingsGroup("可靠性") { SettingRow("权限与诊断", "查看状态", onDiagnostics); SettingRow("闹钟记录", "本机事件", onHistory) } }
         item { SettingsGroup("其他") { SettingRow("高德专项授权", if (settings.amapConsentGranted) "已同意，可重新设置" else "未同意", onOnboarding); SettingRow("首次引导", "重新查看", onOnboarding) } }
     }
@@ -187,8 +189,76 @@ fun HistoryScreen(events: List<com.ljwzz.weathertrafficalarm.core.model.AlarmEve
 }
 
 @Composable
-fun WeatherEmptyScreen(onBack: () -> Unit) = Scaffold(topBar = { ZhituTopBar("天气", navigation = onBack) }) { padding ->
-    Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { EmptyProviderCard("天气服务暂未接入", "此处不展示模拟天气或提前计算。基础闹钟可独立运行。") }
+fun WeatherScreen(
+    state: WeatherUiState,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) = Scaffold(
+    containerColor = ZhituColors.Background,
+    topBar = { ZhituTopBar("天气", subtitle = "手动查看通勤天气", navigation = onBack) },
+) { padding ->
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            FormCard {
+                Text(
+                    "天气数据来自彩云天气。手动刷新只读取当前地点和天气设置。",
+                    color = ZhituColors.Blue,
+                )
+            }
+        }
+        item {
+            when (state) {
+                WeatherUiState.Idle -> EmptyProviderCard("尚未刷新天气", "配置带坐标的起点和终点后可查看未来 24 小时的通勤天气。")
+                is WeatherUiState.Loading -> FormCard {
+                    Text("正在获取天气", color = ZhituColors.Ink, fontWeight = FontWeight.Bold)
+                    state.weatherRouteLabel()?.let { Text(it, color = ZhituColors.Muted) }
+                }
+                is WeatherUiState.Success -> FormCard {
+                    Text("${state.severity.toWeatherLabel()}天气", color = ZhituColors.Brand, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                    Text("地点：${state.homeName} → ${state.workName}", color = ZhituColors.Ink)
+                    Text("数据时间：${state.reportTime.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}", color = ZhituColors.Muted)
+                    Text(state.source.toWeatherSourceLabel(), color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+                }
+                is WeatherUiState.Error -> FormCard {
+                    Text("无法获取天气", color = ZhituColors.Amber, fontWeight = FontWeight.Bold)
+                    state.weatherRouteLabel()?.let { Text(it, color = ZhituColors.Muted) }
+                    Text(state.message, color = ZhituColors.Ink)
+                }
+            }
+        }
+        item {
+            Button(
+                onClick = onRefresh,
+                enabled = state !is WeatherUiState.Loading,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand),
+            ) { Text(if (state is WeatherUiState.Loading) "正在刷新" else "手动刷新") }
+        }
+    }
+}
+
+private fun WeatherUiState.weatherRouteLabel(): String? = when (this) {
+    is WeatherUiState.Loading -> listOfNotNull(homeName, workName).takeIf { it.isNotEmpty() }?.joinToString(" → ")
+    is WeatherUiState.Error -> listOfNotNull(homeName, workName).takeIf { it.isNotEmpty() }?.joinToString(" → ")
+    else -> null
+}
+
+private fun WeatherSeverity.toWeatherLabel(): String = when (this) {
+    WeatherSeverity.FINE -> "晴好"
+    WeatherSeverity.LIGHT -> "轻度"
+    WeatherSeverity.MODERATE -> "中度"
+    WeatherSeverity.SEVERE -> "严重"
+}
+
+private fun WeatherDataSource.toWeatherSourceLabel(): String = when (this) {
+    WeatherDataSource.NETWORK -> "数据来自彩云天气"
+    WeatherDataSource.CACHE -> "数据来自本地缓存"
+    WeatherDataSource.MIXED -> "数据混合来自彩云天气和本地缓存"
 }
 
 @Composable

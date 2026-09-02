@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
+import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
+import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
@@ -25,11 +27,22 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
+import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.ProviderError
 import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
+import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
+import com.ljwzz.weathertrafficalarm.core.model.WeatherDataSource
+import com.ljwzz.weathertrafficalarm.core.model.WeatherLocation
+import com.ljwzz.weathertrafficalarm.core.model.WeatherLocationRole
+import com.ljwzz.weathertrafficalarm.core.model.WeatherProvider
+import com.ljwzz.weathertrafficalarm.core.model.WeatherRequest
+import com.ljwzz.weathertrafficalarm.core.model.WeatherSeverity
+import com.ljwzz.weathertrafficalarm.core.model.WeatherTimeWindow
 import com.ljwzz.weathertrafficalarm.core.network.amap.AmapWebProvider
+import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunCredentials
+import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunWeatherProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +57,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
 import java.time.ZoneId
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 
@@ -63,6 +78,8 @@ class ZhituViewModel @Inject constructor(
     private val effectiveCommuteResolver: EffectiveCommuteResolver,
     private val amapSdk: AmapSdkController,
     private val amapProvider: AmapWebProvider,
+    private val weatherProvider: WeatherProvider,
+    private val caiyunWeatherProvider: CaiyunWeatherProvider,
 ) : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
@@ -110,6 +127,8 @@ class ZhituViewModel @Inject constructor(
     val placePickerState: StateFlow<PlacePickerUiState> = _placePickerState
     private val _planCommuteEditor = MutableStateFlow(PlanCommuteEditorState())
     val planCommuteEditor: StateFlow<PlanCommuteEditorState> = _planCommuteEditor
+    private val _weatherState = MutableStateFlow<WeatherUiState>(WeatherUiState.Idle)
+    val weatherState: StateFlow<WeatherUiState> = _weatherState
     val planCommuteOverrides: StateFlow<Map<String, PlanCommuteOverride>> = plans.flatMapLatest { current ->
         if (current.isEmpty()) flowOf(emptyMap()) else combine(current.map { plan ->
             planCommuteOverrideRepository.observeByPlanId(plan.id).map { plan.id to it }
@@ -366,6 +385,94 @@ class ZhituViewModel @Inject constructor(
         if (!settings.value.amapConsentGranted) { onComplete("请先完成高德地图专项授权"); return@launch }
         runCatching { amapProvider.inputTips("北京") }.onSuccess { onComplete(null) }.onFailure { onComplete(providerMessage(it)) }
     }
+
+    /** Tests a candidate without persisting it; the store changes only after a successful request. */
+    fun testCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) = viewModelScope.launch {
+        val location = weatherLocations().firstOrNull()
+        if (location == null) {
+            onComplete("请先配置带坐标的起点或终点")
+            return@launch
+        }
+        val requestedAt = Instant.now()
+        val weatherLocation = WeatherLocation(location.role, location.point)
+        val test = if (candidate == null) {
+            runCatching { caiyunWeatherProvider.testConnection(weatherLocation, requestedAt) }
+        } else {
+            val credentials = CaiyunCredentials(candidate.appKey, candidate.secret)
+            runCatching { caiyunWeatherProvider.testConnection(credentials, weatherLocation, requestedAt) }
+        }
+        val connectionFailure = test.exceptionOrNull()
+        if (connectionFailure != null) {
+            if (candidate == null && runCatching { credentials.recordCaiyunTestFailure() }.isFailure) {
+                onComplete("凭据保存失败")
+            } else {
+                onComplete(weatherProviderMessage(connectionFailure))
+            }
+            return@launch
+        }
+        val persistence = runCatching {
+            if (candidate != null) credentials.saveVerifiedCaiyun(candidate)
+            else credentials.recordStoredCaiyunTestSuccess()
+        }
+        if (persistence.isFailure) {
+            onComplete("凭据保存失败")
+        } else {
+            onComplete(null)
+        }
+    }
+
+    /** Manual preview reads configured places and settings only; it does not evaluate or schedule alarms. */
+    fun refreshWeather() = viewModelScope.launch {
+        val locations = weatherLocations()
+        if (locations.size != 2) {
+            _weatherState.value = WeatherUiState.Error("请先配置带坐标的起点和终点")
+            return@launch
+        }
+        if (locations[0].point == locations[1].point) {
+            _weatherState.value = WeatherUiState.Error("起点和终点不能使用相同坐标")
+            return@launch
+        }
+        if (credentialStatus.value.caiyunTestResult != CaiyunConnectionTestResult.PASSED) {
+            _weatherState.value = WeatherUiState.Error("请先完成彩云凭据连接测试")
+            return@launch
+        }
+        val currentSettings = settings.value
+        val requestedAt = Instant.now()
+        val start = requestedAt.atZone(ZoneId.systemDefault()).truncatedTo(ChronoUnit.HOURS)
+        _weatherState.value = WeatherUiState.Loading(locations[0].name, locations[1].name)
+        runCatching {
+            weatherProvider.evaluate(
+                WeatherRequest(
+                    home = WeatherLocation(WeatherLocationRole.HOME, locations[0].point),
+                    work = WeatherLocation(WeatherLocationRole.WORK, locations[1].point),
+                    window = WeatherTimeWindow(start, start.plusHours(23)),
+                    weatherBufferProfile = currentSettings.workdayWeatherBuffers.toWeatherBufferProfile(),
+                    requestedAt = requestedAt,
+                ),
+            )
+        }.onSuccess { evaluation ->
+            val reportTime = evaluation.providerReportTime
+            val source = evaluation.source
+            if (!evaluation.isUsableForScheduling || reportTime == null || source == null) {
+                _weatherState.value = WeatherUiState.Error(
+                    weatherUnavailableMessage(evaluation.fallbackReason),
+                    locations[0].name,
+                    locations[1].name,
+                )
+            } else {
+                _weatherState.value = WeatherUiState.Success(
+                    homeName = locations[0].name,
+                    workName = locations[1].name,
+                    severity = evaluation.severity,
+                    reportTime = reportTime,
+                    source = source,
+                )
+            }
+        }.onFailure { failure ->
+            _weatherState.value = WeatherUiState.Error(weatherProviderMessage(failure), locations[0].name, locations[1].name)
+        }
+    }
+
     fun clearError() { _error.value = null }
     fun showError(message: String) { _error.value = message }
     private fun safe(block: suspend () -> Unit) = viewModelScope.launch { runCatching { block() }.onFailure { _error.value = it.message ?: "操作失败" } }
@@ -383,6 +490,39 @@ class ZhituViewModel @Inject constructor(
             else -> "高德服务暂不可用"
         }
         else -> "请求失败，请稍后重试"
+    }
+
+    private fun weatherLocations(): List<WeatherConfiguredLocation> {
+        val current = settings.value
+        return listOfNotNull(
+            current.favorites.firstOrNull { it.id == current.originId }?.placeRef?.let { WeatherConfiguredLocation(WeatherLocationRole.HOME, it.name, GeoPoint(it.longitudeGcj02, it.latitudeGcj02)) },
+            current.favorites.firstOrNull { it.id == current.destinationId }?.placeRef?.let { WeatherConfiguredLocation(WeatherLocationRole.WORK, it.name, GeoPoint(it.longitudeGcj02, it.latitudeGcj02)) },
+        )
+    }
+
+    private fun com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers.toWeatherBufferProfile() =
+        WeatherBufferProfile(lightMinutes, moderateMinutes, severeMinutes)
+
+    private fun weatherProviderMessage(failure: Throwable): String = when (failure) {
+        is ProviderError -> when (failure.category) {
+            ProviderError.Category.MISSING_KEY -> "请先配置彩云 App Key 和 Secret"
+            ProviderError.Category.INVALID_KEY -> "彩云凭据无效或未授权"
+            ProviderError.Category.QUOTA_EXCEEDED, ProviderError.Category.RATE_LIMITED -> "彩云服务额度或频率限制"
+            ProviderError.Category.NETWORK -> "网络不可用，请检查连接"
+            ProviderError.Category.INVALID_REQUEST -> "天气请求参数无效"
+            ProviderError.Category.MALFORMED_RESPONSE -> "天气数据格式无效"
+            else -> "彩云天气服务暂不可用"
+        }
+        else -> "天气请求失败，请稍后重试"
+    }
+
+    private fun weatherUnavailableMessage(reason: FallbackReason): String = when (reason) {
+        FallbackReason.WEATHER_HORIZON_UNAVAILABLE -> "所选时间范围超出彩云小时预报范围"
+        FallbackReason.WEATHER_UNKNOWN_CODE -> "天气数据包含未识别天气代码，无法使用"
+        FallbackReason.WEATHER_PROVIDER_TIMEOUT -> "服务响应超时，请稍后重试"
+        FallbackReason.WEATHER_PROVIDER_AUTH -> "彩云凭据无效或未授权"
+        FallbackReason.WEATHER_PROVIDER_QUOTA -> "彩云服务额度或频率限制"
+        else -> "天气数据当前不可用"
     }
 
     private companion object { const val AMAP_CONSENT_VERSION = 1 }
@@ -447,6 +587,29 @@ data class RouteUiState(
     val loading: Boolean = false,
     val message: String? = null,
 )
+
+private data class WeatherConfiguredLocation(
+    val role: WeatherLocationRole,
+    val name: String,
+    val point: GeoPoint,
+)
+
+sealed interface WeatherUiState {
+    data object Idle : WeatherUiState
+    data class Loading(val homeName: String? = null, val workName: String? = null) : WeatherUiState
+    data class Success(
+        val homeName: String,
+        val workName: String,
+        val severity: WeatherSeverity,
+        val reportTime: Instant,
+        val source: WeatherDataSource,
+    ) : WeatherUiState
+    data class Error(
+        val message: String,
+        val homeName: String? = null,
+        val workName: String? = null,
+    ) : WeatherUiState
+}
 
 data class PlacePickerUiState(
     val query: String = "",
