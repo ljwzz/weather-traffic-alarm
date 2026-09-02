@@ -77,14 +77,17 @@
 | E3 | 高德 Web Key 只能绑定 IP 白名单（错误码 10005/10010 佐证）；客户端直连移动网络 IP 不固定 → 无法启用白名单 | ⚠️ | 机制已由错误码表证实；"移动网络不可行"为推断，SPEC 已列为已知风险 |
 | E4 | 高德 Android SDK Key 的包名与签名配置 | 🔬 | 待用户提供 Android SDK Key 后进行设备实网验收 |
 | E5 | 高德"未来路径规划"（驾车未来服务）接口存在、需开通、超范围时退化为当前路况 | ❓ | 方向 API 页中该能力说明（待你在该页确认具体章节） |
-| E6 | 彩云 v2.6 文档结构：入口页 + start/auth/billing/ratelimit/version-guide + skycon 等表 | ✅ | https://docs.caiyunapp.com/weather-api/ |
-| E7 | 彩云 v2.6 鉴权为 App Key + App Secret 的 HMAC-SHA256（`x-cy-token`/`x-cy-timestamp`/`x-cy-signature`） | ❓ | 待核对 https://docs.caiyunapp.com/weather-api/auth.html |
-| E8 | 彩云 v2.6 `skycon` 枚举表无独立"冻雨"代码 | ❓ | 待核对 https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html |
-| E9 | 彩云天气查询接口接受的坐标基准（GCJ-02 vs WGS-84）未在文档明确 | ❓ | SPEC 14 章未确认项：需官方书面确认或控制点对照测试 |
-| E10 | 彩云免费版调用量/套餐构成（10000 次等） | ⚠️ | 计费页已确认存在：https://docs.caiyunapp.com/weather-api/billing.html ；具体额度待该页核实 |
-| E11 | 彩云条款要求展示"数据来自彩云天气" | ❓ | 条款/常见问题页（待核实 URL） |
-| E12 | holiday-cn 数据格式：`{year, papers[], days[{name, date, isOffDay}]}`；年份按国务院文件标题，12 月可能受次年文件影响；"与周末连休"的周末不含；数据地址 raw.githubusercontent/jsDelivr；MIT 许可 | ✅ | https://github.com/NateScarlet/holiday-cn/blob/master/README.md |
-| E13 | holiday-cn 发布节奏（通常 10 月底/11 月发布次年安排） | ❓ | 社区经验判断（SPEC 14 章已标注为取舍，非官方承诺） |
+| E6 | 彩云 v2.6 为稳定且推荐使用的版本 | ✅ | https://docs.caiyunapp.com/weather-api/version-guide.html |
+| E7 | v2.6 App Key 位于 URL 路径；每次请求以 `x-cy-nonce`、`x-cy-timestamp`、`x-cy-signature` 签名。签名使用排序且 URL 编码的 query、含 App Key 的 path、HMAC-SHA256 与 URL-safe Base64 | ✅ | https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html |
+| E8 | `/weather` 接口路径坐标为经度、纬度；响应 `location` 为纬度、经度；`hourlysteps` 范围 1–360，实际返回受套餐限制 | ✅ | https://docs.caiyunapp.com/weather-api/v2/v2.6/6-weather.html |
+| E9 | 小时数据包含 `skycon`、降水（含 probability）、风和能见度；连续降水概率值仅前两小时可用 | ✅ | https://docs.caiyunapp.com/weather-api/v2/v2.6/3-hourly.html |
+| E10 | `skycon` 枚举表无独立“冻雨”代码 | ✅ | https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html |
+| E11 | v2.6 通用天气查询接口的输入坐标基准未获得官方书面确认；FAQ 仅说明彩云天气 App 使用 GCJ-02 | ❓ | https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/q.html |
+| E12 | 彩云错误以 HTTP 状态表示；非 200 不能当作成功，429 可能为额度或 QPS 限流并携带 `Retry-After` | ✅ | https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/errors.html |
+| E13 | 套餐、QPS 和 API 权限随套餐不同，当前具体价格与额度以账号后台为准 | ✅ | https://docs.caiyunapp.com/weather-api/billing.html |
+| E14 | 开放平台协议要求显著标注彩云 LOGO 或“数据来自彩云天气/彩云科技” | ✅ | https://platform.caiyunapp.com/user/user_agreement/ |
+| E15 | holiday-cn 数据格式：`{year, papers[], days[{name, date, isOffDay}]}`；年份按国务院文件标题，12 月可能受次年文件影响；"与周末连休"的周末不含；数据地址 raw.githubusercontent/jsDelivr；MIT 许可 | ✅ | https://github.com/NateScarlet/holiday-cn/blob/master/README.md |
+| E16 | holiday-cn 发布节奏（通常 10 月底/11 月发布次年安排） | ❓ | 社区经验判断（SPEC 14 章已标注为取舍，非官方承诺） |
 
 ## F. 需真机/实验验证的厂商行为
 

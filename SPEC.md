@@ -103,14 +103,16 @@ enum class AlarmArmedState {
 | 凭证加密 | Android Keystore AES-GCM（密钥不可导出） | 密钥管理、密文格式、备份排除 | 采用平台能力 |
 | 崩溃/ANR | 本地脱敏诊断；不接入第三方采集 SDK | 环形诊断记录、凭证脱敏 | 首版采用 |
 
-历史技术依据（原记录于 2026-08-07；本次设计与文档更新未重新核验以下外部 URL。Android 平台机制仍须按 `docs/facts-to-verify.md` 逐项核对）：
+技术依据：彩云链接已于 2026-09-01 核验；其余历史 Android/社区链接仍须按 `docs/facts-to-verify.md` 逐项核对。
 
 - holiday-cn 数据格式、数据地址与注意事项：https://github.com/NateScarlet/holiday-cn/blob/master/README.md
 - holiday-cn 2025 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2025.json
 - holiday-cn 2026 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2026.json
-- 彩云天气 API 计费与套餐（按量/包月/企业，QPS 差异）：https://docs.caiyunapp.com/weather-api/billing.html
-- 彩云天气 API 数据与价目介绍（免费版调用量、套餐构成）：https://caiyunapp.com/api/weather_intro.html
-- 彩云天气 API 官网入口：https://caiyunapp.com/api/weather
+- 彩云天气 v2.6 鉴权（App Key 路径段、签名请求头、HMAC 输入与编码）：https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html
+- 彩云天气 v2.6 综合天气接口（坐标顺序、`hourlysteps`、响应结构）：https://docs.caiyunapp.com/weather-api/v2/v2.6/6-weather.html
+- 彩云天气 v2.6 小时级接口（逐小时字段与 `hourlysteps` 范围）：https://docs.caiyunapp.com/weather-api/v2/v2.6/3-hourly.html
+- 彩云天气 v2.6 错误模型：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/errors.html
+- 彩云天气开放平台协议（数据来源标注）：https://platform.caiyunapp.com/user/user_agreement/
 - Android `AlarmManager` 文档（`setAlarmClock()`、`getNextAlarmClock()` 自 API 21 公开、`ACTION_NEXT_ALARM_CLOCK_CHANGED` 为系统独占发送且只投递已注册 receiver、闹钟在重启后清除、强制停止会清除本应用 PendingIntent）：https://developer.android.com/reference/kotlin/android/app/AlarmManager
 
 ### 2.1 数据源评估：holiday-cn
@@ -178,7 +180,7 @@ enum class AlarmArmedState {
 |---|---|
 | 高德 REST 根 | `https://restapi.amap.com/`（路径规划 v5、POI 搜索 v5、输入提示 v3） |
 | 彩云 REST 根 | `https://api.caiyunapp.com/`（v2.6） |
-| 彩云鉴权 | App Key + App Secret 的 HMAC-SHA256（`x-cy-token` / `x-cy-timestamp` / `x-cy-signature` 请求头），不使用 URL 路径 Token 认证 |
+| 彩云鉴权 | App Key 位于 `/v2.6/{app_key}/...` 路径段；每个 GET 请求使用 16–40 字符、不可复用的 `x-cy-nonce`，以及 `x-cy-timestamp`、`x-cy-signature`。签名为排序并 URL 编码的 query 与含 App Key 的 path 组成的 HMAC-SHA256、URL-safe Base64：https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html |
 | 天气单位 | `unit=metric:v2`，`lang=zh_CN` |
 | 坐标基准 | GCJ-02（高德 SDK 内部）；彩云输入坐标基准存在未确认项（见 14 章） |
 
@@ -459,18 +461,20 @@ finalWake = min(existingTempWake?, recommendedWake)
 - `isOffDay=false` 的调休上班日使用工作日缓冲；法定休息日与周末重合时使用法定休息日缓冲；日历缓存缺失时按周几选择工作日或周末缓冲。
 - 单日加班可保存本日专用三档缓冲；该值替换本日应选 profile，不修改任何全局 profile，不与其叠加。
 - 天气提供方固定为彩云天气 v2.6，App 内直连，凭证来自本机凭证存储。
+- 天气 Provider 只产生 `WeatherEvaluation` 与建议缓冲；不得创建、取消或修改 `AlarmOccurrence`、本地响铃或当前本地闹钟状态。统一评估调度属于后续 P9 能力。
 - 分别查询家庭地和工作地，从 `[defaultWake-maxAdvance, arrivalTime]` 小时窗口内取最高严重等级，再取两地中较严重的一端。
-- 使用小时级接口，按当前时间到 `arrivalTime` 动态计算 `hourlysteps`；请求固定使用 `unit=metric:v2` 和 `lang=zh_CN`。
-- 彩云请求路径坐标顺序为 `{longitude},{latitude}`；响应 `location` 数组为 `[latitude, longitude]`；DTO 必须用命名字段转换，禁止传播裸数组。
+- 使用 `/weather` 综合接口，按当前时间到 `arrivalTime` 动态计算 `hourlysteps`，并固定 `dailysteps=1`、`unit=metric:v2`、`lang=zh_CN`；`hourlysteps` 的可请求范围为 1–360，实际返回可按套餐截断：https://docs.caiyunapp.com/weather-api/v2/v2.6/6-weather.html
+- 彩云请求为 `/v2.6/{app_key}/{longitude},{latitude}/weather`；响应 `location` 数组为 `[latitude, longitude]`；DTO 必须用命名字段转换，禁止传播裸数组：https://docs.caiyunapp.com/weather-api/v2/v2.6/6-weather.html
 - 规则输入至少包括 `skycon`、逐小时降水概率/强度、风速和能见度；映射以 `skycon` 枚举为主，不解析自然语言描述。
 - `CLEAR_*`、`PARTLY_CLOUDY_*`、`CLOUDY` 为等级 0；`LIGHT_RAIN`、`LIGHT_SNOW`、`LIGHT_HAZE` 为等级 1；`MODERATE_RAIN`、`MODERATE_SNOW`、`MODERATE_HAZE`、`HEAVY_RAIN`、`HEAVY_SNOW`、`HEAVY_HAZE`、`FOG`、`DUST`、`SAND`、`WIND` 为等级 2；`STORM_RAIN`、`STORM_SNOW` 为等级 3。未知代码不默认视为晴天，返回 `WEATHER_UNKNOWN_CODE` 并使用 0 分钟缓冲。彩云枚举定义见：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html
 - 严重等级映射带 `weatherRuleVersion`，每个彩云枚举必须有契约测试。
 - 保存响应顶层 `server_time` 为 `weatherProviderReportTime`，保存参与决策的小时数据时间范围，不保存完整响应。
-- 彩云预警数据属于增值能力，首版核心计算不得依赖 `alert=true`；开通后只能作为等级上调信号。
+- 彩云预警仅在 `alert=true` 且凭证具备预警权限时返回；核心计算不得依赖它，获得权限后也只能作为等级上调信号：https://docs.caiyunapp.com/weather-api/v2/v2.6/5-alert.html
 - 彩云 v2.6 官方 `skycon` 表未提供独立冻雨代码，信息不足，无法仅凭常规小时数据可靠识别冻雨；不得自行用温度和降水组合推断。只有增值预警返回明确冰冻类预警时才能上调为等级 3。
-- 目标工作日超出 360 小时、Provider 无对应小时数据或响应过期时，返回 `WEATHER_HORIZON_UNAVAILABLE` 和 0 分钟天气缓冲；后续每日评估进入预报范围后只能提前。
+- 目标工作日超出 360 小时或 Provider 无对应小时数据时，返回 `WEATHER_HORIZON_UNAVAILABLE` 和 0 分钟天气缓冲；`server_time` 超出 15 分钟新鲜度窗口时返回陈旧响应错误。两类结果均不可用于调度，后续评估成功后只能提前。
 - 彩云 v2.6 使用 App Key + App Secret 的 HMAC-SHA256 鉴权；App Secret 只存在于 Keystore 加密的本地凭证存储，禁止写入源码、构建产物或日志。
-- 彩云文档只明确“彩云天气 App 使用 GCJ-02”，未明确一般 v2.6 天气查询接口接受的坐标基准；实现必须保留坐标基准门禁（见 14 章），未关闭前不得进入生产发布。
+- 家庭地与工作地分别使用进程内缓存，成功结果按坐标和请求参数缓存 15 分钟；缓存不落盘、进程终止即失效，失败响应不得写入缓存。
+- 彩云文档只明确“彩云天气 App 使用 GCJ-02”，未明确一般 v2.6 天气查询接口接受的坐标基准；实现必须保留坐标基准门禁（见 14 章），未关闭前不得进入生产发布：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/q.html
 
 ### FR-005 高德路线计算契约
 
@@ -651,13 +655,13 @@ android.permission.ACCESS_FINE_LOCATION
 
 | 用途 | 接口 | 关键参数 |
 |---|---|---|
-| 天气实况+小时预报 | `v2.6/{lng},{lat}/weather` 及 `hourly` 视图 | `hourlysteps,unit=metric:v2,lang=zh_CN` |
-| 连接测试 | 同上（家庭地坐标或固定测试坐标） | 同上 |
+| 天气实况+小时预报 | `/v2.6/{app_key}/{lng},{lat}/weather` | `dailysteps=1,hourlysteps,unit=metric:v2,lang=zh_CN` |
+| 连接测试 | 同上（家庭地优先、工作地兜底；无坐标不请求） | 同上 |
 
-- 鉴权：App Key + App Secret，HMAC-SHA256 生成 `x-cy-signature`，配合 `x-cy-token`、`x-cy-timestamp` 请求头；App Secret 只存在于 Keystore 加密凭证。
-- 响应含 `status`、`api_version`、`location`、`server_time`、`result`；`skycon` 枚举映射见 FR-004。
-- 套餐与 QPS 以账号后台为准（免费版 10000 次等介绍见第 2 章依据）。
-- 数据来源标注：天气展示区域必须显著标注“数据来自彩云天气”（彩云开放平台条款要求）。
+- 鉴权：App Key 置于路径；请求头为 `x-cy-nonce`、`x-cy-timestamp`、`x-cy-signature`。对排序且 URL 编码后的 query 生成 `GET:{path}:{query}:{app_key}:{nonce}:{timestamp}` 的 HMAC-SHA256，结果采用 URL-safe Base64；`path` 包含 App Key。App Secret 只存在于 Keystore 加密凭证：https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html
+- 响应至少解析并校验 `status`、`api_version`、`api_status`、`unit`、`timezone`、`tzshift`、`location`、`server_time`、`result.hourly`；`hourly` 中的 `precipitation`、`wind`、`visibility` 与 `skycon` 按各自 `datetime` 对齐。`precipitation.probability` 的连续值仅前两小时可用：https://docs.caiyunapp.com/weather-api/v2/v2.6/3-hourly.html
+- 套餐、可访问 API 和 QPS 以当前账号后台为准；不得将固定免费额度写入运行时判断或发布条件：https://docs.caiyunapp.com/weather-api/billing.html
+- 天气展示区域必须显著标注“数据来自彩云天气”；开放平台协议要求在显著位置标注彩云 LOGO 或该数据来源文字：https://platform.caiyunapp.com/user/user_agreement/
 
 ### 7.3 错误模型（App 内部）
 
@@ -672,8 +676,8 @@ ProviderError(
 )
 ```
 
-- `QUOTA` 与 `AUTH` 视为不可重试；Provider 接入后评估直接结束且不得伪造或修改当前本地闹钟状态。
-- 所有请求超时、`HTTP != 200` 或解析失败时按错误类别结束本轮评估。
+- `INVALID_KEY` 视为不可重试。HTTP 429 可能表示额度耗尽或 QPS 限流，必须读取 `Retry-After` 并作为 `RATE_LIMITED` 处理，不能仅凭状态码细分为 `QUOTA_EXCEEDED`。HTTP 400 含签名/凭证/版本错误，401 为无权限，403 为禁用或 IP 白名单，422 为参数错误，500 为服务端错误：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/errors.html
+- 仅 HTTP 200 可视为成功；网关可能返回 HTML/TXT 错误体，`HTTP != 200`、超时或解析失败均按错误类别结束本轮 Provider 评估，且不得伪造或修改当前本地闹钟状态：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/errors.html
 
 ## 8. UI 规格
 
@@ -804,12 +808,12 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 
 以下事项不阻塞本规格落地，但阻塞对应功能或公开发布：
 
-- **彩云输入坐标基准（未确认项）**：彩云文档只明确 App 使用 GCJ-02，未明确一般 v2.6 天气查询接口接受的坐标基准；实现必须以官方书面确认或已知控制点对照测试关闭门禁，未关闭前不得进入生产发布。
+- **彩云输入坐标基准（未确认项）**：彩云文档只明确 App 使用 GCJ-02，未明确一般 v2.6 天气查询接口接受的坐标基准。只有彩云对一般 v2.6 天气查询接口的书面确认可以关闭门禁；控制点测试只能补充风险证据，不能证明坐标基准。未关闭前不得进入生产发布：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/q.html
 - **minSdk 收窄（待确认）**：当前代码基线为 minSdk 36（Android 16 专属），旧规格为 API 29–36；是否支持更早版本由发布目标决定，若需下探需补充兼容矩阵与回归。
 - **holiday-cn 数据为社区维护（确认的取舍）**：数据真值在国务院公告，holiday-cn 负责抓取整理（MIT 许可）；本项目以 `papers` 保留官方来源并接受其维护节奏（通常 10 月底/11 月发布次年安排，故 10 月 1 日后预拉次年允许“文件暂未发布”的失败并回退）。
 - **高德 Web Key 直连客户端（已知风险）**：Web 服务 Key 只能绑定 IP 白名单，客户端直连（移动网络 IP 不固定）无法启用；风险由 Keystore 加密 + 备份排除 + 用户自持 Key 承担，文档与 UI 需明确提示。
 - **高德 Android SDK Key 与正式签名**：SDK Key 绑定包名+签名；正式签名证书未配置前 SDK Key 只能用于 debug 签名。
-- **彩云套餐**：正式 App Key/App Secret、套餐配额、商用授权与数据来源标注；未购买预警增值能力时核心天气等级必须完整工作。
+- **彩云套餐**：正式 App Key/App Secret、套餐配额、商用授权与数据来源标注；未获预警权限时核心天气等级必须完整工作。
 - **Google Play 声明材料**：精确闹钟、全屏 Intent、隐私政策、数据安全表；完成前不允许公开发布。
 
 ## 15. 发布门禁
@@ -819,6 +823,6 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 - 高德错误／无 Key、成功、加载和拒绝状态均须完成 UI 与设备实网验收；天气能力另行验收。
 - Direct Boot、系统时间/时区变化、升级恢复通过。
 - 凭证安全四项验收（日志/截图/崩溃/导出无凭证）与备份排除测试通过。
-- 高德隐私初始化顺序通过网络抓包验证；彩云签名向量与坐标控制点验证通过。
+- 高德隐私初始化顺序通过网络抓包验证；彩云签名向量通过，且已取得一般 v2.6 天气查询接口坐标基准的官方书面确认。
 - 日历刷新算法（10 月 1 日分界、去年清理、源切换、兜底）单元与仪器测试通过。
 - Google Play 相关声明和政策材料完成；发布包不包含任何密钥、调试开关或测试端点。
