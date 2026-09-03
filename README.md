@@ -45,6 +45,21 @@ weather-traffic-alarm/
 - JDK 21
 - Android SDK Platform 37 + Build Tools 36.0.0
 - Gradle 9.6.1（wrapper）
+- Node.js 24.10+（开发安装与凭据导入脚本）
+
+## 开发安装与凭据导入
+
+在根目录 `.env` 中填写高德、彩云凭据，字段见 [`.env.example`](./.env.example)。`.env.local` 可覆盖同名字段；真实配置已由 Git 忽略。
+
+```bash
+node scripts/install-debug.mjs
+node scripts/import-debug-credentials.mjs
+node scripts/install-debug.mjs --skip-credentials
+```
+
+第一条命令构建、覆盖安装 debug App 和测试 APK，再自动导入；第二条仅重新导入；第三条仅安装 App。多设备时增加 `--serial <设备序列号>`。
+
+**每次导入完整替换手机凭据：缺失或空白字段会清空，四项全空会清空全部凭据。** 彩云导入后需在凭据页执行连接测试。文件语法、故障处理与验证命令见 [配置与凭据](./docs/configuration.md)。
 
 ## 验证
 

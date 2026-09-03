@@ -23,6 +23,8 @@ replay_pid*
 # Environment & secrets
 .env
 .env.local
+/.env.*
+!/.env.example
 *.env
 local.properties
 *.keystore
