@@ -354,7 +354,7 @@ lastTestResult: TEST_PASSED | TEST_FAILED | NEVER_TESTED
 testFailReason: String?              // 只存错误类别，不存 body
 ```
 
-- 明文只允许出现在凭证配置页输入框与连接测试执行线程内。
+- 手机端明文只允许出现在凭证配置、连接测试、服务调用与 debug 导入所需的短生命周期内存中；开发机可使用 Git 忽略的根目录 `.env`、`.env.local` 保存开发凭据。
 - 密文存 `filesDir/credentials/` 下按 provider 命名的文件；`core/security` 负责 Keystore 密钥与密文读写。
 - 提供“清除凭证”操作：删除密文文件，可选删除 Keystore 别名。
 
@@ -598,6 +598,14 @@ android.permission.ACCESS_FINE_LOCATION
    - 输入框使用密码掩码；页面设置 `FLAG_SECURE` 禁止截图与录屏；粘贴与输入值不进入任何日志。
    - 提供“清除凭证”。
 
+4. 开发凭据导入：
+   - 根目录 `.env` 保存 `AMAP_WEB_KEY`、`AMAP_SDK_KEY`、`CAIYUN_APP_KEY`、`CAIYUN_APP_SECRET`；`.env.local` 覆盖同名配置。真实文件由 Git 忽略，`.env.example` 仅保存空值。文件覆盖顺序参照 https://vite.dev/guide/env-and-mode 。
+   - 使用 Node.js `util.parseEnv` 解析键值，不执行 shell 命令或变量展开；安装前检查配置。API 依据 https://nodejs.org/api/util.html 。
+   - 开发安装脚本默认覆盖安装 debug App 和测试 APK，再调用显式启用的 instrumentation 导入入口；`--skip-credentials` 仅安装 App，不读取配置、不修改凭据。支持指定设备与单独重新导入。命令行 instrumentation 依据 https://developer.android.com/studio/test/command-line?hl=en 。
+   - 每次完整替换：空白或缺失字段清空，四项全空清空全部凭据。替换在存储互斥锁内加密并原子写入，成功后发布状态，保存失败保留旧值。
+   - 开发导入可以保存未经联网验证的彩云凭据，状态必须重置为 `NEVER_TESTED`，由现有凭据页执行连接测试。
+   - 主机通过 ADB 标准输入向应用私有 FIFO 传输数据，Android 非阻塞读取并限制大小、超时；退出时清理管道。凭据不进入 APK、日志、命令参数或设备明文文件。系统 API 依据 https://developer.android.com/reference/android/system/Os 。
+
 ### FR-013 凭证加密存储与防泄露
 
 - 密钥生成：`KeyGenParameterSpec` 在 Android Keystore 中生成 AES-256-GCM 对称密钥，`setKeyPurpose(ENCRYPT|DECRYPT)`，**不设置任何可导出标志**；别名固定如 `wtalarm_credentials_v1`。API 36 下无需用户凭据绑定（首版不要求锁屏认证门槛）。
@@ -777,7 +785,7 @@ ProviderError(
 ## 9. 隐私与安全
 
 - 本地优先：所有数据（计划、决策、日历缓存）只存本机，无任何网络上传路径。
-- 凭证：Android Keystore 不可导出密钥加密，密文存应用私有目录，备份排除（FR-013）；明文只存在于输入框与测试执行线程。
+- 凭证：Android Keystore 不可导出密钥加密，密文存应用私有目录，备份排除（FR-013）；手机端明文只存在于使用凭据所需的短生命周期内存。开发机 `.env` 文件与 debug 导入边界见 FR-012。
 - 防泄露四原则（日志脱敏、截图禁止、崩溃信息隔离、导出排除）见 FR-013。
 - 日志：本地环形诊断记录最多 200 条，字段限定为事件类型/结果码/版本/哈希 ID/耗时/时间戳；禁止写入地址、POI、坐标、凭证、铃声 URI 或请求/响应 body。
 - 高德 SDK 隐私合规：同意前不初始化；隐私政策列出高德 SDK 与彩云数据来源。
