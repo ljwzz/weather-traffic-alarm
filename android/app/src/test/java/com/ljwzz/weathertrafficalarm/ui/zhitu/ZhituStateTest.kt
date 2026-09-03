@@ -1,6 +1,8 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
+import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import kotlinx.coroutines.runBlocking
@@ -11,6 +13,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ZhituStateTest {
+    @Test
+    fun editorDraftPreservesArrivalAndAdvanceSettings() {
+        val draft = AlarmPlan(
+            id = "plan-editor-fields",
+            revision = 3,
+            name = "上班",
+            enabled = true,
+            zoneId = "Asia/Shanghai",
+            defaultWakeLocalTime = "07:20",
+            arrivalLocalTime = "09:15",
+            preparationMinutes = 45,
+            maxAdvanceMinutes = 80,
+            commuteMode = CommuteMode.DRIVING,
+            schedule = AlarmSchedule.Workdays,
+        ).toEditorDraft()
+
+        assertEquals("09:15", draft.arrivalLocalTime)
+        assertEquals(45, draft.preparationMinutes)
+        assertEquals(80, draft.maxAdvanceMinutes)
+    }
+
     @Test
     fun planCommuteEditorKeepsIndependentPlacesAndMode() {
         val editor = PlanCommuteEditorState(

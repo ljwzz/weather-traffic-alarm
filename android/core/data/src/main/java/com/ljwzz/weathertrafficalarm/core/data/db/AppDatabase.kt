@@ -26,7 +26,7 @@ import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
         AlarmOccurrenceEntity::class,
         WorkdayOverrideEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @ColumnTypeConverters(Converters::class)

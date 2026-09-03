@@ -34,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -62,8 +63,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ljwzz.weathertrafficalarm.core.data.preferences.FavoritePlace
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
+import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
+import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
 import com.ljwzz.weathertrafficalarm.core.map.AmapMapUiState
+import com.ljwzz.weathertrafficalarm.evaluation.EvaluationTaskState
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 /** The top-level app shell. Service integration is kept outside visual composables. */
@@ -83,6 +91,11 @@ fun ZhituApp(
     val settingsReady by viewModel.settingsReady.collectAsStateWithLifecycle()
     val initialPrivacyAccepted by viewModel.initialPrivacyAccepted.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
+    val decisions by viewModel.decisions.collectAsStateWithLifecycle()
+    val occurrences by viewModel.occurrences.collectAsStateWithLifecycle()
+    val evaluablePlanIds by viewModel.evaluablePlanIds.collectAsStateWithLifecycle()
+    val evaluationTaskStates by viewModel.evaluationTaskStates.collectAsStateWithLifecycle()
+    val evaluationSchedulingError by viewModel.evaluationSchedulingError.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val routeState by viewModel.routeState.collectAsStateWithLifecycle()
     val placePickerState by viewModel.placePickerState.collectAsStateWithLifecycle()
@@ -176,8 +189,13 @@ fun ZhituApp(
             when (destination) {
                 ZhituDestination.HOME -> HomeScreen(
                     plans = upcomingPlans,
+                    decisions = decisions,
+                    evaluationTaskStates = evaluationTaskStates,
+                    evaluablePlanIds = evaluablePlanIds,
+                    schedulingError = evaluationSchedulingError,
                     onPlans = { destination = ZhituDestination.PLANS },
                     onAdd = openEditor,
+                    onEvaluate = viewModel::evaluateNow,
                     onRoute = { destination = ZhituDestination.ROUTE },
                     onWeather = { destination = ZhituDestination.WEATHER },
                     onSettings = { destination = ZhituDestination.SETTINGS },
@@ -291,7 +309,7 @@ fun ZhituApp(
                     statusMessage = settingsMessage,
                     returningToAlarm = permissionViewModel.flow.phase == AlarmEnablePhase.Checking,
                 )
-                ZhituDestination.HISTORY -> HistoryScreen(events) { destination = ZhituDestination.SETTINGS }
+                ZhituDestination.HISTORY -> HistoryScreen(events, decisions, occurrences, plans) { destination = ZhituDestination.SETTINGS }
                 ZhituDestination.WEATHER -> WeatherScreen(
                     state = weatherState,
                     onRefresh = viewModel::refreshWeather,
@@ -317,7 +335,7 @@ fun ZhituApp(
     }
 }
 
-private fun AlarmPlan.toEditorDraft() = EditorDraft(
+internal fun AlarmPlan.toEditorDraft() = EditorDraft(
     id = id,
     name = name,
     time = defaultWakeLocalTime,
@@ -325,6 +343,9 @@ private fun AlarmPlan.toEditorDraft() = EditorDraft(
     soundUri = sound.uri,
     vibration = vibration.enabled,
     snoozeMinutes = snoozeMinutes,
+    arrivalLocalTime = arrivalLocalTime,
+    preparationMinutes = preparationMinutes,
+    maxAdvanceMinutes = maxAdvanceMinutes,
     date = (schedule as? com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule.Once)?.date.orEmpty(),
     repeat = when (schedule) {
         is com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule.Weekly -> RepeatChoice.WEEKLY
@@ -338,8 +359,13 @@ private fun AlarmPlan.toEditorDraft() = EditorDraft(
 @Composable
 private fun HomeScreen(
     plans: List<UpcomingPlan>,
+    decisions: List<AlarmDecision>,
+    evaluationTaskStates: Map<String, EvaluationTaskState>,
+    evaluablePlanIds: Set<String>,
+    schedulingError: String?,
     onPlans: () -> Unit,
     onAdd: (AlarmPlan?) -> Unit,
+    onEvaluate: (String) -> Unit,
     onRoute: () -> Unit,
     onWeather: () -> Unit,
     onSettings: () -> Unit,
@@ -355,10 +381,20 @@ private fun HomeScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { EmptyProviderCard("彩云天气", "手动刷新通勤天气预览。", onClick = onWeather) }
+            item { EmptyProviderCard("彩云天气", "手动刷新通勤天气预览，不会启动自动评估或修改闹钟。", onClick = onWeather) }
+            item { HomeLatestEvaluationCard(decisions.maxByOrNull { it.generatedAt.homeInstant()?.toEpochMilli() ?: Long.MIN_VALUE }, schedulingError) }
             item { SectionTitle("最近的有效闹钟", action = "全部闹钟", onAction = onPlans) }
             if (plans.isEmpty()) item { HomeAlarmHero(onAdd) }
-            else items(plans.take(3), key = { it.plan.id }) { item -> HomePlanCard(item, { onAdd(item.plan) }) }
+            else items(plans.take(3), key = { it.plan.id }) { item ->
+                HomePlanCard(
+                    item = item,
+                    decision = decisions.firstOrNull { it.decisionId == item.occurrence.decisionId },
+                    taskState = evaluationTaskStates[item.plan.id],
+                    canEvaluate = item.plan.id in evaluablePlanIds,
+                    onClick = { onAdd(item.plan) },
+                    onEvaluate = { onEvaluate(item.plan.id) },
+                )
+            }
             item { SectionTitle("通勤信息") }
             item { EmptyProviderCard(title = "通勤路线", description = "配置起终点、出行方式与高德地图路线。", onClick = onRoute) }
             item { SafetyNotice("闹钟由本机注册；是否已注册以计划状态为准。") }
@@ -380,7 +416,28 @@ private fun HomeAlarmHero(onAdd: (AlarmPlan?) -> Unit) = Card(
 }
 
 @Composable
-private fun HomePlanCard(item: UpcomingPlan, onClick: () -> Unit) = Card(
+private fun HomeLatestEvaluationCard(decision: AlarmDecision?, schedulingError: String?) = FormCard {
+    Text("最近自动评估", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+    Spacer(Modifier.height(6.dp))
+    if (decision == null) {
+        Text("尚无真实评估结果。已启用且配置通勤的闹钟将在后台评估路线、天气和工作日。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+    } else {
+        Text("${decision.targetDate} · ${decision.evaluationOutcome.homeLabel()}", color = ZhituColors.Brand, style = MaterialTheme.typography.bodySmall)
+        Text("基础 ${decision.defaultWakeAt.homeTime()} · 建议 ${decision.recommendedWakeAt.homeTime()} · 实际 ${decision.actualWakeAt.homeTime() ?: "未注册"}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+        decision.failureReason?.let { Text("评估失败，请在记录中查看详情。", color = ZhituColors.Amber, style = MaterialTheme.typography.bodySmall) }
+    }
+    schedulingError?.let { Text(it, color = ZhituColors.Amber, style = MaterialTheme.typography.bodySmall) }
+}
+
+@Composable
+private fun HomePlanCard(
+    item: UpcomingPlan,
+    decision: AlarmDecision?,
+    taskState: EvaluationTaskState?,
+    canEvaluate: Boolean,
+    onClick: () -> Unit,
+    onEvaluate: () -> Unit,
+) = Card(
     modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = ZhituColors.Navy),
 ) {
@@ -399,8 +456,46 @@ private fun HomePlanCard(item: UpcomingPlan, onClick: () -> Unit) = Card(
         HorizontalDivider(color = androidx.compose.ui.graphics.Color.White.copy(alpha = .16f))
         Spacer(Modifier.height(12.dp))
         Text("下次 ${java.time.Instant.ofEpochMilli(item.nextWakeAt).atZone(java.time.ZoneId.of(item.plan.zoneId)).format(java.time.format.DateTimeFormatter.ofPattern("M月d日 HH:mm"))}", color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
+        decision?.let {
+            Text("${it.evaluationOutcome.homeLabel()} · ${it.advanceStatus()}", color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
+        }
+        taskState?.let { Text(it.homeTaskLabel(), color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall) }
+        if (canEvaluate) {
+            TextButton(onClick = onEvaluate, modifier = Modifier.testTag("evaluate_${item.plan.id}")) { Text("立即评估") }
+        }
     }
 }
+
+private fun EvaluationTaskState.homeTaskLabel(): String = when (phase) {
+    "RUNNING" -> "正在评估"
+    "RETRYING" -> "第 $attemptNumber 次重试 · ${nextAttemptAt.homeTimestamp()}"
+    else -> "下次评估 · ${nextAttemptAt.homeTimestamp()}"
+}
+
+private fun EvaluationOutcome.homeLabel(): String = when (this) {
+    EvaluationOutcome.SUCCESS -> "评估成功"
+    EvaluationOutcome.FAILED -> "评估失败"
+    EvaluationOutcome.STALE -> "结果已过期"
+    EvaluationOutcome.SKIPPED -> "评估跳过"
+}
+
+private fun AlarmDecision.advanceStatus(): String {
+    val defaultAt = defaultWakeAt.homeInstant()
+    val actualAt = actualWakeAt.homeInstant()
+    return if (actualAt == null) {
+        "建议 ${recommendedWakeAt.homeTime()}；实际提前提醒未注册"
+    } else if (defaultAt != null) {
+        val minutes = ((defaultAt.toEpochMilli() - actualAt.toEpochMilli()) / 60_000L).coerceAtLeast(0)
+        if (minutes == 0L) "按基础闹钟" else "实际提前 $minutes 分钟"
+    } else "实际提前提醒 ${actualWakeAt.homeTime()}"
+}
+
+private fun String?.homeInstant(): Instant? = this?.let { value ->
+    runCatching { Instant.parse(value) }.getOrNull()
+        ?: runCatching { java.time.LocalDateTime.parse(value).atZone(ZoneId.systemDefault()).toInstant() }.getOrNull()
+}
+private fun String?.homeTime(): String? = homeInstant()?.atZone(ZoneId.systemDefault())?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: this?.substringAfter('T')?.take(5)
+private fun Long.homeTimestamp(): String = Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

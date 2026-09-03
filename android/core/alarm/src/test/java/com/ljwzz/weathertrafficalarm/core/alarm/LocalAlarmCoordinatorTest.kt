@@ -12,18 +12,25 @@ import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
+import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.DayStatus
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
+import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
 import java.time.LocalDate
+import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -50,6 +57,7 @@ class LocalAlarmCoordinatorTest {
     private lateinit var db: AppDatabase
     private lateinit var plans: AlarmPlanRepository
     private lateinit var occurrences: OccurrenceRepository
+    private lateinit var decisions: DecisionRepository
     private lateinit var events: AlarmEventRepository
     private lateinit var snapshots: NextAlarmSnapshotStore
     private lateinit var gateway: FakeGateway
@@ -61,6 +69,7 @@ class LocalAlarmCoordinatorTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         plans = AlarmPlanRepository(db.alarmPlanDao())
         occurrences = OccurrenceRepository(db.alarmOccurrenceDao())
+        decisions = DecisionRepository(db.alarmDecisionDao())
         events = AlarmEventRepository(db.alarmEventDao())
         snapshots = NextAlarmSnapshotStore(context)
         snapshots.clear()
@@ -69,6 +78,7 @@ class LocalAlarmCoordinatorTest {
             context = context,
             planRepository = plans,
             occurrenceRepository = occurrences,
+            decisionRepository = decisions,
             eventRepository = events,
             overrideRepository = WorkdayOverrideRepository(db.workdayOverrideDao()),
             calendarRepository = WorkdayCalendarRepository(context),
@@ -158,6 +168,181 @@ class LocalAlarmCoordinatorTest {
     }
 
     @Test
+    fun `evaluation arms independent advance and keeps regular baseline`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 7_200_000L)
+        occurrences.save(regular)
+
+        val result = coordinator.applyEvaluation(decision(existing, regular, "decision-1", regular.scheduledWakeAt - 600_000L))
+
+        assertEquals("APPLIED", result.outcome)
+        assertEquals(regular.scheduledWakeAt - 600_000L, result.actualWakeAt)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        val advance = occurrences.getByPlanId(existing.id).single { it.kind == OccurrenceKind.ADVANCE }
+        assertEquals("decision-1", advance.decisionId)
+        assertEquals(regular.scheduledWakeAt - 600_000L, advance.scheduledWakeAt)
+        assertEquals("decision-1", snapshots.getByOccurrenceId(advance.occurrenceId)?.decisionId)
+        assertEquals(regular.scheduledWakeAt, snapshots.getByOccurrenceId(advance.occurrenceId)?.defaultWakeAtMillis)
+        assertEquals("APPLIED", decisions.getById("decision-1")?.applicationOutcome)
+        assertEquals(Instant.ofEpochMilli(regular.scheduledWakeAt).toString(), decisions.getById("decision-1")?.defaultWakeAt)
+        assertEquals(Instant.ofEpochMilli(advance.scheduledWakeAt).toString(), decisions.getById("decision-1")?.actualWakeAt)
+    }
+
+    @Test
+    fun `evaluation rejects an expired result without changing scheduled instances`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 3_600_000L)
+        occurrences.save(regular)
+
+        val result = coordinator.applyEvaluation(
+            decision(existing, regular, "expired", regular.scheduledWakeAt - 600_000L).copy(
+                expiresAt = (System.currentTimeMillis() - 1).toString(),
+            ),
+        )
+
+        assertEquals("STALE", result.outcome)
+        assertEquals(null, result.actualWakeAt)
+        assertEquals(listOf(regular.occurrenceId), occurrences.getByPlanId(existing.id).map { it.occurrenceId })
+        assertEquals(EvaluationOutcome.STALE, decisions.getById("expired")?.evaluationOutcome)
+    }
+
+    @Test
+    fun `later evaluation retains earlier advance and earlier result replaces it`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 3_600_000L)
+        occurrences.save(regular)
+        val firstAt = regular.scheduledWakeAt - 1_200_000L
+        coordinator.applyEvaluation(decision(existing, regular, "first", firstAt))
+
+        val retained = coordinator.applyEvaluation(decision(existing, regular, "later", regular.scheduledWakeAt - 600_000L))
+        assertEquals("UNCHANGED", retained.outcome)
+        assertEquals(firstAt, retained.actualWakeAt)
+        assertEquals(1, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED })
+
+        val earlierAt = regular.scheduledWakeAt - 1_800_000L
+        val replaced = coordinator.applyEvaluation(decision(existing, regular, "earlier", earlierAt))
+        assertEquals("APPLIED", replaced.outcome)
+        assertEquals(OccurrenceState.CANCELLED, occurrences.getByPlanId(existing.id).single { it.decisionId == "first" }.state)
+        val advance = occurrences.getByPlanId(existing.id).single { it.decisionId == "earlier" }
+        assertEquals(OccurrenceState.SCHEDULED, advance.state)
+        assertEquals(earlierAt, advance.scheduledWakeAt)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+    }
+
+    @Test
+    fun `failed earlier registration keeps existing advance armed`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 3_600_000L)
+        occurrences.save(regular)
+        val firstAt = regular.scheduledWakeAt - 600_000L
+        coordinator.applyEvaluation(decision(existing, regular, "first", firstAt))
+        gateway.result = AlarmRegistrationResult.Rejected(RegistrationFailure.PLATFORM_REJECTED)
+
+        val result = coordinator.applyEvaluation(decision(existing, regular, "earlier", firstAt - 600_000L))
+
+        assertEquals("FAILED", result.outcome)
+        val original = occurrences.getByPlanId(existing.id).single { it.decisionId == "first" }
+        assertEquals(OccurrenceState.SCHEDULED, original.state)
+        assertFalse(gateway.cancelled.contains(original.occurrenceId))
+        assertEquals(1, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED })
+    }
+
+    @Test
+    fun `same decision can replace its pending advance when reevaluated earlier`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 3_600_000L)
+        occurrences.save(regular)
+        coordinator.applyEvaluation(decision(existing, regular, "same", regular.scheduledWakeAt - 600_000L))
+
+        val result = coordinator.applyEvaluation(decision(existing, regular, "same", regular.scheduledWakeAt - 1_200_000L))
+
+        assertEquals("APPLIED", result.outcome)
+        val advances = occurrences.getByPlanId(existing.id).filter { it.decisionId == "same" }
+        assertEquals(OccurrenceState.CANCELLED, advances.single { it.scheduledWakeAt == regular.scheduledWakeAt - 600_000L }.state)
+        assertEquals(OccurrenceState.SCHEDULED, advances.single { it.scheduledWakeAt == regular.scheduledWakeAt - 1_200_000L }.state)
+    }
+
+    @Test
+    fun `excessive advance is rejected without mutating the regular alarm`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 7_200_000L)
+        occurrences.save(regular)
+
+        val result = coordinator.applyEvaluation(
+            decision(existing, regular, "too-early", regular.scheduledWakeAt - (existing.maxAdvanceMinutes + 1) * 60_000L),
+        )
+
+        assertEquals("FAILED", result.outcome)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertTrue(occurrences.getByPlanId(existing.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    @Test
+    fun `non-advance result cancels only pending advance and leaves regular armed`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 3_600_000L)
+        occurrences.save(regular)
+        coordinator.applyEvaluation(decision(existing, regular, "first", regular.scheduledWakeAt - 600_000L))
+
+        val result = coordinator.applyEvaluation(decision(existing, regular, "baseline", regular.scheduledWakeAt))
+
+        assertEquals("CANCELLED", result.outcome)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertEquals(OccurrenceState.CANCELLED, occurrences.getByPlanId(existing.id).single { it.kind == OccurrenceKind.ADVANCE }.state)
+    }
+
+    @Test
+    fun `advance snooze chain prevents a second advance and once plan remains enabled`() = runBlocking {
+        val targetDate = LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(1)
+        val existing = plan(schedule = AlarmSchedule.Once(targetDate.toString())).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED, wakeAt = System.currentTimeMillis() + 3_600_000L)
+        occurrences.save(regular)
+        coordinator.applyEvaluation(decision(existing, regular, "first", regular.scheduledWakeAt - 600_000L))
+        val advance = occurrences.getByPlanId(existing.id).single { it.kind == OccurrenceKind.ADVANCE }
+        occurrences.updateState(advance.occurrenceId, OccurrenceState.FIRING.name, System.currentTimeMillis())
+        snapshots.save(snapshot(existing, advance.occurrenceId, advance.scheduledWakeAt, AlarmReceiver.STATE_FIRING, OccurrenceKind.ADVANCE))
+
+        assertTrue(coordinator.snooze(advance.occurrenceId))
+        val result = coordinator.applyEvaluation(decision(existing, regular, "second", regular.scheduledWakeAt - 1_200_000L))
+
+        assertEquals("UNCHANGED", result.outcome)
+        assertEquals(1, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.ADVANCE })
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertTrue(plans.getById(existing.id)!!.enabled)
+    }
+
+    @Test
+    fun `day override changes cancel advance and snooze descendants`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED)
+        val advance = occurrence(existing, "advance", OccurrenceState.SCHEDULED, OccurrenceKind.ADVANCE)
+        val snooze = occurrence(existing, "snooze", OccurrenceState.SCHEDULED, OccurrenceKind.SNOOZE)
+            .copy(parentOccurrenceId = advance.occurrenceId)
+        listOf(regular, advance, snooze).forEach { occurrences.save(it) }
+
+        coordinator.setDayOverride(WorkdayOverride(existing.id, regular.targetDate, DayStatus.HOLIDAY))
+
+        assertEquals(OccurrenceState.CANCELLED, occurrences.getById(advance.occurrenceId)?.state)
+        assertEquals(OccurrenceState.CANCELLED, occurrences.getById(snooze.occurrenceId)?.state)
+        assertContains(gateway.cancelled, advance.occurrenceId)
+        assertContains(gateway.cancelled, snooze.occurrenceId)
+
+        val replacement = occurrence(existing, "replacement", OccurrenceState.SCHEDULED, OccurrenceKind.ADVANCE)
+        occurrences.save(replacement)
+        coordinator.clearDayOverride(existing.id, regular.targetDate)
+        assertEquals(OccurrenceState.CANCELLED, occurrences.getById(replacement.occurrenceId)?.state)
+    }
+
+    @Test
     fun `past once plan is rejected before any persistent write`() = runBlocking {
         val past = plan(id = "past", schedule = AlarmSchedule.Once(LocalDate.now().minusDays(1).toString()))
 
@@ -194,6 +379,104 @@ class LocalAlarmCoordinatorTest {
         )
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(scheduled.occurrenceId)!!.state)
         assertEquals(1, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.REGULAR })
+    }
+
+    @Test
+    fun `recover restores an independent advance without replacing regular or its decision link`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED)
+        val advance = occurrence(
+            existing,
+            "advance",
+            OccurrenceState.SCHEDULED,
+            kind = OccurrenceKind.ADVANCE,
+            wakeAt = regular.scheduledWakeAt - 600_000L,
+        ).copy(decisionId = "decision-1")
+        occurrences.save(regular)
+        occurrences.save(advance)
+        decisions.save(
+            decision(existing, regular, "decision-1", advance.scheduledWakeAt).copy(
+                defaultWakeAt = Instant.ofEpochMilli(regular.scheduledWakeAt).toString(),
+            ),
+        )
+
+        coordinator.recover()
+
+        assertContains(gateway.restored, regular.occurrenceId)
+        assertContains(gateway.restored, advance.occurrenceId)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        val restored = requireNotNull(snapshots.getByOccurrenceId(advance.occurrenceId))
+        assertEquals(OccurrenceKind.ADVANCE.name, restored.occurrenceKind)
+        assertEquals("decision-1", restored.decisionId)
+        assertEquals(regular.scheduledWakeAt, restored.defaultWakeAtMillis)
+    }
+
+    @Test
+    fun `recover preserves advance target date when its trigger crosses midnight`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val zone = ZoneId.of(existing.zoneId)
+        val targetDate = LocalDate.now(zone).plusDays(2)
+        val triggerAt = targetDate.atStartOfDay(zone).minusMinutes(30).toInstant().toEpochMilli()
+        val crossMidnight = NextAlarmSnapshot(
+            occurrenceId = "cross-midnight",
+            planId = existing.id,
+            planRevision = existing.revision,
+            triggerAtMillis = triggerAt,
+            soundUri = null,
+            vibrationEnabled = true,
+            snoozeMinutes = existing.snoozeMinutes,
+            occurrenceKind = OccurrenceKind.ADVANCE.name,
+            decisionId = "decision-1",
+            targetDate = targetDate.toString(),
+            defaultWakeAtMillis = triggerAt + 60 * 60_000L,
+        )
+        snapshots.save(crossMidnight)
+
+        coordinator.recover()
+
+        val restored = requireNotNull(occurrences.getById(crossMidnight.occurrenceId))
+        assertEquals(targetDate.toString(), restored.targetDate)
+        assertEquals(OccurrenceKind.ADVANCE, restored.kind)
+        assertEquals(crossMidnight.defaultWakeAtMillis, snapshots.getByOccurrenceId(crossMidnight.occurrenceId)?.defaultWakeAtMillis)
+    }
+
+    @Test
+    fun `recover arms a missing regular when an advance remains pending`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val advance = occurrence(existing, "advance", OccurrenceState.SCHEDULED, OccurrenceKind.ADVANCE)
+        occurrences.save(advance)
+
+        coordinator.recover()
+
+        assertContains(gateway.restored, advance.occurrenceId)
+        assertEquals(1, occurrences.getByPlanId(existing.id).count {
+            it.kind == OccurrenceKind.REGULAR && it.state == OccurrenceState.SCHEDULED
+        })
+    }
+
+    @Test
+    fun `recover retains only the earliest pending advance for one target date`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED)
+        val earliest = occurrence(
+            existing, "earliest", OccurrenceState.SCHEDULED, OccurrenceKind.ADVANCE,
+            wakeAt = regular.scheduledWakeAt - 1_200_000L,
+        )
+        val later = occurrence(
+            existing, "later", OccurrenceState.SCHEDULED, OccurrenceKind.ADVANCE,
+            wakeAt = regular.scheduledWakeAt - 600_000L,
+        )
+        listOf(regular, earliest, later).forEach { occurrences.save(it) }
+
+        coordinator.recover()
+
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(earliest.occurrenceId)?.state)
+        assertEquals(OccurrenceState.CANCELLED, occurrences.getById(later.occurrenceId)?.state)
+        assertContains(gateway.cancelled, later.occurrenceId)
     }
 
     @Test
@@ -302,6 +585,35 @@ class LocalAlarmCoordinatorTest {
         occurrenceState = state,
         occurrenceKind = kind.name,
         parentOccurrenceId = parentId,
+    )
+
+    private fun decision(
+        plan: AlarmPlan,
+        regular: AlarmOccurrence,
+        id: String,
+        recommendedAt: Long,
+    ) = AlarmDecision(
+        decisionId = id,
+        planId = plan.id,
+        planRevision = plan.revision,
+        targetDate = regular.targetDate,
+        workdayStatus = null,
+        estimatedDepartureAt = null,
+        commuteSeconds = null,
+        weatherSeverity = 0,
+        weatherBufferMinutes = 0,
+        recommendedWakeAt = Instant.ofEpochMilli(recommendedAt).toString(),
+        routeProvider = null,
+        routeProviderReportTime = null,
+        weatherProvider = null,
+        weatherProviderReportTime = null,
+        weatherWindowStart = null,
+        weatherWindowEnd = null,
+        fallbackReason = FallbackReason.NONE,
+        insufficientAdvance = false,
+        generatedAt = Instant.now().toString(),
+        expiresAt = (System.currentTimeMillis() + 1_800_000L).toString(),
+        evaluationOutcome = EvaluationOutcome.SUCCESS,
     )
 
     private class FakeGateway : AlarmSchedulingGateway {

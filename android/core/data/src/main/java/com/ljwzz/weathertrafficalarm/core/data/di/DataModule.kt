@@ -27,6 +27,7 @@ object DataModule {
         Room.databaseBuilder(context, AppDatabase::class.java, "commute_alarm.db")
             .addMigrations(AppDatabaseMigrations.V1_TO_V2)
             .addMigrations(AppDatabaseMigrations.V2_TO_V3)
+            .addMigrations(AppDatabaseMigrations.V3_TO_V4)
             .build()
 
     @Provides

@@ -5,6 +5,7 @@ import androidx.room3.Entity
 import androidx.room3.ForeignKey
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 
@@ -44,4 +45,13 @@ data class AlarmDecisionEntity(
     @ColumnInfo(name = "insufficient_advance") val insufficientAdvance: Boolean,
     @ColumnInfo(name = "generated_at") val generatedAt: Long,
     @ColumnInfo(name = "expires_at") val expiresAt: Long,
+    @ColumnInfo(name = "evaluation_outcome", defaultValue = "'FAILED'") val evaluationOutcome: EvaluationOutcome = EvaluationOutcome.FAILED,
+    @ColumnInfo(name = "failure_reason") val failureReason: String? = null,
+    @ColumnInfo(name = "attempt_number", defaultValue = "0") val attemptNumber: Int = 0,
+    @ColumnInfo(name = "application_outcome") val applicationOutcome: String? = null,
+    @ColumnInfo(name = "preparation_minutes", defaultValue = "0") val preparationMinutes: Int = 0,
+    @ColumnInfo(name = "default_wake_at") val defaultWakeAt: String? = null,
+    @ColumnInfo(name = "actual_wake_at") val actualWakeAt: String? = null,
+    @ColumnInfo(name = "calendar_source") val calendarSource: String? = null,
+    @ColumnInfo(name = "weather_data_source") val weatherDataSource: String? = null,
 )

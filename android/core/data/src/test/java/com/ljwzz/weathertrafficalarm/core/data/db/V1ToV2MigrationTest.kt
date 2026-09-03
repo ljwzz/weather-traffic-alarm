@@ -32,6 +32,7 @@ class V1ToV2MigrationTest {
         db = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .addMigrations(AppDatabaseMigrations.V1_TO_V2)
             .addMigrations(AppDatabaseMigrations.V2_TO_V3)
+            .addMigrations(AppDatabaseMigrations.V3_TO_V4)
             .build()
     }
 
@@ -60,6 +61,8 @@ class V1ToV2MigrationTest {
         val decision = db.alarmDecisionDao().getByPlanIdAndDate("plan-v1", "2026-08-31")
         assertNotNull(decision)
         assertEquals("decision-v1", decision!!.decisionId)
+        assertEquals("FAILED", decision.evaluationOutcome.name)
+        assertEquals(0, decision.attemptNumber)
 
         val occurrence = db.alarmOccurrenceDao().getById("occurrence-v1")
         assertNotNull(occurrence)

@@ -13,11 +13,14 @@ import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmEventEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmOccurrenceEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmPlanEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
+import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
+import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
@@ -28,12 +31,15 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Duration
+import java.time.Instant
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
@@ -233,6 +239,114 @@ class DatabaseTest {
         assertEquals("dec-1", retrieved!!.decisionId)
         assertEquals(WorkdayStatus.WORKDAY, retrieved.workdayStatus)
         assertEquals(FallbackReason.NONE, retrieved.fallbackReason)
+    }
+
+    @Test
+    fun decisionHistoryFieldsPersist() = runTest {
+        planDao.upsert(createTestPlan())
+        decisionDao.upsert(
+            createTestDecision().copy(
+                evaluationOutcome = EvaluationOutcome.SUCCESS,
+                failureReason = "WEATHER_UNAVAILABLE",
+                attemptNumber = 2,
+                applicationOutcome = "APPLIED",
+                preparationMinutes = 25,
+                defaultWakeAt = "2026-07-25T06:45:00",
+                actualWakeAt = "2026-07-25T06:20:00",
+                calendarSource = "HOLIDAY_API",
+                weatherDataSource = "CAIYUN",
+            ),
+        )
+
+        val stored = decisionDao.getById("dec-1")
+        assertNotNull(stored)
+        assertEquals(EvaluationOutcome.SUCCESS, stored!!.evaluationOutcome)
+        assertEquals("WEATHER_UNAVAILABLE", stored.failureReason)
+        assertEquals(2, stored.attemptNumber)
+        assertEquals("APPLIED", stored.applicationOutcome)
+        assertEquals(25, stored.preparationMinutes)
+        assertEquals("2026-07-25T06:45:00", stored.defaultWakeAt)
+        assertEquals("2026-07-25T06:20:00", stored.actualWakeAt)
+        assertEquals("HOLIDAY_API", stored.calendarSource)
+        assertEquals("CAIYUN", stored.weatherDataSource)
+    }
+
+    @Test
+    fun decisionSaveRequiresExistingPlanAndListsLatestTargetDateFirst() = runTest {
+        assertFalse(decisionDao.saveIfPlanExists(createTestDecision("missing-plan")))
+
+        planDao.upsert(createTestPlan())
+        assertTrue(decisionDao.saveIfPlanExists(createTestDecision()))
+        decisionDao.upsert(
+            createTestDecision().copy(
+                decisionId = "dec-2",
+                targetDate = "2026-07-26",
+                generatedAt = 1690305600000L,
+            ),
+        )
+
+        assertEquals(
+            listOf("dec-2", "dec-1"),
+            decisionDao.observeAll().first().map { it.decisionId },
+        )
+        assertEquals("dec-1", decisionDao.getById("dec-1")?.decisionId)
+    }
+
+    @Test
+    fun decisionRepositoryOnlySavesForExistingPlan() = runTest {
+        val repository = DecisionRepository(decisionDao)
+        assertFalse(repository.save(createTestDecision("missing-plan").toDomain()))
+
+        planDao.upsert(createTestPlan())
+        assertTrue(repository.save(createTestDecision().toDomain()))
+        assertEquals("dec-1", repository.getById("dec-1")?.decisionId)
+        assertEquals(listOf("dec-1"), repository.observeAll().first().map { it.decisionId })
+    }
+
+    @Test
+    fun decisionRepositoryRoundTripsIsoAndLegacyEpochTimesAndRetainsRecentHistory() = runTest {
+        val repository = DecisionRepository(decisionDao)
+        planDao.upsert(createTestPlan())
+        val generatedAt = Instant.parse("2026-09-03T12:00:00Z")
+        val expiresAt = Instant.parse("2026-09-03T15:30:00Z")
+
+        assertTrue(
+            repository.save(
+                createTestDecision().toDomain().copy(
+                    generatedAt = generatedAt.toString(),
+                    expiresAt = expiresAt.toString(),
+                ),
+            ),
+        )
+        assertTrue(
+            repository.save(
+                createTestDecision().copy(decisionId = "dec-legacy").toDomain().copy(
+                    generatedAt = "1690219200000",
+                    expiresAt = "1690262400000",
+                ),
+            ),
+        )
+
+        assertEquals(generatedAt.toString(), repository.getById("dec-1")!!.generatedAt)
+        assertEquals(expiresAt.toString(), repository.getById("dec-1")!!.expiresAt)
+        assertEquals(Instant.ofEpochMilli(1690219200000L).toString(), repository.getById("dec-legacy")!!.generatedAt)
+
+        repository.deleteOlderThan(generatedAt.minus(Duration.ofDays(30)).toEpochMilli())
+        assertNotNull(repository.getById("dec-1"))
+        assertNull(repository.getById("dec-legacy"))
+    }
+
+    @Test
+    fun decisionRepositoryRejectsInvalidDecisionTimes() = runTest {
+        val repository = DecisionRepository(decisionDao)
+        planDao.upsert(createTestPlan())
+
+        val error = runCatching {
+            repository.save(createTestDecision().toDomain().copy(generatedAt = "not-a-timestamp"))
+        }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+        assertEquals("generatedAt must be an epoch millisecond or ISO-8601 instant", error?.message)
     }
 
     @Test

@@ -38,7 +38,7 @@
 ### [x] L005 本地页面与真实状态
 
 - 闹钟 CRUD、首页下一次有效闹钟、记录空态／实际事件、日期与结果筛选、真实日历月份和按计划按日期覆盖。
-- 设置持久化、全局通勤与计划覆盖、地点与出行方式保存；天气保留“暂未接入”留白，高德地图与路线按 2026-09-01 离线 fixture 契约验收。
+- 设置持久化、全局通勤与计划覆盖、地点与出行方式保存；天气的 Android 实网与界面验证见 `android/qa/caiyun-device-2026-09-02.md`，自动提前计算已接入 P9 统一评估与独立提前实例；高德地图与路线按 2026-09-01 离线 fixture 契约验收。
 
 ### [x] L006 凭据与能力诊断
 
@@ -588,9 +588,9 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 实施：
 
-1. 保存/启用计划**不注册任何闹钟**；只在 `evaluationOutcome=SUCCESS` 且 `finalWake < defaultWake` 时以 `finalWake` 注册一次性 `setAlarmClock()`（SPEC FR-006/FR-007）。
-2. 重新计算时“先注册新、成功后再取消旧”，异常时保留旧闹钟；同一目标日期最多一个待触发 occurrence。
-3. 评估成功且无需提前时，取消该目标日期待触发的临时 occurrence（幂等）。
+1. 保存／启用计划继续由 `LocalAlarmCoordinator` 注册下一次基础本地实例；只在 `evaluationOutcome=SUCCESS` 且 `finalWake < defaultWake` 时，额外注册一次性提前实例（SPEC FR-006/FR-007）。
+2. 提前实例重新计算时“先注册新、成功后再取消旧”，异常时保留既有提前实例和基础实例；同一目标日期最多一个待触发提前实例。
+3. 评估成功且无需提前时，仅取消该目标日期待触发的提前实例（幂等），不得取消基础实例。
 
 验收：
 
@@ -679,8 +679,8 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 实施：
 
-1. 只接受 `evaluationOutcome=SUCCESS` 的 `AlarmDecision`；失败决策不触发任何调度修改。
-2. 需要提前时按 FR-003 不变量注册/替换（先注册新 PendingIntent，成功后取消旧 PendingIntent 并提交新状态）；无需提前时取消该目标日期待触发 occurrence。
+1. 只接受 `evaluationOutcome=SUCCESS` 的 `AlarmDecision`；失败决策不触发提前实例的调度修改，也不得修改基础实例。
+2. 需要提前时按 FR-003 不变量注册／替换提前实例（先注册新 PendingIntent，成功后取消旧 PendingIntent 并提交新状态）；无需提前时只取消该目标日期待触发提前实例。
 
 验收（不变量测试）：
 
@@ -688,7 +688,7 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
 
-用例：fake provider 失败 → occurrence.scheduledWakeAt 不变、不新注册；成功且需提前 → 只提前不推迟；成功且无需提前 → 待触发 occurrence 被取消。
+用例：fake provider 失败 → 基础与提前 occurrence 均不变、不新注册；成功且需提前 → 只创建或提前替换提前实例，不推迟且不替换基础实例；成功且无需提前 → 仅待触发提前实例被取消。
 
 ### [ ] T039 实现启动、重启和时间变化恢复
 
@@ -712,8 +712,8 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 实施：
 
-1. 模拟器/设备矩阵（API 36）：进程被杀、锁屏、Doze、无网场景下提前闹钟响铃；评估成功注册、成功无需提前时取消、失败不注册。
-2. 记录：断网保存计划后本 App 不注册任何闹钟，系统“下一闹钟”不受本 App 影响（由系统时钟 App 决定）；强制停止后系统闹钟仍可响铃。
+1. 模拟器／设备矩阵（API 36）：进程被杀、锁屏、Doze、无网场景下提前实例响铃；评估成功注册提前实例、成功无需提前时仅取消提前实例、失败不注册或修改提前实例。
+2. 记录：断网保存计划后本 App 仍注册基础本地实例；提前扩展的失败不得影响基础实例。强制停止后的基础与提前实例边界按 SPEC FR-010 验收。
 
 验收：
 
@@ -1267,7 +1267,9 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 ## 11. P9：统一评估和 WorkManager 夜间任务
 
-### [ ] T100 实现评估流水线装配
+2026-09-03 已接入；验证范围和运行结果见 [`自动评估验收`](android/qa/evaluation-2026-09-03/README.md)。
+
+### [x] T100 实现评估流水线装配
 
 依赖：T016、T065、T081、T095、T074。
 
@@ -1282,7 +1284,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 
-### [ ] T101 实现每日 19:00 OneTimeWorkRequest
+### [x] T101 实现每日 19:00 OneTimeWorkRequest
 
 依赖：T100。
 
@@ -1297,13 +1299,13 @@ cd android && ./gradlew :app:testDebugUnitTest
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 
-### [ ] T102 实现 Worker 重试和截止
+### [x] T102 实现 Worker 重试和截止
 
 依赖：T101。
 
 实施：
 
-1. 失败后 15/30/60 分钟重试；本地 23:30 后停止主动重试。
+1. 失败后 15/30/60 分钟重试；本地 23:30 后停止主动重试；遵守更长的 Retry-After，截止后的任务和结果只记为过期。
 2. 执行时读取最新 `revision`；stale 结果丢弃。
 
 验收：
@@ -1312,7 +1314,7 @@ cd android && ./gradlew :app:testDebugUnitTest
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 
-### [ ] T103 实现保存后即时评估
+### [x] T103 实现保存后即时评估
 
 依赖：T100。
 
@@ -1326,14 +1328,14 @@ cd android && ./gradlew :app:testDebugUnitTest
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 
-### [ ] T104 实现“成功才改提前闹钟”端到端不变量
+### [x] T104 实现“成功才改提前闹钟”端到端不变量
 
 依赖：T038、T100。
 
 实施：
 
-1. 端到端用例（注入 fake provider）：天气失败 / 路线失败 / 网络失败 / 配额错误 → `scheduledWakeAt` 不变、不新注册、occurrence 状态不变；全部成功且需提前 → 只提前；成功且无需提前 → 待触发 occurrence 被取消。
-2. 首页对失败评估展示原因与“正常闹钟不受影响，本次无提前提醒”说明。
+1. 端到端用例（注入 fake provider）：天气失败 / 路线失败 / 网络失败 / 配额错误 → `scheduledWakeAt` 不变、不新注册、occurrence 状态不变；全部成功且需提前 → 独立 ADVANCE 只提前；成功且无需提前 → 待触发 ADVANCE 被取消，REGULAR 保留。
+2. 首页对失败评估展示原因与“基础闹钟按原计划响铃”说明；已有提前提醒按实际实例状态展示。
 
 验收：
 
@@ -1341,7 +1343,7 @@ cd android && ./gradlew :app:testDebugUnitTest
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 
-### [ ] T105 实现决策历史清理和展示模型
+### [x] T105 实现决策历史清理和展示模型
 
 依赖：T100。
 
@@ -1395,8 +1397,8 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. 对应页面 01：下一次响铃信息：默认起床时间与系统闹钟核对状态（`getNextAlarmClock()` 启发式，T030）；已注册提前闹钟与实际提前分钟数（若有）。
-2. 天气区域“数据来自彩云天气”；“请确认已在系统时钟 App 设置闹钟”常驻提醒；凭证缺失横幅；权限异常横幅。
+1. 对应页面 01：下一次基础本地闹钟的实际注册状态；已注册提前实例与实际提前分钟数。
+2. 天气区域按 Provider 的实际连接与数据状态展示；凭证缺失横幅；权限异常横幅。不得将离线 fixture 标为实网结果。
 
 验收：
 
@@ -1410,7 +1412,7 @@ cd android && ./gradlew :app:assembleDebug
 
 实施：
 
-1. 对应页面 05–07、15–17：计划 CRUD、启用开关；保存前展示“系统闹钟引导时间”（默认起床时间，需用户在系统时钟 App 设置）与最近成功评估的“建议提前闹钟”。
+1. 对应页面 05–07、15–17：计划 CRUD、启用开关；保存后展示本 App 基础本地实例的实际注册状态。最近成功评估展示建议与实际已注册提前提醒，注册失败不显示已就绪。
 2. 提供工作日、普通周末、法定休息日三套独立天气缓冲；保存缓冲不自动开启休息日计划。
 3. 工作日预览区域触发日历刷新（T073）但不等网络。
 

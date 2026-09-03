@@ -107,4 +107,17 @@ object AppDatabaseMigrations {
             """.trimIndent(),
         )
     }
+
+    /** Adds per-evaluation outcome, retry, application, and source metadata to decision history. */
+    val V3_TO_V4: Migration = Migration(3, 4) { db ->
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN evaluation_outcome TEXT NOT NULL DEFAULT 'FAILED'")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN failure_reason TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN attempt_number INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN application_outcome TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN preparation_minutes INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN default_wake_at TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN actual_wake_at TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN calendar_source TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN weather_data_source TEXT")
+    }
 }

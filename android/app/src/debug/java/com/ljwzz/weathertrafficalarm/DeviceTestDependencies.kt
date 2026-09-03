@@ -6,9 +6,12 @@ import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.WeatherProvider
 import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunWeatherProvider
+import com.ljwzz.weathertrafficalarm.evaluation.EvaluationWorkScheduler
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -21,6 +24,9 @@ interface DeviceTestDependencies {
     fun plans(): AlarmPlanRepository
     fun occurrences(): OccurrenceRepository
     fun events(): AlarmEventRepository
+    fun decisions(): DecisionRepository
+    fun commuteOverrides(): PlanCommuteOverrideRepository
+    fun evaluationScheduler(): EvaluationWorkScheduler
     fun credentials(): CredentialStore
     fun settings(): LocalSettingsStore
     fun calendar(): WorkdayCalendarRepository

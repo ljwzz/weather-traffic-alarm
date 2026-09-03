@@ -7,6 +7,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
@@ -96,6 +97,12 @@ class Converters {
 
     @ColumnTypeConverter
     fun toFallbackReason(value: String): FallbackReason = FallbackReason.valueOf(value)
+
+    @ColumnTypeConverter
+    fun fromEvaluationOutcome(value: EvaluationOutcome): String = value.name
+
+    @ColumnTypeConverter
+    fun toEvaluationOutcome(value: String): EvaluationOutcome = EvaluationOutcome.valueOf(value)
 
     @ColumnTypeConverter
     fun fromOccurrenceState(value: OccurrenceState): String = value.name

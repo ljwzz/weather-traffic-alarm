@@ -9,6 +9,14 @@ enum class WorkdayStatus {
 }
 
 @Serializable
+enum class EvaluationOutcome {
+    SUCCESS,
+    FAILED,
+    STALE,
+    SKIPPED,
+}
+
+@Serializable
 data class AlarmDecision(
     val decisionId: String,
     val planId: String,
@@ -30,4 +38,13 @@ data class AlarmDecision(
     val insufficientAdvance: Boolean,
     val generatedAt: String,
     val expiresAt: String,
+    val evaluationOutcome: EvaluationOutcome = EvaluationOutcome.FAILED,
+    val failureReason: String? = null,
+    val attemptNumber: Int = 0,
+    val applicationOutcome: String? = null,
+    val preparationMinutes: Int = 0,
+    val defaultWakeAt: String? = null,
+    val actualWakeAt: String? = null,
+    val calendarSource: String? = null,
+    val weatherDataSource: String? = null,
 )
