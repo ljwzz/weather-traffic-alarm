@@ -28,6 +28,36 @@ export const CAIYUN_FIXTURE_STATES = Object.freeze({
   ERROR: 'error',
 });
 
+/**
+ * Session-only outcomes for the automatic-evaluation prototype. They model
+ * the handoff states without registering an Android alarm or calling either
+ * provider.
+ */
+export const EVALUATION_FIXTURE_STATES = Object.freeze({
+  PENDING: 'pending',
+  RUNNING: 'running',
+  ADVANCED: 'advanced',
+  NO_ADVANCE: 'no-advance',
+  RETRY: 'retry',
+  DEADLINE: 'deadline',
+  EXPIRED: 'expired',
+});
+
+const EVALUATION_ROUTE_MINUTES = Object.freeze({
+  driving: Object.freeze([47, 52, 58]),
+  transit: Object.freeze([47, 52, 58]),
+  bicycling: Object.freeze([35, 38, 41]),
+  'electric-bicycle': Object.freeze([29, 33, 37]),
+  walking: Object.freeze([60, 64, 68]),
+});
+
+function assertEvaluationFixtureState(fixture) {
+  if (!Object.values(EVALUATION_FIXTURE_STATES).includes(fixture)) {
+    throw new RangeError(`Unknown evaluation fixture state: ${fixture}`);
+  }
+  return fixture;
+}
+
 export function caiyunFixtureState(fixture = CAIYUN_FIXTURE_STATES.SUCCESS) {
   if (!Object.values(CAIYUN_FIXTURE_STATES).includes(fixture)) {
     throw new RangeError(`Unknown Caiyun fixture state: ${fixture}`);
@@ -221,6 +251,84 @@ export function calculateEarlyWake({
 /** @deprecated Use calculateEarlyWake. */
 export const calculateWake = calculateEarlyWake;
 
+function routeMinutesForEvaluation(transport, selectedRouteIndex) {
+  const routes = EVALUATION_ROUTE_MINUTES[transport] || EVALUATION_ROUTE_MINUTES.driving;
+  const index = Number.isInteger(selectedRouteIndex) && selectedRouteIndex >= 0 && selectedRouteIndex < routes.length
+    ? selectedRouteIndex
+    : 0;
+  return routes[index];
+}
+
+/**
+ * Builds a deterministic assessment record for the prototype UI. The input
+ * path is deliberately explicit so the rendered reason can show route,
+ * weather and day-kind values separately from the scheduling decision.
+ */
+export function createEvaluationFixture({
+  fixture = EVALUATION_FIXTURE_STATES.PENDING,
+  plan = { id:'fixture-work', name:'上班闹钟（fixture）', time:'07:30', arrivalTime:'09:00', preparationMinutes:30, maxAdvanceMinutes:60 },
+  targetDate = '2026-09-04',
+  transport = 'driving',
+  selectedRouteIndex = 0,
+} = {}) {
+  assertEvaluationFixtureState(fixture);
+  const baseWake = plan.time || '07:30';
+  const routeMinutes = routeMinutesForEvaluation(transport, selectedRouteIndex);
+  const inputs = {
+    targetDate,
+    planId: plan.id || 'fixture-work',
+    planName: plan.name || '上班闹钟（fixture）',
+    baseWake,
+    route: { transport, minutes: routeMinutes, source:'高德路线 fixture' },
+    weather: { condition:'小雨', severity:3, bufferMinutes:30, source:'彩云天气 fixture', observedAt:'20:45' },
+    dayRule: { kind:DAY_KINDS.WORKDAY, label:'工作日', source:'星期规则 fixture' },
+    arrivalTime: plan.arrivalTime || '09:00',
+    preparationMinutes: Number.isInteger(plan.preparationMinutes) ? plan.preparationMinutes : 30,
+    maxAdvanceMinutes: Number.isInteger(plan.maxAdvanceMinutes) ? plan.maxAdvanceMinutes : 60,
+  };
+  const early = calculateEarlyWake({
+    defaultWake: inputs.baseWake,
+    arrivalTime: inputs.arrivalTime,
+    commuteMinutes: inputs.route.minutes,
+    preparationMinutes: inputs.preparationMinutes,
+    weatherBufferMinutes: inputs.weather.bufferMinutes,
+    maxAdvanceMinutes: inputs.maxAdvanceMinutes,
+  });
+  const common = { fixture, inputs, evaluatedAt:'2026-09-03 20:45', retryCount:0, expiresAt:'2026-09-04 07:18' };
+  if (fixture === EVALUATION_FIXTURE_STATES.PENDING) {
+    return { ...common, state:'pending', title:'待评估', detail:'等待次日评估窗口；基础闹钟保持 07:30。', decision:'not_started', schedule:{ baseWake, earlyWake:null, action:'none' } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.RUNNING) {
+    return { ...common, state:'running', title:'评估中', detail:'正在汇总路线、天气和工作日规则；尚未创建提前提醒。', decision:'collecting_inputs', schedule:{ baseWake, earlyWake:null, action:'none' } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.ADVANCED) {
+    return { ...common, state:'advanced', title:`提前 ${early.advanceMinutes} 分钟`, detail:'已创建独立提前提醒；基础闹钟保持 07:30。', decision:'advance_required', schedule:{ baseWake, earlyWake:early.wake, action:'create_early_reminder', capped:early.insufficientAdvance } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.NO_ADVANCE) {
+    return { ...common, state:'no-advance', title:'无需提前', detail:'路线与天气结果满足到岗时间；不创建额外提醒。', decision:'no_advance_required', schedule:{ baseWake, earlyWake:null, action:'none' }, inputs:{ ...inputs, route:{ ...inputs.route, minutes:30 }, weather:{ ...inputs.weather, condition:'晴', severity:1, bufferMinutes:10 } } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.RETRY) {
+    return { ...common, state:'retry', title:'失败，等待重试', detail:'天气结果暂不可用；将在截止前重试，已存在的提前提醒不变。', decision:'retry_scheduled', retryCount:1, retryAt:'2026-09-03 21:00', schedule:{ baseWake, earlyWake:early.wake, action:'preserve_early_reminder' } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.DEADLINE) {
+    return { ...common, state:'deadline', title:'已过评估截止', detail:'未在截止前获得可用结果；不新增或调整提前提醒。', decision:'deadline_passed', retryCount:2, schedule:{ baseWake, earlyWake:null, action:'none' } };
+  }
+  return { ...common, state:'expired', title:'结果已过期', detail:'目标日期已过去；该结果仅保留在决策记录中，不能用于新的调度。', decision:'expired_result', evaluatedAt:'2026-09-02 20:45', expiresAt:'2026-09-03 07:18', schedule:{ baseWake, earlyWake:null, action:'none' } };
+}
+
+export function evaluationFixtureHistory(plan) {
+  return [
+    EVALUATION_FIXTURE_STATES.ADVANCED,
+    EVALUATION_FIXTURE_STATES.NO_ADVANCE,
+    EVALUATION_FIXTURE_STATES.RETRY,
+    EVALUATION_FIXTURE_STATES.DEADLINE,
+    EVALUATION_FIXTURE_STATES.EXPIRED,
+  ].map((fixture, index) => ({
+    ...createEvaluationFixture({ fixture, plan, targetDate:`2026-09-0${4 - Math.min(index, 3)}` }),
+    id:`evaluation-${fixture}`,
+  }));
+}
+
 /**
  * Calendar data is optional in the prototype. When it is unavailable, use the
  * ISO weekday and surface the fallback state to the UI.
@@ -410,6 +518,9 @@ export function normalizeAlarmPlan(plan = {}) {
     id: typeof plan.id === 'string' && plan.id ? plan.id : `alarm-${Date.now().toString(36)}`,
     name: String(plan.name || '闹钟').trim() || '闹钟',
     time: typeof plan.time === 'string' ? plan.time : '06:00',
+    arrivalTime: typeof plan.arrivalTime === 'string' ? plan.arrivalTime : '09:00',
+    preparationMinutes: Number.isInteger(plan.preparationMinutes) ? plan.preparationMinutes : 30,
+    maxAdvanceMinutes: Number.isInteger(plan.maxAdvanceMinutes) ? plan.maxAdvanceMinutes : 60,
     enabled: Boolean(plan.enabled),
     scheduleStatus: ['pendingPermission', 'registered', 'failed', 'completed'].includes(plan.scheduleStatus) ? plan.scheduleStatus : 'pendingPermission',
     repeat: kind === REPEAT_KINDS.ONCE
@@ -433,6 +544,9 @@ export function normalizeAlarmPlan(plan = {}) {
     } : { enabled: false },
   };
   toMinutes(normalized.time);
+  toMinutes(normalized.arrivalTime);
+  assertMinutes('preparationMinutes', normalized.preparationMinutes, 240);
+  assertMinutes('maxAdvanceMinutes', normalized.maxAdvanceMinutes, 180);
   if (normalized.repeat.kind === REPEAT_KINDS.ONCE) assertIsoDate(normalized.repeat.date);
   if (normalized.repeat.kind === REPEAT_KINDS.WEEKLY && !normalized.repeat.weekdays.length) {
     throw new RangeError('Weekly alarm requires at least one weekday');

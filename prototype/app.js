@@ -1,5 +1,5 @@
 /* Local interaction prototype. Android owns alarm registration, ringing and permissions. */
-import { AMAP_DEMO_TIPS, createDefaultState, defaultAlarmDraft, loadSettings, nextAlarmOccurrence, normalizeAlarmPlan, persistSettings, REPEAT_KINDS, todayIso, validateAlarmPlan } from './state.mjs';
+import { AMAP_DEMO_TIPS, EVALUATION_FIXTURE_STATES, createDefaultState, createEvaluationFixture, defaultAlarmDraft, evaluationFixtureHistory, loadSettings, nextAlarmOccurrence, normalizeAlarmPlan, persistSettings, REPEAT_KINDS, todayIso, validateAlarmPlan } from './state.mjs';
 import { createTravelScreens } from './screens-travel.mjs';
 import { createAlarmScreens } from './screens-alarm.mjs';
 import { createSettingsScreens } from './screens-settings.mjs';
@@ -24,7 +24,7 @@ function defaults() {
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
 function createRuntime() {
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -38,7 +38,23 @@ function activeCommute() {
   return plan.commuteOverride;
 }
 function record(type, message, plan) { config.alarmEvents = [{ id:`event-${Date.now()}`, type, message, date:todayIso(), time:plan?.time || '', planId:plan?.id || null }, ...(config.alarmEvents || [])].slice(0, 100); }
-function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
+function evaluationPlans() {
+  const plans = (config.alarmPlans || []).filter(plan => plan.enabled);
+  return plans.length ? plans : [{ id:'fixture-work', name:'上班闹钟（fixture）', time:'07:30', enabled:true }];
+}
+function selectedEvaluationPlan() {
+  const plans = evaluationPlans();
+  return plans.find(plan => plan.id === runtime.selectedEvaluationPlanId) || plans[0];
+}
+function evaluationRun(fixture = runtime.evaluationFixture) {
+  return createEvaluationFixture({
+    fixture,
+    plan:selectedEvaluationPlan(),
+    transport:config.selectedTransport,
+    selectedRouteIndex:runtime.selectedRouteIndex,
+  });
+}
+function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; const evaluationPlan = selectedEvaluationPlan(); return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null, evaluationPlan:clone(evaluationPlan), evaluationPlans:clone(evaluationPlans()), evaluationRun:runtime.evaluationRun ? clone(runtime.evaluationRun) : null, evaluationHistory:evaluationFixtureHistory(evaluationPlan) }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
 const travel = createTravelScreens({ action, overlayAction, asset, state });
 const alarms = createAlarmScreens({ action, overlayAction, asset, state });
 const settings = createSettingsScreens({ asset, state, overlayAction });
@@ -161,7 +177,7 @@ function handleClick(event) {
     if (op === 'toggle-alarm') return;
     if (op === 'select-repeat') { const plan = alarmDraft(); plan.repeat = value === REPEAT_KINDS.ONCE ? { kind:value, date:todayIso() } : value === REPEAT_KINDS.WEEKLY ? { kind:value, weekdays:[1,2,3,4,5] } : { kind:value }; render(); return; }
     if (op === 'toggle-weekday') { const plan = alarmDraft(); const day = Number(value); const days = new Set(plan.repeat.weekdays || []); days.has(day) ? days.delete(day) : days.add(day); plan.repeat.weekdays = [...days].sort(); render(); return; }
-    if (op === 'save-overlay-time' || op === 'save-overlay-snooze' || op === 'save-overlay-sound') { closeOverlay(); render(); return; }
+    if (['save-overlay-time','save-overlay-snooze','save-overlay-arrival','save-overlay-preparation','save-overlay-max-advance','save-overlay-sound'].includes(op)) { closeOverlay(); render(); return; }
     if (op === 'open-calendar') { runtime.calendarPlanId = alarmDraft().id; runtime.dateOverridesDraft = clone(config.dateOverrides || {}); return navigate('calendar'); }
     if (op === 'calendar-previous') return changeMonth(-1);
     if (op === 'calendar-next') return changeMonth(1);
@@ -170,6 +186,40 @@ function handleClick(event) {
     if (op === 'save-override-time') { const plan = config.alarmPlans.find(item => item.id === runtime.calendarPlanId) || alarmDraft(); const key = `${plan.id}:${runtime.selectedDate}`; const overrides = runtime.dateOverridesDraft || (runtime.dateOverridesDraft = clone(config.dateOverrides || {})); overrides[key] = { ...(overrides[key] || { enabled:true }), time:runtime.overrideDraftTime || plan.time }; closeOverlay(); render(); return; }
     if (op === 'save-calendar') return navigate('plan-edit', { replace:true });
     if (op === 'history-filter') { runtime.historyFilter = value; closeOverlay(); render(); return; }
+    if (op === 'select-evaluation-plan') {
+      if (!evaluationPlans().some(plan => plan.id === value)) throw Error('评估计划不存在。');
+      runtime.selectedEvaluationPlanId = value;
+      runtime.evaluationRun = null;
+      render();
+      return;
+    }
+    if (op === 'select-evaluation-fixture') {
+      if (!Object.values(EVALUATION_FIXTURE_STATES).includes(value)) throw Error('评估 fixture 无效。');
+      runtime.evaluationFixture = value;
+      runtime.evaluationRun = null;
+      render();
+      return;
+    }
+    if (op === 'evaluate-now') {
+      runtime.evaluationRun = evaluationRun();
+      notice(`已生成“${runtime.evaluationRun.title}”离线评估结果。`);
+      render();
+      return;
+    }
+    if (op === 'evaluate-plan') {
+      if (!evaluationPlans().some(plan => plan.id === value)) throw Error('评估计划不存在。');
+      runtime.selectedEvaluationPlanId = value;
+      runtime.evaluationRun = evaluationRun();
+      notice(`已生成“${runtime.evaluationRun.title}”离线评估结果。`);
+      render();
+      return;
+    }
+    if (op === 'select-evaluation-history') {
+      const item = evaluationFixtureHistory(selectedEvaluationPlan()).find(record => record.id === value);
+      if (!item) throw Error('评估记录不存在。');
+      runtime.evaluationRun = item;
+      return navigate('why');
+    }
     if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); runtime.routeDraft = null; persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
     if (op === 'mode') { activeCommute().selectedTransport = value; runtime.selectedRouteIndex = 0; render(); return; }
     if (op === 'select-route') { const index = Number(value); if (!Number.isInteger(index) || index < 0 || index > 2) throw Error('路线选择无效。'); runtime.selectedRouteIndex = index; render(); return; }
@@ -252,7 +302,7 @@ function handleInput(event) {
   const target = event.target;
   if (target.dataset.credential) { runtime.credentials[target.dataset.credential] = target.value; return; }
   if (target.dataset.alarmField) { const plan = alarmDraft(); const field = target.dataset.alarmField; if (field === 'date') plan.repeat.date = target.value; else plan[field] = target.value; return; }
-  if (target.dataset.overlayField) { const plan = alarmDraft(); const field = target.dataset.overlayField; if (field === 'overrideTime') runtime.overrideDraftTime = target.value; else if (field === 'vibration') plan.vibration = target.checked; else plan[field] = field === 'snoozeMinutes' ? Number(target.value) : target.value; return; }
+  if (target.dataset.overlayField) { const plan = alarmDraft(); const field = target.dataset.overlayField; if (field === 'overrideTime') runtime.overrideDraftTime = target.value; else if (field === 'vibration') plan.vibration = target.checked; else plan[field] = ['snoozeMinutes','preparationMinutes','maxAdvanceMinutes'].includes(field) ? Number(target.value) : target.value; return; }
   if (target.dataset.favoriteField) { runtime.favoriteDraft[target.dataset.favoriteField] = target.value; return; }
   if (target.dataset.field === 'placeQuery') { runtime.placeQuery = target.value; render(); return; }
 }

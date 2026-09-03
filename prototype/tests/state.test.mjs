@@ -6,6 +6,9 @@ import {
   amapFixtureState,
   CAIYUN_FIXTURE_STATES,
   caiyunFixtureState,
+  EVALUATION_FIXTURE_STATES,
+  createEvaluationFixture,
+  evaluationFixtureHistory,
   nextAlarmOccurrence,
   normalizeAlarmPlan,
   persistentSettingsSnapshot,
@@ -116,6 +119,47 @@ test('Caiyun fixture supports loading, success, cached and error without credent
     assert.equal(caiyunFixtureState(fixture), fixture);
   }
   assert.throws(() => caiyunFixtureState('network'), /Unknown Caiyun fixture state/);
+});
+
+test('automatic evaluation fixture keeps the base alarm separate from an early reminder', () => {
+  const result = createEvaluationFixture({
+    fixture: EVALUATION_FIXTURE_STATES.ADVANCED,
+    plan: { id:'work', name:'上班', time:'07:30' },
+    transport:'driving',
+  });
+
+  assert.equal(result.inputs.dayRule.kind, 'workday');
+  assert.equal(result.schedule.baseWake, '07:30');
+  assert.equal(result.schedule.earlyWake, '07:13');
+  assert.equal(result.schedule.action, 'create_early_reminder');
+  assert.equal(result.schedule.capped, false);
+});
+
+test('retry, deadline and expired fixtures do not create a new early reminder', () => {
+  const retry = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.RETRY });
+  const deadline = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.DEADLINE });
+  const expired = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.EXPIRED });
+
+  assert.equal(retry.schedule.action, 'preserve_early_reminder');
+  assert.equal(deadline.schedule.earlyWake, null);
+  assert.equal(expired.decision, 'expired_result');
+});
+
+test('evaluation history includes success, no-advance and recovery states', () => {
+  const history = evaluationFixtureHistory({ id:'work', name:'上班', time:'07:30' });
+  assert.deepEqual(history.map(item => item.state), ['advanced', 'no-advance', 'retry', 'deadline', 'expired']);
+});
+
+test('alarm plans persist arrival, preparation and maximum advance settings', () => {
+  const plan = normalizeAlarmPlan({
+    id:'work', time:'07:30', arrivalTime:'09:15', preparationMinutes:45, maxAdvanceMinutes:90,
+    repeat:{ kind:REPEAT_KINDS.WORKDAYS },
+  });
+  assert.equal(plan.arrivalTime, '09:15');
+  assert.equal(plan.preparationMinutes, 45);
+  assert.equal(plan.maxAdvanceMinutes, 90);
+  assert.throws(() => normalizeAlarmPlan({ id:'invalid', time:'07:30', preparationMinutes:241, repeat:{ kind:REPEAT_KINDS.WORKDAYS } }), /preparationMinutes/);
+  assert.throws(() => normalizeAlarmPlan({ id:'invalid', time:'07:30', maxAdvanceMinutes:181, repeat:{ kind:REPEAT_KINDS.WORKDAYS } }), /maxAdvanceMinutes/);
 });
 
 test('plan commute override replaces only that plan effective commute', () => {
