@@ -27,6 +27,28 @@
 
 页面开发和验收以本地 `prototype/` 为准；Figma 用于页面级需求追溯。若用户明确要求变更，需同时更新 Figma、原型和本规格。
 
+### 2026-09-03 权限与可靠性引导
+
+Figma 权限状态组为 [`133:632`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=133-632)，位于文件 `wN04BlxRelbJyBVF35DyXE`、页面 `0:1`。本组是权限设计的最新追溯依据；当前设置页 `3:49` 与诊断页 `57:1226` 已接入本组。Figma 固定演示场景用于追溯权限主要分支；连续组合与数据生命周期以可运行原型测试为准。节点与连接台账见 [`figma-state.json`](../prototype/qa/permissions-2026-09-03/figma-state.json)，浏览器离线流程记录见 [`权限原型浏览器验收`](../prototype/qa/permissions-2026-09-03/README.md)。
+
+| 功能 | Figma 节点 | 交互契约 |
+|---|---|---|
+| 设置权限入口 | [`157:2223`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=157-2223)、[`144:1450`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=144-1450) | 分别展示通用 Android 与小米设置摘要；仅小米展示厂商专属权限。 |
+| 通用 Android 诊断 | [`133:634`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=133-634) | 展示通知、精确闹钟与全屏提醒的演示状态、授权入口和设置返回后的刷新状态。 |
+| 小米诊断 | [`136:668`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=136-668) | 展示锁屏显示与后台弹出页面的手工设置说明及用户确认状态。 |
+| 首次启用引导 | [`137:899`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=137-899) | 缺失状态说明用途；继续、检查与取消保留各自会话语义。 |
+| 全屏提醒 | [`137:728`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=137-728) → [`149:1879`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=149-1879) → [`149:1966`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=149-1966) → [`149:2053`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=149-2053) | 展示全屏提醒引导、模拟设置、选择与返回检查；通用设置页与已选择结果见 [`138:836`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=138-836)、[`143:1250`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=143-1250)。 |
+| 小米手工确认 | [`139:884`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=139-884) → [`137:799`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=137-799) | 展示厂商设置说明与双方确认；单项和组合分支见 [`145:1523`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=145-1523)、[`145:1623`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=145-1623)、[`145:1930`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=145-1930)。 |
+| 设置入口状态 | [`139:1000`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=139-1000) | 展示当前演示设备无法匹配设置入口时的返回与检查路径。 |
+| 当前位置请求 | [`139:1115`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=139-1115) | 仅从“使用当前位置”发起；展示大致、精确、拒绝和定位服务关闭。 |
+| 位置不可用与恢复 | [`141:1053`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=141-1053)、[`141:1141`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=141-1141) → [`141:1228`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=141-1228) | 分别展示拒绝、服务关闭与模拟设置恢复。 |
+| 位置许可结果 | [`142:1120`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=142-1120)、[`142:1190`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=142-1190) | 大致与精确位置的单次使用结果。 |
+| 位置入口回程 | [`150:2339`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=150-2339)、[`150:2409`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=150-2409) | 分别覆盖地点入口与编辑地点的有效返回路径。 |
+| 引导检查 | [`142:1260`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=142-1260)、[`142:1334`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=142-1334) | 通用 Android 与小米的检查入口。 |
+| 保存结果与位置按需说明 | [`144:1640`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=144-1640)、[`147:1835`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=147-1835) | 展示保存后结果和当前位置按需请求的说明。 |
+
+同一会话内，明确点按继续启用后，同一缺失状态不再重复提示；取消不写入也不消费确认，后续主动保存仍需确认。Figma QA 实读验证 33 个固定场景、109 条预期连接与全部覆盖层边界；浏览器离线流程记录覆盖工具栏、入口、引导、确认、位置与返回状态。系统设置均为原型演示，Figma 图形连线不构成对设备授权状态的实际验证。
+
 ## 主页面契约
 
 下表的 21 个旧 Figma 页面是视觉素材基线，非 Android 页面完成清单。当前 Android 范围为 12 个主页面及路线／日历整合；本地闹钟的页面、状态和交互以本文件上方 2026-08-31 状态组与 `prototype/` 为准。

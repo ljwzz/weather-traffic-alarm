@@ -1,8 +1,8 @@
 # 知途（weather-traffic-alarm）产品与技术规格
 
 - 状态：实施与设计交接基线（本地闹钟优先）
-- 版本：4.0
-- 日期：2026-08-31
+- 版本：4.3
+- 日期：2026-09-03
 - 仓库名：`weather-traffic-alarm`
 - 显示名称：`知途`
 - Android `applicationId` / `namespace`：`com.ljwzz.weathertrafficalarm`
@@ -32,7 +32,7 @@
 
 - 天气页和提前计算仍显示“暂未接入”；高德地图与路线页展示授权、Key、加载、成功、拒绝和错误状态。
 - 高德运行时凭据在原型仅保留当前页面会话；Android 已使用本地加密保存和清除。原型验证 fixture 时不得发送请求。Android Keystore 可将密钥材料保持在应用进程外，并限制密钥的授权用途。https://developer.android.com/privacy-and-security/keystore
-- 权限与诊断页在 Android 应用中读取通知、精确闹钟、全屏提醒和闹钟音量等本机状态并提供设置入口；Web 原型只说明该行为，不读取系统状态。
+- 权限与诊断页在 Android 应用中读取通知、精确闹钟、全屏提醒和闹钟音量等本机状态并提供设置入口；Web 原型以离线运行时状态演示相同流程。首次启用闹钟会提示缺失能力，用户仍可继续，计划页只呈现该实例的实际注册状态。
 
 ### 0.3 领域与调度边界
 
@@ -65,7 +65,7 @@ enum class AlarmArmedState {
 - 工作日由本地 `WorkdayCalendarRepository` 读取 holiday-cn 缓存并结合每计划每日期覆盖判定；缓存缺失或刷新失败时按星期规则兜底。
 - Figma 的 21 个页面是视觉素材基线；当前 Android 范围为 12 个主页面及路线／日历功能整合，不得将设计素材数等同于原生实现页面数。
 - 无用户账号；计划、决策与日历缓存全部保存在本机，不上传任何服务端。
-- 首次启动要求用户选择同意高德授权或仅用基础功能；只在用户主动点击“使用当前位置”时请求前台定位。
+- 首次启动要求用户选择同意高德授权或仅用基础功能；只在用户主动点击“使用当前位置”后，先说明用途再请求前台定位。Android 12 及以上的精确定位请求与粗略定位同次发起，并接受用户只授予粗略定位的结果。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime
 - 保存或启用闹钟按实际能力注册下一次本地实例；注册失败保留失败原因和可重新检查入口。
 - 高德 Web Service Key、Android SDK Key 与彩云 App Key/App Secret 均由用户在凭证页配置。Android 已实现加密保存、Provider 连接测试与手动天气预览；彩云设备实网与界面验证结果见 [2026-09-02 验证记录](./android/qa/caiyun-device-2026-09-02.md)，高德两项 Key 的设备实网验收仍待完成。原型仅使用离线 fixture。
 
@@ -706,10 +706,19 @@ ProviderError(
 - 保存合法草稿会注册下一次本地实例；取消编辑不写入。保存后界面显示实际注册状态或失败原因。
 - 全局通勤和计划覆盖是本地设置。
 
+### 8.3A 首次启用的可靠性准备
+
+- 用户首次启用闹钟时，在计划草稿之上展示可靠性准备状态：通知、精确闹钟、全屏提醒、锁屏显示与后台弹出页面。缺失项说明对应用途和下一步；“继续启用”保留计划草稿并只执行一次本次启用操作。
+- 通知、精确闹钟与全屏提醒使用 Android 标准状态检查和设置入口。`POST_NOTIFICATIONS` 是 Android 13 及以上的运行时通知权限；精确闹钟在请求前通过 `canScheduleExactAlarms()` 检查，并可使用 `ACTION_REQUEST_SCHEDULE_EXACT_ALARM` 打开授权页；全屏提醒使用 `canUseFullScreenIntent()`，并可使用 `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` 打开授权页。https://developer.android.com/develop/ui/compose/notifications/notification-permission https://developer.android.com/develop/background-work/services/alarms https://developer.android.com/reference/androidx/core/app/NotificationManagerCompat
+- 原生设置入口按目标逐项 `resolveActivity()` 并启动；目标不可用时回退到应用详情页，设置页返回后重新读取标准 Android 状态。通知、精确闹钟和全屏提醒的标准依据分别见 https://developer.android.com/develop/ui/compose/notifications/notification-permission https://developer.android.com/develop/background-work/services/alarms https://developer.android.com/about/versions/14/behavior-changes-14
+- 小米设备的锁屏显示和后台弹出页面列为用户手工完成项。`miui.intent.action.APP_PERM_EDITOR`、`CATEGORY_DEFAULT` 与 `extra_pkgname` 仅作为通用应用权限页的 best-effort 引导；锁屏显示与后台弹出页面的确认保存在当前 `ViewModel` 会话，独立于 Android 标准能力快照。MIUI 官方 FAQ 说明锁屏显示没有查询接口；HyperOS 官方说明后台弹出页面默认拒绝。https://dev.mi.com/docs/appsmarket/technical_docs/adaptation_FAQ/ https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1625
+- 系统设置返回、人工确认、继续启用和再次点按均刷新当前显示；计划是否已经注册只由 Android 调度结果决定。同一会话内，明确点按“继续启用”后，同一缺失状态不再重复提示；返回保留编辑草稿。取消不写入计划或权限引导结果，也不消费该确认，后续主动保存仍需确认。
+
 ### 8.4 路线与地点选择（页面 03–04 + 地点选择子状态）
 
 - 当前支持全局通勤、计划覆盖和驾车、公交、步行、骑行、电动车的选择；保存后不自动切换方式。
-- 同意授权并配置相应运行时 Key 后，地点页显示 POI 搜索／输入提示，路线编辑页显示地图选点和单次当前位置。无 Key、拒绝、加载和错误状态必须明确展示；原型以确定性 fixture 验收，不发网络请求。
+- 同意授权并配置相应运行时 Key 后，地点页显示 POI 搜索／输入提示，路线编辑页显示地图选点和单次当前位置。用户点击“使用当前位置”后先展示定位用途说明，再触发前台定位申请；拒绝或仅粗略定位时以对应结果继续页面流程。小米要求在对应功能场景以自定义说明或蒙层告知申请用途。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1793
+- Android 原生定位请求将 `ACCESS_FINE_LOCATION` 与 `ACCESS_COARSE_LOCATION` 同次发起；粗略授权可继续单次定位。拒绝、定位服务关闭和授权设置返回均重新评估前台定位、服务、Provider 同意与 SDK 就绪状态；待续单次操作只消费一次。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime
 
 ### 8.5 工作日日历与单日加班（页面 15–17、20）
 
@@ -735,7 +744,7 @@ ProviderError(
 - 凭证配置状态只显示已配置／未配置；服务未接入时不显示测试成功。
 - 强制停止不可自动恢复本 App 本地闹钟的限制必须明示。
 - “重新检查”只刷新能力、配置状态与本机诊断展示；不创建或改变闹钟。异常页可进入诊断，诊断页返回设置。
-- 通知摘要页只展示实际能力与回退说明；锁屏、胶囊等系统概念页面不定义额外厂商接口、常驻提醒或上传行为。
+- 通知摘要页只展示实际能力与回退说明；锁屏、胶囊等系统概念页面不定义额外厂商接口、常驻提醒或上传行为。小米的锁屏显示与后台弹出页面状态在诊断页显示为“待用户确认”或“已由用户确认”，并附手工设置说明。
 
 ## 9. 隐私与安全
 
@@ -773,7 +782,7 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 设备矩阵：API 36（当前 minSdk 单版本；若下探见 14 章）。
 
 - 到点响铃、锁屏通知、停止、贪睡、多个同分钟计划、进程回收、重启恢复和无网响铃。
-- 通知、精确闹钟、全屏提醒和音量状态变化后从设置返回重新检查。
+- 通知、精确闹钟、全屏提醒和音量状态变化后从设置返回重新检查；小米锁屏显示和后台弹出页面分别验证手工设置引导与用户确认状态。
 - 日期时间校验、空态、启停、删除、日历覆盖、天气未接入留白、高德 fixture 状态与凭据验证不发请求。
 - 真机与模拟器结果分开记录；未执行的场景不得标记通过。
 
@@ -787,6 +796,8 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 - 保存或启用合法计划后，本 App 为下一次有效本地实例注册闹钟；状态与系统调度结果一致。
 - 单次、每周和工作日规则在预期时刻触发；停止、贪睡、修改、删除和重复广播不会误取消其他计划实例。
 - 注册失败、权限撤销、恢复失败与迟到窗口均显示真实状态和原因，不显示已注册。
+- 首次启用闹钟的缺失能力提示允许继续；返回保留草稿，取消不写入计划或权限引导结果，重复继续不会创建重复注册。
+- 当前位置只在用户点按入口后申请前台位置权限；精确、粗略和拒绝结果均有对应页面状态。
 - 重启、解锁、时间／时区变化和覆盖安装后恢复或重算有效实例；强制停止是明示的不可自动恢复边界。
 - 日历刷新失败不阻塞工作日计算，保留有效缓存或按周规则兜底；日期覆盖只影响指定计划与日期。
 - 高德 fixture 与天气未接入状态均无网络请求；fixture 不得被标注为 Android 实网成功。
@@ -811,6 +822,7 @@ planIdHash, occurrenceIdHash, durationMs, timestamp
 
 - **彩云输入坐标基准（未确认项）**：彩云文档只明确 App 使用 GCJ-02，未明确一般 v2.6 天气查询接口接受的坐标基准。只有彩云对一般 v2.6 天气查询接口的书面确认可以关闭门禁；控制点测试只能补充风险证据，不能证明坐标基准。未关闭前不得进入生产发布：https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/q.html
 - **minSdk 收窄（待确认）**：当前代码基线为 minSdk 36（Android 16 专属），旧规格为 API 29–36；是否支持更早版本由发布目标决定，若需下探需补充兼容矩阵与回归。
+- **小米设置入口兼容（待验证）**：`miui.intent.action.APP_PERM_EDITOR` 的官方示例来自 MIUI FAQ，未提供 HyperOS 版本矩阵、锁屏显示／后台弹出页面的专项跳转或查询 API。原生实现保留通用权限页尝试和应用详情页回退；MIUI 与 HyperOS 真机逐版本结果是发布前验证条件。https://dev.mi.com/docs/appsmarket/technical_docs/adaptation_FAQ/ https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1625
 - **holiday-cn 数据为社区维护（确认的取舍）**：数据真值在国务院公告，holiday-cn 负责抓取整理（MIT 许可）；本项目以 `papers` 保留官方来源并接受其维护节奏（通常 10 月底/11 月发布次年安排，故 10 月 1 日后预拉次年允许“文件暂未发布”的失败并回退）。
 - **高德 Web Key 直连客户端（已知风险）**：Web 服务 Key 只能绑定 IP 白名单，客户端直连（移动网络 IP 不固定）无法启用；风险由 Keystore 加密 + 备份排除 + 用户自持 Key 承担，文档与 UI 需明确提示。
 - **高德 Android SDK Key 与正式签名**：SDK Key 绑定包名+签名；正式签名证书未配置前 SDK Key 只能用于 debug 签名。

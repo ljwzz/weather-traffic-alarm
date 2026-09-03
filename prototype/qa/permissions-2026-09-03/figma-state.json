@@ -1,0 +1,1178 @@
+{
+  "verifiedDate": "2026-09-03",
+  "fileKey": "wN04BlxRelbJyBVF35DyXE",
+  "pageId": "0:1",
+  "sectionId": "133:632",
+  "scope": "Figma fixed offline scenarios; continuous combinations and lifecycle are verified in the executable prototype.",
+  "screens": [
+    {
+      "id": "133:634",
+      "name": "权限 / 通用 Android",
+      "width": 412,
+      "height": 892,
+      "x": 32,
+      "y": 104,
+      "sheets": []
+    },
+    {
+      "id": "136:668",
+      "name": "权限 / 小米待确认",
+      "width": 412,
+      "height": 892,
+      "x": 516,
+      "y": 104,
+      "sheets": []
+    },
+    {
+      "id": "137:728",
+      "name": "权限 / 通用 Android 全屏已补齐",
+      "width": 412,
+      "height": 892,
+      "x": 1000,
+      "y": 104,
+      "sheets": []
+    },
+    {
+      "id": "137:799",
+      "name": "权限 / 小米用户已确认",
+      "width": 412,
+      "height": 892,
+      "x": 1484,
+      "y": 104,
+      "sheets": []
+    },
+    {
+      "id": "137:899",
+      "name": "引导 / 首次启用闹钟",
+      "width": 412,
+      "height": 892,
+      "x": 1968,
+      "y": 104,
+      "sheets": [
+        {
+          "id": "137:1055",
+          "y": 591,
+          "height": 301,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "138:836",
+      "name": "设置 / 模拟全屏提醒",
+      "width": 412,
+      "height": 892,
+      "x": 32,
+      "y": 1120,
+      "sheets": [
+        {
+          "id": "138:904",
+          "y": 503,
+          "height": 389,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "139:884",
+      "name": "设置 / 模拟小米权限",
+      "width": 412,
+      "height": 892,
+      "x": 516,
+      "y": 1120,
+      "sheets": [
+        {
+          "id": "139:983",
+          "y": 571,
+          "height": 321,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "139:1000",
+      "name": "异常 / 入口不可用或未找到",
+      "width": 412,
+      "height": 892,
+      "x": 1000,
+      "y": 1120,
+      "sheets": [
+        {
+          "id": "139:1099",
+          "y": 551,
+          "height": 341,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "139:1115",
+      "name": "位置 / 首次请求",
+      "width": 412,
+      "height": 892,
+      "x": 1484,
+      "y": 1120,
+      "sheets": [
+        {
+          "id": "139:1186",
+          "y": 531,
+          "height": 361,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "141:1053",
+      "name": "位置 / 已拒绝",
+      "width": 412,
+      "height": 892,
+      "x": 1968,
+      "y": 1120,
+      "sheets": [
+        {
+          "id": "141:1124",
+          "y": 591,
+          "height": 301,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "141:1141",
+      "name": "位置 / 定位服务关闭",
+      "width": 412,
+      "height": 892,
+      "x": 2452,
+      "y": 1120,
+      "sheets": [
+        {
+          "id": "141:1212",
+          "y": 591,
+          "height": 301,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "141:1228",
+      "name": "位置 / 模拟设置恢复",
+      "width": 412,
+      "height": 892,
+      "x": 32,
+      "y": 2136,
+      "sheets": [
+        {
+          "id": "141:1299",
+          "y": 523,
+          "height": 369,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "142:1120",
+      "name": "位置 / 大致位置结果",
+      "width": 412,
+      "height": 892,
+      "x": 516,
+      "y": 2136,
+      "sheets": []
+    },
+    {
+      "id": "142:1190",
+      "name": "位置 / 精确位置结果",
+      "width": 412,
+      "height": 892,
+      "x": 1000,
+      "y": 2136,
+      "sheets": []
+    },
+    {
+      "id": "142:1260",
+      "name": "引导 / 通用 Android 检查",
+      "width": 412,
+      "height": 892,
+      "x": 1484,
+      "y": 2136,
+      "sheets": []
+    },
+    {
+      "id": "142:1334",
+      "name": "引导 / 小米检查",
+      "width": 412,
+      "height": 892,
+      "x": 1968,
+      "y": 2136,
+      "sheets": []
+    },
+    {
+      "id": "143:1250",
+      "name": "设置 / 全屏已选择补齐",
+      "width": 412,
+      "height": 892,
+      "x": 2452,
+      "y": 2136,
+      "sheets": [
+        {
+          "id": "143:1282",
+          "y": 503,
+          "height": 389,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "143:1339",
+      "name": "位置 / 设置选择大致位置",
+      "width": 412,
+      "height": 892,
+      "x": 32,
+      "y": 3152,
+      "sheets": [
+        {
+          "id": "143:1397",
+          "y": 523,
+          "height": 369,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "143:1430",
+      "name": "位置 / 设置选择精确位置",
+      "width": 412,
+      "height": 892,
+      "x": 516,
+      "y": 3152,
+      "sheets": [
+        {
+          "id": "143:1488",
+          "y": 523,
+          "height": 369,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "144:1450",
+      "name": "设置 / 小米权限入口",
+      "width": 412,
+      "height": 892,
+      "x": 2452,
+      "y": 104,
+      "sheets": []
+    },
+    {
+      "id": "144:1640",
+      "name": "结果 / 闹钟已保存",
+      "width": 412,
+      "height": 892,
+      "x": 1000,
+      "y": 3152,
+      "sheets": []
+    },
+    {
+      "id": "145:1523",
+      "name": "权限 / 小米仅锁屏已确认",
+      "width": 412,
+      "height": 892,
+      "x": 1484,
+      "y": 3152,
+      "sheets": []
+    },
+    {
+      "id": "145:1623",
+      "name": "权限 / 小米仅后台已确认",
+      "width": 412,
+      "height": 892,
+      "x": 1968,
+      "y": 3152,
+      "sheets": []
+    },
+    {
+      "id": "145:1722",
+      "name": "引导 / 小米仅锁屏已确认",
+      "width": 412,
+      "height": 892,
+      "x": 2452,
+      "y": 3152,
+      "sheets": []
+    },
+    {
+      "id": "145:1826",
+      "name": "引导 / 小米仅后台已确认",
+      "width": 412,
+      "height": 892,
+      "x": 32,
+      "y": 4168,
+      "sheets": []
+    },
+    {
+      "id": "145:1930",
+      "name": "引导 / 小米用户已确认",
+      "width": 412,
+      "height": 892,
+      "x": 516,
+      "y": 4168,
+      "sheets": []
+    },
+    {
+      "id": "147:1835",
+      "name": "位置 / 按需使用说明",
+      "width": 412,
+      "height": 892,
+      "x": 1000,
+      "y": 4168,
+      "sheets": [
+        {
+          "id": "147:1903",
+          "y": 591,
+          "height": 301,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "149:1879",
+      "name": "引导 / 全屏模拟设置",
+      "width": 412,
+      "height": 892,
+      "x": 1484,
+      "y": 4168,
+      "sheets": [
+        {
+          "id": "149:1911",
+          "y": 503,
+          "height": 389,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "149:1966",
+      "name": "引导 / 全屏选择补齐",
+      "width": 412,
+      "height": 892,
+      "x": 1968,
+      "y": 4168,
+      "sheets": [
+        {
+          "id": "149:1998",
+          "y": 503,
+          "height": 389,
+          "withinScreen": true
+        }
+      ]
+    },
+    {
+      "id": "149:2053",
+      "name": "引导 / 全屏补齐后检查",
+      "width": 412,
+      "height": 892,
+      "x": 2452,
+      "y": 4168,
+      "sheets": []
+    },
+    {
+      "id": "150:2339",
+      "name": "入口 / 选择地点",
+      "width": 412,
+      "height": 892,
+      "x": 32,
+      "y": 5184,
+      "sheets": []
+    },
+    {
+      "id": "150:2409",
+      "name": "返回 / 编辑地点",
+      "width": 412,
+      "height": 892,
+      "x": 516,
+      "y": 5184,
+      "sheets": []
+    },
+    {
+      "id": "157:2223",
+      "name": "设置 / 通用 Android 权限入口",
+      "width": 412,
+      "height": 892,
+      "x": 1000,
+      "y": 5184,
+      "sheets": []
+    }
+  ],
+  "connections": [
+    {
+      "root": "133:634",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "133:647",
+      "verified": true
+    },
+    {
+      "root": "133:634",
+      "name": "Permission/fullScreen",
+      "dest": "138:836",
+      "nodeId": "134:3761",
+      "verified": true
+    },
+    {
+      "root": "133:634",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "134:3771",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "136:681",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Permission/fullScreen",
+      "dest": "138:836",
+      "nodeId": "136:690",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "136:691",
+      "verified": true
+    },
+    {
+      "root": "137:728",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "137:741",
+      "verified": true
+    },
+    {
+      "root": "137:728",
+      "name": "Permission/fullScreen",
+      "dest": "143:1250",
+      "nodeId": "137:750",
+      "verified": true
+    },
+    {
+      "root": "137:728",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "137:751",
+      "verified": true
+    },
+    {
+      "root": "137:799",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "137:812",
+      "verified": true
+    },
+    {
+      "root": "137:799",
+      "name": "Permission/fullScreen",
+      "dest": "138:836",
+      "nodeId": "137:821",
+      "verified": true
+    },
+    {
+      "root": "137:799",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "137:822",
+      "verified": true
+    },
+    {
+      "root": "145:1523",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "145:1536",
+      "verified": true
+    },
+    {
+      "root": "145:1523",
+      "name": "Permission/fullScreen",
+      "dest": "138:836",
+      "nodeId": "145:1545",
+      "verified": true
+    },
+    {
+      "root": "145:1523",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "145:1546",
+      "verified": true
+    },
+    {
+      "root": "145:1623",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "145:1636",
+      "verified": true
+    },
+    {
+      "root": "145:1623",
+      "name": "Permission/fullScreen",
+      "dest": "138:836",
+      "nodeId": "145:1645",
+      "verified": true
+    },
+    {
+      "root": "145:1623",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "145:1646",
+      "verified": true
+    },
+    {
+      "root": "57:1226",
+      "name": "Screen title",
+      "dest": "144:1450",
+      "nodeId": "144:1397",
+      "verified": true
+    },
+    {
+      "root": "57:1226",
+      "name": "Permission/fullScreen",
+      "dest": "138:836",
+      "nodeId": "144:1406",
+      "verified": true
+    },
+    {
+      "root": "57:1226",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "144:1407",
+      "verified": true
+    },
+    {
+      "root": "142:1260",
+      "name": "Screen title",
+      "dest": "137:899",
+      "nodeId": "142:1273",
+      "verified": true
+    },
+    {
+      "root": "142:1260",
+      "name": "Flow/return",
+      "dest": "137:899",
+      "nodeId": "142:1327",
+      "verified": true
+    },
+    {
+      "root": "142:1260",
+      "name": "Permission/fullScreen",
+      "dest": "149:1879",
+      "nodeId": "142:1282",
+      "verified": true
+    },
+    {
+      "root": "142:1260",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "142:1283",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Screen title",
+      "dest": "137:899",
+      "nodeId": "142:1347",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Flow/return",
+      "dest": "137:899",
+      "nodeId": "142:1432",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Permission/fullScreen",
+      "dest": "149:1879",
+      "nodeId": "142:1356",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "142:1357",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Screen title",
+      "dest": "137:899",
+      "nodeId": "145:1735",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Flow/return",
+      "dest": "137:899",
+      "nodeId": "145:1758",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Permission/fullScreen",
+      "dest": "149:1879",
+      "nodeId": "145:1744",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "145:1745",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Screen title",
+      "dest": "137:899",
+      "nodeId": "145:1839",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Flow/return",
+      "dest": "137:899",
+      "nodeId": "145:1862",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Permission/fullScreen",
+      "dest": "149:1879",
+      "nodeId": "145:1848",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "145:1849",
+      "verified": true
+    },
+    {
+      "root": "145:1930",
+      "name": "Screen title",
+      "dest": "137:899",
+      "nodeId": "145:1943",
+      "verified": true
+    },
+    {
+      "root": "145:1930",
+      "name": "Flow/return",
+      "dest": "137:899",
+      "nodeId": "145:1966",
+      "verified": true
+    },
+    {
+      "root": "145:1930",
+      "name": "Permission/fullScreen",
+      "dest": "149:1879",
+      "nodeId": "145:1952",
+      "verified": true
+    },
+    {
+      "root": "145:1930",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "145:1953",
+      "verified": true
+    },
+    {
+      "root": "149:2053",
+      "name": "Screen title",
+      "dest": "137:899",
+      "nodeId": "149:2066",
+      "verified": true
+    },
+    {
+      "root": "149:2053",
+      "name": "Flow/return",
+      "dest": "137:899",
+      "nodeId": "149:2120",
+      "verified": true
+    },
+    {
+      "root": "149:2053",
+      "name": "Permission/fullScreen",
+      "dest": "149:1966",
+      "nodeId": "149:2075",
+      "verified": true
+    },
+    {
+      "root": "149:2053",
+      "name": "Permission/location",
+      "dest": "147:1835",
+      "nodeId": "149:2076",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "136:737",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "136:755",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Confirm/lockScreen",
+      "dest": "145:1523",
+      "nodeId": "136:748",
+      "verified": true
+    },
+    {
+      "root": "136:668",
+      "name": "Confirm/backgroundPopup",
+      "dest": "145:1623",
+      "nodeId": "136:765",
+      "verified": true
+    },
+    {
+      "root": "145:1523",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "145:1549",
+      "verified": true
+    },
+    {
+      "root": "145:1523",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "145:1551",
+      "verified": true
+    },
+    {
+      "root": "145:1523",
+      "name": "Confirm/backgroundPopup",
+      "dest": "137:799",
+      "nodeId": "145:1552",
+      "verified": true
+    },
+    {
+      "root": "145:1623",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "145:1649",
+      "verified": true
+    },
+    {
+      "root": "145:1623",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "145:1651",
+      "verified": true
+    },
+    {
+      "root": "145:1623",
+      "name": "Confirm/lockScreen",
+      "dest": "137:799",
+      "nodeId": "145:1650",
+      "verified": true
+    },
+    {
+      "root": "137:799",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "137:825",
+      "verified": true
+    },
+    {
+      "root": "137:799",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "137:827",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "142:1360",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "142:1362",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Confirm/lockScreen",
+      "dest": "145:1722",
+      "nodeId": "142:1361",
+      "verified": true
+    },
+    {
+      "root": "142:1334",
+      "name": "Confirm/backgroundPopup",
+      "dest": "145:1826",
+      "nodeId": "142:1363",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "145:1748",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "145:1750",
+      "verified": true
+    },
+    {
+      "root": "145:1722",
+      "name": "Confirm/backgroundPopup",
+      "dest": "145:1930",
+      "nodeId": "145:1751",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "145:1852",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "145:1854",
+      "verified": true
+    },
+    {
+      "root": "145:1826",
+      "name": "Confirm/lockScreen",
+      "dest": "145:1930",
+      "nodeId": "145:1853",
+      "verified": true
+    },
+    {
+      "root": "145:1930",
+      "name": "Permission/lockScreen",
+      "dest": "139:884",
+      "nodeId": "145:1956",
+      "verified": true
+    },
+    {
+      "root": "145:1930",
+      "name": "Permission/backgroundPopup",
+      "dest": "139:884",
+      "nodeId": "145:1958",
+      "verified": true
+    },
+    {
+      "root": "137:899",
+      "name": "Guide/check",
+      "dest": "142:1260",
+      "nodeId": "137:1059",
+      "verified": true
+    },
+    {
+      "root": "137:899",
+      "name": "Guide/continue",
+      "dest": "144:1640",
+      "nodeId": "137:1066",
+      "verified": true
+    },
+    {
+      "root": "137:899",
+      "name": "Guide/cancel",
+      "dest": "57:1083",
+      "nodeId": "137:1072",
+      "verified": true
+    },
+    {
+      "root": "138:836",
+      "name": "System/granted",
+      "dest": "143:1250",
+      "nodeId": "138:915",
+      "verified": true
+    },
+    {
+      "root": "138:836",
+      "name": "System/return",
+      "dest": "133:634",
+      "nodeId": "138:921",
+      "verified": true
+    },
+    {
+      "root": "143:1250",
+      "name": "System/missing",
+      "dest": "138:836",
+      "nodeId": "143:1286",
+      "verified": true
+    },
+    {
+      "root": "143:1250",
+      "name": "System/return",
+      "dest": "137:728",
+      "nodeId": "143:1288",
+      "verified": true
+    },
+    {
+      "root": "149:1879",
+      "name": "System/granted",
+      "dest": "149:1966",
+      "nodeId": "149:1916",
+      "verified": true
+    },
+    {
+      "root": "149:1879",
+      "name": "System/return",
+      "dest": "142:1260",
+      "nodeId": "149:1917",
+      "verified": true
+    },
+    {
+      "root": "149:1966",
+      "name": "System/missing",
+      "dest": "149:1879",
+      "nodeId": "149:2002",
+      "verified": true
+    },
+    {
+      "root": "149:1966",
+      "name": "System/return",
+      "dest": "149:2053",
+      "nodeId": "149:2004",
+      "verified": true
+    },
+    {
+      "root": "139:884",
+      "name": "Xiaomi/return",
+      "dest": "BACK",
+      "nodeId": "139:987",
+      "verified": true
+    },
+    {
+      "root": "139:884",
+      "name": "Xiaomi/not-found",
+      "dest": "139:1000",
+      "nodeId": "139:994",
+      "verified": true
+    },
+    {
+      "root": "139:1000",
+      "name": "Unavailable/return",
+      "dest": "BACK",
+      "nodeId": "139:1103",
+      "verified": true
+    },
+    {
+      "root": "139:1000",
+      "name": "Unavailable/continue",
+      "dest": "137:899",
+      "nodeId": "139:1109",
+      "verified": true
+    },
+    {
+      "root": "139:1115",
+      "name": "Location/deny",
+      "dest": "141:1053",
+      "nodeId": "140:1033",
+      "verified": true
+    },
+    {
+      "root": "139:1115",
+      "name": "Location/approximate",
+      "dest": "142:1120",
+      "nodeId": "140:1040",
+      "verified": true
+    },
+    {
+      "root": "139:1115",
+      "name": "Location/precise",
+      "dest": "142:1190",
+      "nodeId": "140:1046",
+      "verified": true
+    },
+    {
+      "root": "139:1115",
+      "name": "Location/off",
+      "dest": "141:1141",
+      "nodeId": "140:1052",
+      "verified": true
+    },
+    {
+      "root": "139:1115",
+      "name": "Location/cancel",
+      "dest": "150:2339",
+      "nodeId": "140:1058",
+      "verified": true
+    },
+    {
+      "root": "141:1053",
+      "name": "Denied/settings",
+      "dest": "141:1228",
+      "nodeId": "141:1128",
+      "verified": true
+    },
+    {
+      "root": "141:1053",
+      "name": "Denied/search",
+      "dest": "150:2339",
+      "nodeId": "141:1135",
+      "verified": true
+    },
+    {
+      "root": "141:1141",
+      "name": "Off/settings",
+      "dest": "141:1228",
+      "nodeId": "141:1216",
+      "verified": true
+    },
+    {
+      "root": "141:1141",
+      "name": "Off/search",
+      "dest": "150:2339",
+      "nodeId": "141:1222",
+      "verified": true
+    },
+    {
+      "root": "141:1228",
+      "name": "LocationSettings/approximate",
+      "dest": "143:1339",
+      "nodeId": "141:1303",
+      "verified": true
+    },
+    {
+      "root": "141:1228",
+      "name": "LocationSettings/precise",
+      "dest": "143:1430",
+      "nodeId": "141:1309",
+      "verified": true
+    },
+    {
+      "root": "141:1228",
+      "name": "LocationSettings/return",
+      "dest": "141:1053",
+      "nodeId": "141:1315",
+      "verified": true
+    },
+    {
+      "root": "143:1339",
+      "name": "LocationSettings/precise",
+      "dest": "143:1430",
+      "nodeId": "143:1402",
+      "verified": true
+    },
+    {
+      "root": "143:1339",
+      "name": "LocationSettings/return",
+      "dest": "142:1120",
+      "nodeId": "143:1403",
+      "verified": true
+    },
+    {
+      "root": "143:1430",
+      "name": "LocationSettings/approximate",
+      "dest": "143:1339",
+      "nodeId": "143:1492",
+      "verified": true
+    },
+    {
+      "root": "143:1430",
+      "name": "LocationSettings/return",
+      "dest": "142:1190",
+      "nodeId": "143:1494",
+      "verified": true
+    },
+    {
+      "root": "147:1835",
+      "name": "LocationIntro/use",
+      "dest": "150:2339",
+      "nodeId": "147:1907",
+      "verified": true
+    },
+    {
+      "root": "147:1835",
+      "name": "LocationIntro/back",
+      "dest": "BACK",
+      "nodeId": "147:1914",
+      "verified": true
+    },
+    {
+      "root": "144:1640",
+      "name": "Saved/edit",
+      "dest": "57:1083",
+      "nodeId": "144:1711",
+      "verified": true
+    },
+    {
+      "root": "144:1640",
+      "name": "Saved/settings",
+      "dest": "144:1450",
+      "nodeId": "144:1718",
+      "verified": true
+    },
+    {
+      "root": "142:1120",
+      "name": "Use place footer",
+      "dest": "150:2409",
+      "nodeId": "142:1173",
+      "verified": true
+    },
+    {
+      "root": "142:1190",
+      "name": "Use place footer",
+      "dest": "150:2409",
+      "nodeId": "142:1243",
+      "verified": true
+    },
+    {
+      "root": "150:2339",
+      "text": "使用当前位置（模拟）",
+      "dest": "139:1115",
+      "nodeId": "150:2363",
+      "verified": true
+    },
+    {
+      "root": "42:281",
+      "text": "使用当前位置（模拟）",
+      "dest": "139:1115",
+      "nodeId": "43:326",
+      "verified": true
+    },
+    {
+      "root": "157:2223",
+      "name": "Permissions / 当前权限演示",
+      "dest": "133:634",
+      "nodeId": "157:2277",
+      "verified": true
+    }
+  ],
+  "fontFamilies": [
+    "Noto Sans SC",
+    "Roboto"
+  ],
+  "failures": [],
+  "postAuditTextCorrections": [
+    "150:2433",
+    "144:1640/Saved title"
+  ]
+}
