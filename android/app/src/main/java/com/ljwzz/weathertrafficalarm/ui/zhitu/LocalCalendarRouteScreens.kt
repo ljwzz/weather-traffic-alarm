@@ -1,7 +1,12 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -23,11 +28,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
@@ -38,12 +45,15 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +62,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarUiState
 import com.ljwzz.weathertrafficalarm.core.data.preferences.FavoritePlace
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
@@ -329,23 +342,117 @@ fun PlacePickerScreen(
     mapStatus: MapStatus,
     mapState: AmapMapUiState,
     onQueryChanged: (String) -> Unit,
-    onUseCurrentLocation: () -> Unit,
+    onUseCurrentLocation: (onComplete: () -> Unit) -> Unit,
     onLocationPermissionDenied: () -> Unit,
     onMapClick: (GeoPoint) -> Unit,
     onConfirm: (PlaceCandidateUi) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestMapStatus by rememberUpdatedState(mapStatus)
+    val latestUseCurrentLocation by rememberUpdatedState(onUseCurrentLocation)
+    val latestLocationPermissionDenied by rememberUpdatedState(onLocationPermissionDenied)
     var selected by remember(candidates) { mutableStateOf<PlaceCandidateUi?>(candidates.firstOrNull()) }
-    val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true || grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true) onUseCurrentLocation()
-        else onLocationPermissionDenied()
+    var permissionFlowState by remember { mutableStateOf(LocationPermissionFlowState()) }
+    var permissionDialog by remember { mutableStateOf<LocationPermissionDialog?>(null) }
+    var activeLocationRequestToken by remember { mutableStateOf(0L) }
+
+    fun snapshot() = LocationFlowSnapshot(
+        amapConsentGranted = latestMapStatus !is MapStatus.ConsentRequired,
+        sdkReady = latestMapStatus is MapStatus.Ready || latestMapStatus is MapStatus.RendererUnavailable,
+        locationServiceEnabled = context.locationServiceEnabled(),
+        coarseGranted = context.hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION),
+        fineGranted = context.hasPermission(Manifest.permission.ACCESS_FINE_LOCATION),
+    )
+    val locationAccessStatus = snapshot().accessStatusLabel()
+
+    fun showCommand(command: LocationPermissionCommand) {
+        permissionDialog = when (command) {
+            LocationPermissionCommand.None,
+            LocationPermissionCommand.RequestSystemPermission,
+            LocationPermissionCommand.LocateOnce -> null
+            LocationPermissionCommand.ShowPurpose -> LocationPermissionDialog.Purpose
+            LocationPermissionCommand.ShowLocationServiceRecovery -> LocationPermissionDialog.LocationServiceRecovery
+            LocationPermissionCommand.ShowPermissionRecovery -> LocationPermissionDialog.PermissionRecovery
+            is LocationPermissionCommand.ShowProviderBlocked -> LocationPermissionDialog.ProviderBlocked(command.reason)
+        }
     }
+
+    fun startLocationOnce() {
+        permissionDialog = null
+        val requestToken = activeLocationRequestToken + 1
+        activeLocationRequestToken = requestToken
+        latestUseCurrentLocation {
+            if (activeLocationRequestToken == requestToken) {
+                permissionFlowState = LocationPermissionFlow.onLocationCompleted(permissionFlowState)
+            }
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        val resultSnapshot = snapshot().copy(
+            coarseGranted = grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true || context.hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION),
+            fineGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true || context.hasPermission(Manifest.permission.ACCESS_FINE_LOCATION),
+        )
+        val transition = LocationPermissionFlow.onPermissionResult(permissionFlowState, resultSnapshot)
+        permissionFlowState = transition.state
+        if (transition.command == LocationPermissionCommand.LocateOnce) startLocationOnce()
+        else {
+            if (transition.command == LocationPermissionCommand.ShowPermissionRecovery) latestLocationPermissionDenied()
+            showCommand(transition.command)
+        }
+    }
+
+    fun applyTransition(transition: LocationPermissionTransition) {
+        permissionFlowState = transition.state
+        when (transition.command) {
+            LocationPermissionCommand.None -> Unit
+            LocationPermissionCommand.RequestSystemPermission -> {
+                permissionDialog = null
+                runCatching {
+                    locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                }.onFailure {
+                    permissionFlowState = LocationPermissionFlow.cancelPending(permissionFlowState)
+                    permissionDialog = LocationPermissionDialog.SettingsUnavailable
+                }
+            }
+            LocationPermissionCommand.LocateOnce -> startLocationOnce()
+            else -> showCommand(transition.command)
+        }
+    }
+
     fun requestCurrentLocation() {
-        val permitted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (permitted) onUseCurrentLocation()
-        else locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        applyTransition(LocationPermissionFlow.onUseCurrentLocation(permissionFlowState, snapshot()))
+    }
+
+    fun cancelLocationFlow() {
+        activeLocationRequestToken += 1
+        permissionFlowState = LocationPermissionFlow.cancelPending(permissionFlowState)
+        permissionDialog = null
+    }
+
+    fun openSettings(open: Context.() -> Boolean) {
+        permissionFlowState = LocationPermissionFlow.markSettingsOpened(permissionFlowState)
+        if (!context.open()) {
+            permissionFlowState = LocationPermissionFlow.cancelPending(permissionFlowState)
+            permissionDialog = LocationPermissionDialog.SettingsUnavailable
+        } else {
+            permissionDialog = null
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && permissionFlowState.resumeAfterSettings) {
+                applyTransition(LocationPermissionFlow.onSettingsReturned(permissionFlowState, snapshot()))
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            cancelLocationFlow()
+        }
     }
     val title = when (target) {
         PlaceSelectionTarget.ORIGIN -> "选择起点"
@@ -354,12 +461,21 @@ fun PlacePickerScreen(
         PlaceSelectionTarget.PLAN_ORIGIN -> "选择计划起点"
         PlaceSelectionTarget.PLAN_DESTINATION -> "选择计划终点"
     }
+    fun leavePicker() {
+        cancelLocationFlow()
+        onBack()
+    }
     Scaffold(
         containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar(title, "搜索、定位或地图点选", onBack) },
+        topBar = { ZhituTopBar(title, "搜索、定位或地图点选", ::leavePicker) },
         bottomBar = {
             Button(
-                onClick = { selected?.let(onConfirm) },
+                onClick = {
+                    selected?.let { candidate ->
+                        cancelLocationFlow()
+                        onConfirm(candidate)
+                    }
+                },
                 enabled = selected != null,
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -383,8 +499,21 @@ fun PlacePickerScreen(
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = false, onClick = ::requestCurrentLocation, label = { Text("使用当前位置") })
+                    FilterChip(
+                        selected = false,
+                        onClick = ::requestCurrentLocation,
+                        enabled = !permissionFlowState.locateInFlight,
+                        label = { Text(if (permissionFlowState.locateInFlight) "正在获取当前位置" else "使用当前位置") },
+                    )
                 }
+            }
+            item {
+                Text(
+                    locationAccessStatus,
+                    color = if (locationAccessStatus == "定位服务已关闭") ZhituColors.Amber else ZhituColors.Muted,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.testTag("location_access_status"),
+                )
             }
             item {
                 Box(Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp))) {
@@ -414,7 +543,101 @@ fun PlacePickerScreen(
             }
         }
     }
+    permissionDialog?.let { dialog ->
+        LocationPermissionDialog(
+            dialog = dialog,
+            onDismiss = {
+                cancelLocationFlow()
+            },
+            onConfirmPurpose = { applyTransition(LocationPermissionFlow.onPurposeConfirmed(permissionFlowState, snapshot())) },
+            onOpenLocationSettings = { openSettings(Context::openLocationServiceSettings) },
+            onOpenPermissionSettings = { openSettings(Context::openApplicationPermissionSettings) },
+        )
+    }
 }
+
+private sealed interface LocationPermissionDialog {
+    data object Purpose : LocationPermissionDialog
+    data object LocationServiceRecovery : LocationPermissionDialog
+    data object PermissionRecovery : LocationPermissionDialog
+    data class ProviderBlocked(val reason: LocationProviderBlockReason) : LocationPermissionDialog
+    data object SettingsUnavailable : LocationPermissionDialog
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationPermissionDialog(
+    dialog: LocationPermissionDialog,
+    onDismiss: () -> Unit,
+    onConfirmPurpose: () -> Unit,
+    onOpenLocationSettings: () -> Unit,
+    onOpenPermissionSettings: () -> Unit,
+) {
+    val title = when (dialog) {
+        LocationPermissionDialog.Purpose -> "使用当前位置"
+        LocationPermissionDialog.LocationServiceRecovery -> "定位服务已关闭"
+        LocationPermissionDialog.PermissionRecovery -> "请在设置中开启位置权限"
+        is LocationPermissionDialog.ProviderBlocked -> "当前位置暂不可用"
+        LocationPermissionDialog.SettingsUnavailable -> "无法打开系统设置"
+    }
+    val description = when (dialog) {
+        LocationPermissionDialog.Purpose -> "仅在本次点击后获取前台位置，用于将当前位置填入地点选择。不会后台持续定位；系统可能仅授予大致位置，仍可继续使用。"
+        LocationPermissionDialog.LocationServiceRecovery -> "请在系统设置中打开定位服务后返回。也可继续搜索或在地图上点选地点。"
+        LocationPermissionDialog.PermissionRecovery -> "请在应用权限设置中恢复位置权限；返回后将仅继续本次定位。仍可继续搜索或地图选点。"
+        is LocationPermissionDialog.ProviderBlocked -> when (dialog.reason) {
+            LocationProviderBlockReason.CONSENT_REQUIRED -> "请先完成高德地图专项授权，再使用当前位置。"
+            LocationProviderBlockReason.SDK_NOT_READY -> "请先配置高德 Android SDK Key 并完成初始化，再使用当前位置。"
+        }
+        LocationPermissionDialog.SettingsUnavailable -> "请在设备设置中手动恢复定位服务或应用位置权限；仍可继续搜索或地图选点。"
+    }
+    val confirmLabel = when (dialog) {
+        LocationPermissionDialog.Purpose -> "继续"
+        LocationPermissionDialog.LocationServiceRecovery -> "前往系统设置"
+        LocationPermissionDialog.PermissionRecovery -> "打开应用设置"
+        else -> "知道了"
+    }
+    val confirm = when (dialog) {
+        LocationPermissionDialog.Purpose -> onConfirmPurpose
+        LocationPermissionDialog.LocationServiceRecovery -> onOpenLocationSettings
+        LocationPermissionDialog.PermissionRecovery -> onOpenPermissionSettings
+        else -> onDismiss
+    }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White, dragHandle = null,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp).testTag("location_permission_sheet"),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(title, fontWeight = FontWeight.Bold, color = ZhituColors.Ink, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+            Text(description, color = ZhituColors.Muted)
+            Button(onClick = confirm, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand)) { Text(confirmLabel) }
+            if (dialog == LocationPermissionDialog.Purpose || dialog == LocationPermissionDialog.LocationServiceRecovery || dialog == LocationPermissionDialog.PermissionRecovery) {
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (dialog == LocationPermissionDialog.Purpose) "取消" else "继续搜索或地图选点")
+                }
+            }
+        }
+    }
+}
+
+private fun Context.hasPermission(permission: String): Boolean =
+    checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+
+private fun Context.locationServiceEnabled(): Boolean =
+    getSystemService(LocationManager::class.java)?.isLocationEnabled == true
+
+private fun Context.openLocationServiceSettings(): Boolean = openSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+
+private fun Context.openApplicationPermissionSettings(): Boolean = openSettings(
+    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)),
+)
+
+private fun Context.openSettings(intent: Intent): Boolean =
+    if (intent.resolveActivity(packageManager) == null) false else runCatching { startActivity(intent) }.isSuccess
 
 /** A plan-specific draft; it never writes global preferences. */
 @Composable

@@ -60,6 +60,15 @@
 
 验收：开发工作区原型测试 `50/50` 通过；提交前仅导出权限暂存快照重新验证，`39/39` 通过。浏览器离线流程验证通过；Figma QA 实读验证 33 个固定场景、109 条预期连接及全部覆盖层边界，字体仅 Noto Sans SC／Roboto。启用、位置请求与小米最长确认文案完成关键视觉复核。Figma 图形连线用于离线交互追溯，不构成实际系统权限验证。台账与浏览器记录见 [`figma-state.json`](./prototype/qa/permissions-2026-09-03/figma-state.json) 和 [`权限原型浏览器验收`](./prototype/qa/permissions-2026-09-03/README.md)。
 
+### [x] L012 Android 原生权限引导
+
+- `PermissionAccess`、`PermissionScreens` 与 `ZhituApp` 读取并展示通知运行时授权、通知渠道、精确闹钟、全屏提醒、前台粗精位置和定位服务状态；标准设置入口逐项尝试，返回前台后重新读取状态，并提供应用详情页回退。
+- `AlarmPermissionFlow` 在启用／保存前保留草稿或待执行计划动作；“继续启用”仅在当前会话对相同缺失签名去重，取消不提交动作或确认。小米锁屏显示与后台弹出页面的手工确认保存在会话内，和 Android 能力快照分别呈现。
+- `LocationPermissionFlow` 只由“使用当前位置”触发：先展示用途说明，再请求前台粗精位置；粗略授权、拒绝、定位服务关闭和设置返回均回到对应状态，待续单次定位只消费一次。
+- Android 官方依据：通知 https://developer.android.com/develop/ui/compose/notifications/notification-permission ；精确闹钟 https://developer.android.com/develop/background-work/services/alarms ；全屏提醒 https://developer.android.com/about/versions/14/behavior-changes-14 ；位置 https://developer.android.com/develop/sensors-and-location/location/permissions/runtime 。小米通用权限页示例与无查询接口边界：https://dev.mi.com/docs/appsmarket/technical_docs/adaptation_FAQ/ 。HyperOS 后台弹出页面默认拒绝与特殊白名单：https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1625 。
+
+验收：开发工作区 Debug APK 与测试 APK 构建通过；233 项 JVM 测试通过；Android 16 / API 36 只读模拟器的 7 项权限专项测试通过，覆盖取消、诊断回程、Activity 重建、单次保存及定位用途说明。提交前另行导出权限暂存快照，构建及 218 项 JVM 测试通过；两版 APK 与验证结果分别记录于 [`Android 权限验收`](./android/qa/permissions-2026-09-03/README.md)。随后小米 `OS3.0.312.0.WOACNXM` 真机完成系统入口、状态读取、独立手工确认及草稿取消验证；获准临时切换权限后，验证了通知申请／拒绝恢复、位置申请／拒绝恢复入口及小米两项拒绝状态，见 [`真机权限记录`](./android/qa/physical-permissions-2026-09-03/README.md)。定位从设置授权后续办未完成观察；中断后小米两项最终恢复核对待解锁完成，其他 MIUI／HyperOS 版本仍需覆盖。
+
 ## 1. 执行约定
 
 ### 1.1 任务状态

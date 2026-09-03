@@ -156,11 +156,32 @@ fun AlarmEditorScreen(draft: EditorDraft, update: (EditorDraft) -> Unit, onCance
 }
 
 @Composable
-fun SettingsScreen(settings: com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings, onSettingsChange: (com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings) -> Unit, onCalendar: () -> Unit, onRoute: () -> Unit, onNavigate: (ZhituDestination) -> Unit, onCredentials: () -> Unit, onDiagnostics: () -> Unit, onHistory: () -> Unit, onWeather: () -> Unit, onOnboarding: () -> Unit) {
+fun SettingsScreen(settings: com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings, onSettingsChange: (com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings) -> Unit, onCalendar: () -> Unit, onRoute: () -> Unit, onNavigate: (ZhituDestination) -> Unit, onCredentials: () -> Unit, onDiagnostics: () -> Unit, onHistory: () -> Unit, onWeather: () -> Unit, onOnboarding: () -> Unit, permissionSnapshot: PermissionSnapshot, permissionConfirmations: Set<XiaomiDisplayPermission>) {
     Scaffold(
     topBar = { ZhituTopBar("设置", subtitle = "本地数据与系统能力") }, bottomBar = { ZhituNav(selected = ZhituDestination.SETTINGS, onNavigate = onNavigate) },
 ) { padding ->
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { PermissionSummaryCard(permissionSnapshot, permissionConfirmations, onDiagnostics) }
+        item {
+            SettingsGroup("系统权限") {
+                SettingRow("通知、精确闹钟与全屏提醒", "检查", onDiagnostics)
+                SettingRow("位置权限", permissionSnapshot.location.statusLabel(), onDiagnostics)
+                if (permissionSnapshot.isXiaomi) {
+                    TextButton(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text("小米锁屏显示", color = ZhituColors.Ink)
+                            Text(manualPermissionLabel(XiaomiDisplayPermission.LockScreen in permissionConfirmations), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    TextButton(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text("小米后台弹出界面", color = ZhituColors.Ink)
+                            Text(manualPermissionLabel(XiaomiDisplayPermission.BackgroundPopup in permissionConfirmations), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
         item { SettingsGroup("计划") { SettingRow("工作日日历", "本地规则", onCalendar); SettingRow("常用地点", "家、公司", onRoute) } }
         item { SettingsGroup("提醒") { Row(Modifier.fillMaxWidth().height(50.dp), verticalAlignment = Alignment.CenterVertically) { Text("通知摘要", Modifier.weight(1f)); Switch(settings.notificationSummary, { onSettingsChange(settings.copy(notificationSummary = it)) }) }; Row(Modifier.fillMaxWidth().height(50.dp), verticalAlignment = Alignment.CenterVertically) { Text("锁屏摘要", Modifier.weight(1f)); Switch(settings.lockScreenSummary, { onSettingsChange(settings.copy(lockScreenSummary = it)) }) } } }
         item { BufferEditor("工作日天气缓冲", settings.workdayWeatherBuffers) { onSettingsChange(settings.copy(workdayWeatherBuffers = it)) } }

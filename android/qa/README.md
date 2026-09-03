@@ -1,5 +1,9 @@
 # Android 36 验证记录
 
+2026-09-03 小米 HyperOS 真机的已授权状态、权限入口及返回流程见 [`真机权限验证`](./physical-permissions-2026-09-03/README.md)。
+
+2026-09-03 权限引导实现、218 项提交快照单元测试，以及开发阶段 APK、233 项单元测试与权限专项设备记录见 [`权限引导验收`](./permissions-2026-09-03/README.md)。
+
 - 日期：2026-09-01
 - 设备：`Mi_15_Ultra` Android 36 模拟器，412 × 892 dp 竖屏
 - APK：[`app-debug.apk`](../app/build/outputs/apk/debug/app-debug.apk)

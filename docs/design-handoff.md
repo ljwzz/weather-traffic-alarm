@@ -49,6 +49,10 @@ Figma 权限状态组为 [`133:632`](https://www.figma.com/design/wN04BlxRelbJyB
 
 同一会话内，明确点按继续启用后，同一缺失状态不再重复提示；取消不写入也不消费确认，后续主动保存仍需确认。Figma QA 实读验证 33 个固定场景、109 条预期连接与全部覆盖层边界；浏览器离线流程记录覆盖工具栏、入口、引导、确认、位置与返回状态。系统设置均为原型演示，Figma 图形连线不构成对设备授权状态的实际验证。
 
+Android 原生交接：`PermissionAccess` 提供标准 Android 能力快照和设置页回退；`PermissionScreens`／`ZhituApp` 在设置返回后刷新快照。`AlarmPermissionFlow` 保留启用前的草稿或待执行动作并处理会话内继续／取消；`LocationPermissionFlow` 只处理“使用当前位置”的用途说明、粗精位置、拒绝、定位服务关闭和设置恢复。小米手工确认是当前会话状态，和 Android 能力快照分别呈现。`miui.intent.action.APP_PERM_EDITOR` 仅按 MIUI 官方 FAQ 作为通用应用权限页尝试；HyperOS 的版本覆盖与两项专项设置效果以真机记录确认。https://dev.mi.com/docs/appsmarket/technical_docs/adaptation_FAQ/ https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1625
+
+Android 权限实现与验收见 [`2026-09-03 原生权限记录`](../android/qa/permissions-2026-09-03/README.md)。本次实现复用 Compose 组件与知途主题；系统授权使用 Android 原生界面，应用内启用引导和定位说明沿用设计稿底部弹层。
+
 ## 主页面契约
 
 下表的 21 个旧 Figma 页面是视觉素材基线，非 Android 页面完成清单。当前 Android 范围为 12 个主页面及路线／日历整合；本地闹钟的页面、状态和交互以本文件上方 2026-08-31 状态组与 `prototype/` 为准。

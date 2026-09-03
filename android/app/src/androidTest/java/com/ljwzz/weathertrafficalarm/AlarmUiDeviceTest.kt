@@ -45,7 +45,10 @@ class AlarmUiDeviceTest {
         compose.onNodeWithTag("plan_name").performTextReplacement("UI验证-每周")
         compose.onNodeWithTag("repeat_weekly").performClick()
         compose.onNodeWithTag("save_alarm").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("UI验证-每周").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("plan_name").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("UI验证-每周").fetchSemanticsNodes().isNotEmpty()
+        }
         val saved = runBlocking { deps.plans().observeAll().first().single { it.name == "UI验证-每周" } }
         assertTrue(saved.schedule is AlarmSchedule.Weekly)
         compose.onNodeWithText("UI验证-每周").performClick()
@@ -63,7 +66,10 @@ class AlarmUiDeviceTest {
         compose.onNodeWithTag("save_alarm").assertIsNotEnabled()
         compose.onNodeWithTag("plan_name").performTextReplacement("UI验证-单次")
         compose.onNodeWithTag("save_alarm").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("UI验证-单次").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("plan_name").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("UI验证-单次").fetchSemanticsNodes().isNotEmpty()
+        }
         val saved = runBlocking { deps.plans().observeAll().first().single { it.name == "UI验证-单次" } }
         assertTrue(saved.schedule is AlarmSchedule.Once)
         val occurrences = runBlocking { deps.occurrences().getByPlanId(saved.id) }
