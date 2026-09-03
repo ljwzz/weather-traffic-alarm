@@ -4,6 +4,8 @@ import { createTravelScreens } from './screens-travel.mjs';
 import { createAlarmScreens } from './screens-alarm.mjs';
 import { createSettingsScreens } from './screens-settings.mjs';
 import { createSupportScreens } from './screens-support.mjs';
+import { canUseLocation, createPermissionState, missingAlarmDisplayPermissions } from './permission-state.mjs';
+import { createPermissionScreens } from './screens-permissions.mjs';
 
 const STORAGE_KEY = 'zhitu-prototype-config-v3';
 const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','lock','island','island-expand','ringing','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
@@ -21,7 +23,10 @@ function defaults() {
 }
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
-let runtime = { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'' };
+function createRuntime() {
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+}
+let runtime = createRuntime();
 let noticeTimer;
 
 function persist() { try { persistSettings(localStorage, STORAGE_KEY, config); } catch { runtime.notice = '浏览器存储不可用；更改仅保留在当前会话。'; } }
@@ -38,6 +43,7 @@ const travel = createTravelScreens({ action, overlayAction, asset, state });
 const alarms = createAlarmScreens({ action, overlayAction, asset, state });
 const settings = createSettingsScreens({ asset, state, overlayAction });
 const support = createSupportScreens({ escapeHTML:esc, action, overlayAction });
+const permissions = createPermissionScreens({ state, overlayAction });
 
 function notice(message) { runtime.notice = message; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { runtime.notice = ''; render(); }, 3200); }
 function closeOverlay() { runtime.overlay = null; runtime.overrideDraftTime = ''; }
@@ -45,11 +51,17 @@ function enterRouteDraft() { if (!runtime.routeDraft) runtime.routeDraft = clone
 function navigate(route, { replace = false, fromHistory = false } = {}) {
   if (!ROUTES.includes(route)) return;
   const old = runtime.route;
-  if (old === 'plan-edit' && !['calendar','route-edit','place-search'].includes(route)) { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
+  const preservesPermissionFlow = old === 'plan-edit' && route === 'diagnostics' && runtime.permissionFlow;
+  const resumesPermissionFlow = old === 'diagnostics' && route === runtime.permissionFlow?.originRoute;
+  const leavesPermissionFlow = runtime.permissionFlow && !['diagnostics', runtime.permissionFlow.originRoute].includes(route);
+  if (leavesPermissionFlow) runtime.permissionFlow = null;
+  if (runtime.locationRequest && route !== runtime.locationRequest.route) runtime.locationRequest = null;
+  if (old === 'plan-edit' && !['calendar','route-edit','place-search'].includes(route) && !preservesPermissionFlow) { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
   if (old === 'route-edit' && route !== 'place-search' && runtime.routeScope !== 'plan') runtime.routeDraft = null;
   if ((route === 'route-edit' || route === 'place-search') && runtime.routeScope !== 'plan') enterRouteDraft();
   if (!replace && old !== route) runtime.history.push(old);
   runtime.route = route; closeOverlay();
+  if (resumesPermissionFlow) runtime.overlay = 'permission-guide';
   if (route === 'calendar') runtime.calendarMonth = runtime.selectedDate.slice(0, 7);
   if (!fromHistory) history[replace ? 'replaceState' : 'pushState'](null, '', `#/${route}`);
   render();
@@ -66,11 +78,15 @@ function extraOverlay() {
 }
 function render() {
   const page = runtime.route; const snapshot = state();
-  const body = travel[page]?.() || alarms[page]?.() || settings[page]?.() || (['lock','island','island-expand','ringing'].includes(page) ? concept(page) : support.renderRoute(page, snapshot));
-  const overlay = support.renderOverlay(runtime.overlay, snapshot) || extraOverlay();
+  const body = travel[page]?.() || alarms[page]?.() || settings[page]?.() || (page === 'diagnostics' ? permissions.diagnostics() : (['lock','island','island-expand','ringing'].includes(page) ? concept(page) : support.renderRoute(page, snapshot)));
+  const overlay = permissions.renderOverlay(runtime.overlay) || support.renderOverlay(runtime.overlay, snapshot) || extraOverlay();
   document.getElementById('app').innerHTML = `<main class="prototype-screen" data-page="${page}">${status()}${header()}<div class="prototype-scroll">${body}</div>${['home','route','plans','settings'].includes(page) ? nav() : '<div class="prototype-gesture" aria-hidden="true"><i></i></div>'}</main>${overlay}${runtime.notice ? `<p class="prototype-notice" role="status">${esc(runtime.notice)}</p>` : ''}`;
   for (const footer of document.querySelectorAll('.prototype-scroll .screen-footer')) document.querySelector('.prototype-screen').insertBefore(footer, document.querySelector('.prototype-nav,.prototype-gesture'));
   document.getElementById('scenario-select').value = page;
+  const deviceControl = document.getElementById('permission-device-select');
+  const entryControl = document.getElementById('permission-entry-select');
+  if (deviceControl) deviceControl.value = runtime.permissionState.device;
+  if (entryControl) entryControl.value = runtime.permissionState.settingsEntry;
   document.dispatchEvent(new CustomEvent('zhitu:routechange', { detail:{ route:page } }));
 }
 
@@ -84,11 +100,50 @@ function saveAlarm() {
   record(plan.enabled ? 'registered' : 'stopped', plan.enabled ? `已保存“${plan.name}”，待 Android 注册` : `已停用“${plan.name}”`, plan);
   persist(); runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; notice('闹钟已保存；Android 应用将负责实际注册与响铃。'); navigate('plans', { replace:true });
 }
+function permissionSignature() {
+  const state = runtime.permissionState;
+  return JSON.stringify({ device:state.device, standard:state.standard, xiaomi:state.xiaomi });
+}
+function startPermissionFlow(operation, planId = null) {
+  const missing = missingAlarmDisplayPermissions(runtime.permissionState);
+  const signature = permissionSignature();
+  if (!missing.length || runtime.permissionPrompted.includes(signature)) return false;
+  runtime.permissionFlow = { operation, planId, originRoute:runtime.route, signature };
+  runtime.overlay = 'permission-guide';
+  render();
+  return true;
+}
+function requestSaveAlarm() {
+  validateAlarmPlan({ ...alarmDraft(), updatedAt:new Date().toISOString(), scheduleStatus:alarmDraft().enabled ? 'pendingPermission' : 'completed' });
+  if (!alarmDraft().enabled || !startPermissionFlow('save')) saveAlarm();
+}
 function toggleAlarm(id, enabled) {
   const index = config.alarmPlans.findIndex(plan => plan.id === id); if (index < 0) return;
   const candidate = { ...config.alarmPlans[index], enabled, scheduleStatus:enabled ? 'pendingPermission' : 'completed', updatedAt:new Date().toISOString() };
   if (enabled) validateAlarmPlan(candidate);
   config.alarmPlans.splice(index, 1, candidate); record(enabled ? 'registered' : 'stopped', enabled ? `请求启用“${candidate.name}”，待 Android 注册` : `已停用“${candidate.name}”`, candidate); persist(); render();
+}
+function requestToggleAlarm(id, enabled) {
+  const candidate = config.alarmPlans.find(plan => plan.id === id);
+  if (!candidate) return;
+  if (enabled) validateAlarmPlan({ ...candidate, enabled:true });
+  if (!enabled || !startPermissionFlow('toggle', id)) toggleAlarm(id, enabled);
+}
+function applyCurrentLocation() {
+  if (runtime.amapFixture === 'denied') throw Error('定位权限被拒绝；可改用搜索或地图选点。');
+  const place = { id:'demo-current-location', name:'当前位置（演示）', address:'仅本次定位 fixture · 不含坐标' };
+  runtime.locationRequest = null;
+  if (runtime.route === 'place-search') { runtime.selectedPlace = place; notice('已获取一次性定位 fixture。'); render(); return; }
+  const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; notice('已应用一次性定位 fixture。'); render();
+}
+function requestCurrentLocation() {
+  if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。');
+  if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。');
+  runtime.locationRequest = { route:runtime.route, placeTarget:runtime.placeTarget };
+  const location = runtime.permissionState.location;
+  if (location.services === 'off') return openOverlay('location-unavailable');
+  if (!canUseLocation(location)) return openOverlay('location-request');
+  applyCurrentLocation();
 }
 function changeMonth(delta) { const [year, month] = runtime.calendarMonth.split('-').map(Number); runtime.calendarMonth = todayIso(new Date(year, month - 1 + delta, 1)); render(); }
 function handleClick(event) {
@@ -101,9 +156,9 @@ function handleClick(event) {
     if (op === 'overlay') return openOverlay(value);
     if (op === 'new-alarm') { runtime.alarmDraft = defaultAlarmDraft(); runtime.editingAlarmId = null; return navigate('plan-edit'); }
     if (op === 'edit-alarm') { const plan = config.alarmPlans.find(item => item.id === value); if (!plan) throw Error('闹钟不存在。'); runtime.alarmDraft = clone(plan); runtime.editingAlarmId = value; return navigate('plan-edit'); }
-    if (op === 'save-alarm') return saveAlarm();
+    if (op === 'save-alarm') return requestSaveAlarm();
     if (op === 'delete-alarm') { config.alarmPlans = config.alarmPlans.filter(plan => plan.id !== value); record('stopped', '已删除闹钟'); persist(); runtime.alarmDraft = null; notice('闹钟已删除。'); return navigate('plans', { replace:true }); }
-    if (op === 'toggle-alarm') return toggleAlarm(value, target.querySelector('input')?.checked ?? !config.alarmPlans.find(plan => plan.id === value)?.enabled);
+    if (op === 'toggle-alarm') return;
     if (op === 'select-repeat') { const plan = alarmDraft(); plan.repeat = value === REPEAT_KINDS.ONCE ? { kind:value, date:todayIso() } : value === REPEAT_KINDS.WEEKLY ? { kind:value, weekdays:[1,2,3,4,5] } : { kind:value }; render(); return; }
     if (op === 'toggle-weekday') { const plan = alarmDraft(); const day = Number(value); const days = new Set(plan.repeat.weekdays || []); days.has(day) ? days.delete(day) : days.add(day); plan.repeat.weekdays = [...days].sort(); render(); return; }
     if (op === 'save-overlay-time' || op === 'save-overlay-snooze' || op === 'save-overlay-sound') { closeOverlay(); render(); return; }
@@ -127,14 +182,70 @@ function handleClick(event) {
     if (op === 'edit-plan-commute') { const plan = alarmDraft(); plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport }; runtime.routeScope = 'plan'; return navigate('route-edit'); }
     if (op === 'use-global-commute') { alarmDraft().commuteOverride = { enabled:false }; render(); return; }
     if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
-    if (op === 'locate-once') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); if (runtime.amapFixture === 'denied') throw Error('定位权限被拒绝；可改用搜索或地图选点。'); const place = { id:'demo-current-location', name:'当前位置（演示）', address:'仅本次定位 fixture · 不含坐标' }; if (runtime.route === 'place-search') { runtime.selectedPlace = place; notice('已获取一次性定位 fixture。'); render(); return; } const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; notice('已应用一次性定位 fixture。'); render(); return; }
+    if (op === 'locate-once') return requestCurrentLocation();
     if (op === 'save-credentials') { runtime.credentialStatus = '模拟配置已更新；原型未保存真实凭证'; render(); return; }
     if (op === 'test-credentials') { runtime.credentialStatus = '高德离线 fixture 已验证；未发送网络请求'; render(); return; }
     if (op === 'test-caiyun-credentials') { runtime.credentialStatus = '彩云天气模拟凭证测试完成；未发送网络请求'; render(); return; }
     if (op === 'clear-credentials') return openOverlay('clear-credentials');
     if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.credentialStatus = '当前会话模拟状态已清空'; closeOverlay(); render(); return; }
     if (op === 'preview-sound') { notice('浏览器原型不播放声音；Android 应用可试听。'); return; }
-    if (op === 'recheck-diagnostics') { notice('浏览器原型不读取系统状态，请在 Android 应用中检查。'); return; }
+    if (op === 'open-permission-diagnostics') return navigate('diagnostics');
+    if (op === 'return-permission-flow') {
+      const flow = runtime.permissionFlow;
+      if (!flow) return;
+      if (runtime.history.at(-1) === flow.originRoute) runtime.history.pop();
+      navigate(flow.originRoute, { replace:true });
+      runtime.overlay = 'permission-guide';
+      render();
+      return;
+    }
+    if (op === 'continue-permission-flow') {
+      const flow = runtime.permissionFlow;
+      const acceptedSignature = flow ? permissionSignature() : null;
+      if (acceptedSignature && !runtime.permissionPrompted.includes(acceptedSignature)) runtime.permissionPrompted.push(acceptedSignature);
+      runtime.permissionFlow = null;
+      closeOverlay();
+      if (flow?.operation === 'save') return saveAlarm();
+      if (flow?.operation === 'toggle' && flow.planId) return toggleAlarm(flow.planId, true);
+      return render();
+    }
+    if (op === 'cancel-permission-flow') { runtime.permissionFlow = null; closeOverlay(); render(); return; }
+    if (op === 'open-permission-settings') { runtime.permissionSettingsTarget = value; return openOverlay('permission-settings'); }
+    if (op === 'return-from-permission-settings') {
+      runtime.permissionSettingsTarget = null;
+      closeOverlay();
+      if (runtime.locationRequest) return requestCurrentLocation();
+      notice('已返回权限演示并重新检查。');
+      render();
+      return;
+    }
+    if (op === 'set-standard-permission') {
+      const [key, status] = value.split(':');
+      if (key in runtime.permissionState.standard) runtime.permissionState.standard[key] = status;
+      render();
+      return;
+    }
+    if (op === 'confirm-xiaomi-permission') {
+      if (value in runtime.permissionState.xiaomi) runtime.permissionState.xiaomi[value] = 'confirmed';
+      render();
+      return;
+    }
+    if (op === 'set-location-access') { runtime.permissionState.location.access = value; render(); return; }
+    if (op === 'toggle-location-services') { runtime.permissionState.location.services = runtime.permissionState.location.services === 'on' ? 'off' : 'on'; render(); return; }
+    if (op === 'resolve-location-request') {
+      closeOverlay();
+      if (value === 'services-off') {
+        runtime.permissionState.location.services = 'off';
+        return openOverlay('location-unavailable');
+      }
+      runtime.permissionState.location.access = value;
+      runtime.permissionState.location.services = 'on';
+      if (value === 'denied') return openOverlay('location-unavailable');
+      runtime.locationRequest = null;
+      return applyCurrentLocation();
+    }
+    if (op === 'cancel-location-request') { closeOverlay(); runtime.locationRequest = null; render(); return; }
+    if (op === 'recheck-diagnostics') { notice('已重新检查演示状态；不会读取设备权限。'); return; }
   } catch (error) { notice(error.message); render(); }
 }
 function handleInput(event) {
@@ -147,18 +258,26 @@ function handleInput(event) {
 }
 function handleChange(event) {
   const target = event.target;
-  if (target.dataset.action === 'toggle-alarm') return toggleAlarm(target.dataset.value, target.checked);
+  if (target.dataset.action === 'toggle-alarm') return requestToggleAlarm(target.dataset.value, target.checked);
   if (target.dataset.setting) { config[target.dataset.setting] = target.checked; persist(); render(); }
   if (target.dataset.amapFixture) { runtime.amapFixture = target.value; render(); }
   if (target.dataset.caiyunFixture) { runtime.caiyunFixture = target.value; render(); }
   if (target.dataset.overlayField === 'vibration') handleInput(event);
 }
-function reset() { config = defaults(); persist(); runtime = { ...runtime, route:'onboarding', history:[], overlay:null, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', selectedDate:todayIso(), selectedRouteIndex:0, calendarMonth:todayIso().slice(0, 7) }; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
+function reset() { config = defaults(); persist(); runtime = createRuntime(); runtime.route = 'onboarding'; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
 document.addEventListener('click', handleClick);
 document.addEventListener('input', handleInput);
 document.addEventListener('change', handleChange);
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && runtime.overlay) { closeOverlay(); render(); } });
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !runtime.overlay) return;
+  if (runtime.overlay === 'permission-guide') runtime.permissionFlow = null;
+  if (runtime.overlay === 'location-request' || runtime.overlay === 'location-unavailable') runtime.locationRequest = null;
+  closeOverlay();
+  render();
+});
 document.getElementById('scenario-select').addEventListener('change', event => navigate(event.target.value));
+document.getElementById('permission-device-select')?.addEventListener?.('change', event => { runtime.permissionState.device = event.target.value; render(); });
+document.getElementById('permission-entry-select')?.addEventListener?.('change', event => { runtime.permissionState.settingsEntry = event.target.value; render(); });
 document.getElementById('scenario-reset').addEventListener('click', reset);
 window.addEventListener('popstate', () => navigate(location.hash.replace(/^#\/?/, ''), { replace:true, fromHistory:true }));
 function fitPhone() { document.documentElement.style.setProperty('--phone-scale', String(Math.min(1, (window.innerWidth - 24) / 412))); }

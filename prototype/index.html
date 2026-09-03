@@ -37,6 +37,16 @@
         <option value="diagnostics">可靠性诊断</option>
         <option value="place-search">选择地点</option>
       </select>
+      <label for="permission-device-select">权限演示设备</label>
+      <select id="permission-device-select">
+        <option value="android">通用 Android</option>
+        <option value="xiaomi">小米（演示设备）</option>
+      </select>
+      <label for="permission-entry-select">系统设置入口</label>
+      <select id="permission-entry-select">
+        <option value="available">可打开（演示）</option>
+        <option value="unavailable">入口不可用或未找到（演示）</option>
+      </select>
       <button id="scenario-reset" type="button">重置演示数据</button>
       <p id="render-status" aria-live="polite">正在加载本地设计字体…</p>
       <p class="reference-note">后续开发和验收必须参照此原型；除非用户明确要求修改。</p>
