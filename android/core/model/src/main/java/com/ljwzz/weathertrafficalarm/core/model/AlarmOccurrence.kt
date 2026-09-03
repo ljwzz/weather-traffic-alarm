@@ -19,6 +19,8 @@ enum class OccurrenceState {
 @Serializable
 enum class OccurrenceKind {
     REGULAR,
+    /** An independently armed earlier occurrence derived from an evaluation decision. */
+    ADVANCE,
     SNOOZE,
 }
 

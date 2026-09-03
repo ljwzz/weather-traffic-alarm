@@ -4,6 +4,8 @@ import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmDecisionDao
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,9 +14,14 @@ class DecisionRepository @Inject constructor(
     private val decisionDao: AlarmDecisionDao,
 ) {
 
-    suspend fun save(decision: AlarmDecision) {
-        decisionDao.upsert(decision.toEntity())
-    }
+    fun observeAll(): Flow<List<AlarmDecision>> =
+        decisionDao.observeAll().map { entities -> entities.map { it.toDomain() } }
+
+    suspend fun getById(decisionId: String): AlarmDecision? =
+        decisionDao.getById(decisionId)?.toDomain()
+
+    suspend fun save(decision: AlarmDecision): Boolean =
+        decisionDao.saveIfPlanExists(decision.toEntity())
 
     suspend fun getByPlanId(planId: String): List<AlarmDecision> =
         decisionDao.getByPlanId(planId).map { it.toDomain() }

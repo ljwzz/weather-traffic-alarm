@@ -8,10 +8,13 @@ import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
+import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.AlarmEvent
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
@@ -29,6 +32,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -41,6 +45,7 @@ class LocalAlarmCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
     private val planRepository: AlarmPlanRepository,
     private val occurrenceRepository: OccurrenceRepository,
+    private val decisionRepository: DecisionRepository,
     private val eventRepository: AlarmEventRepository,
     private val overrideRepository: WorkdayOverrideRepository,
     private val calendarRepository: WorkdayCalendarRepository,
@@ -51,6 +56,119 @@ class LocalAlarmCoordinator @Inject constructor(
     val plans: Flow<List<AlarmPlan>> = planRepository.observeAll()
     val occurrences: Flow<List<AlarmOccurrence>> = occurrenceRepository.observeAll()
     val events: Flow<List<AlarmEvent>> = eventRepository.observeAll()
+
+    /**
+     * Safely applies a completed evaluation without replacing the user's regular alarm.
+     * The independent ADVANCE occurrence remains recoverable through the same snapshot
+     * path as regular and snooze occurrences.
+     */
+    suspend fun applyEvaluation(decision: AlarmDecision): ApplyEvaluationResult = mutex.withLock {
+        val now = System.currentTimeMillis()
+        val plan = planRepository.getById(decision.planId)
+        if (plan == null || !plan.enabled || plan.revision != decision.planRevision) {
+            return@withLock persistEvaluationResult(decision, OUTCOME_STALE, null, EvaluationOutcome.STALE)
+        }
+        val expiresAt = parseTimestamp(decision.expiresAt)
+        val recommendedAt = parseTimestamp(decision.recommendedWakeAt)
+        if (expiresAt == null || expiresAt <= now || recommendedAt == null || recommendedAt <= now) {
+            return@withLock persistEvaluationResult(decision, OUTCOME_STALE, null, EvaluationOutcome.STALE)
+        }
+        if (decision.evaluationOutcome != EvaluationOutcome.SUCCESS) {
+            return@withLock persistEvaluationResult(decision, OUTCOME_UNCHANGED, null)
+        }
+
+        val planOccurrences = occurrenceRepository.getByPlanId(plan.id)
+        val regular = planOccurrences.firstOrNull {
+            it.kind == OccurrenceKind.REGULAR &&
+                it.planRevision == plan.revision &&
+                it.targetDate == decision.targetDate &&
+                it.state in ARMABLE_STATES
+        } ?: return@withLock persistEvaluationResult(decision, OUTCOME_STALE, null, EvaluationOutcome.STALE)
+
+        if (recommendedAt < regular.scheduledWakeAt - plan.maxAdvanceMinutes * 60_000L) {
+            return@withLock persistEvaluationResult(
+                decision, OUTCOME_FAILED, null, EvaluationOutcome.FAILED, regular.scheduledWakeAt,
+            )
+        }
+
+        val advances = planOccurrences.filter {
+            it.kind == OccurrenceKind.ADVANCE &&
+                it.planRevision == plan.revision &&
+                it.targetDate == decision.targetDate
+        }
+        val advanceIds = advances.map { it.occurrenceId }.toSet()
+        val hasStartedAdvance = advances.any { it.state in STARTED_ADVANCE_STATES } ||
+            planOccurrences.any {
+                it.kind == OccurrenceKind.SNOOZE && it.parentOccurrenceId in advanceIds &&
+                    it.state in ACTIVE_STATES + TERMINAL_STATES
+            }
+        if (hasStartedAdvance) {
+            val actual = advances.minOfOrNull { it.scheduledWakeAt }
+            return@withLock persistEvaluationResult(decision, OUTCOME_UNCHANGED, actual, defaultWakeAt = regular.scheduledWakeAt)
+        }
+
+        if (recommendedAt >= regular.scheduledWakeAt) {
+            advances.filter { it.state in ARMABLE_STATES }
+                .forEach { cancelAdvance(plan, it, "评估结果无需提前") }
+            return@withLock persistEvaluationResult(
+                decision, OUTCOME_CANCELLED, null, defaultWakeAt = regular.scheduledWakeAt,
+            )
+        }
+
+        val retainedEarlierAdvance = advances
+            .filter { it.state in ARMABLE_STATES }
+            .minByOrNull { it.scheduledWakeAt }
+        if (retainedEarlierAdvance != null && retainedEarlierAdvance.scheduledWakeAt <= recommendedAt) {
+            return@withLock persistEvaluationResult(
+                decision, OUTCOME_UNCHANGED, retainedEarlierAdvance.scheduledWakeAt, defaultWakeAt = regular.scheduledWakeAt,
+            )
+        }
+
+        val advancesToReplace = advances.filter { it.state in ARMABLE_STATES }
+        val advance = AlarmOccurrence(
+            occurrenceId = UUID.randomUUID().toString(),
+            planId = plan.id,
+            planRevision = plan.revision,
+            targetDate = decision.targetDate,
+            scheduledWakeAt = recommendedAt,
+            state = OccurrenceState.REGISTERING,
+            decisionId = decision.decisionId,
+            kind = OccurrenceKind.ADVANCE,
+        )
+        val advanceSnapshot = snapshot(plan, advance).copy(defaultWakeAtMillis = regular.scheduledWakeAt)
+        occurrenceRepository.save(advance)
+        snapshotStore.save(advanceSnapshot)
+        val registration = try {
+            scheduler.schedule(advanceSnapshot)
+        } catch (cancelled: CancellationException) {
+            occurrenceRepository.updateState(advance.occurrenceId, OccurrenceState.FAILED.name, now)
+            snapshotStore.removeOccurrence(advance.occurrenceId)
+            throw cancelled
+        } catch (_: Exception) {
+            occurrenceRepository.updateState(advance.occurrenceId, OccurrenceState.FAILED.name, now)
+            snapshotStore.removeOccurrence(advance.occurrenceId)
+            return@withLock persistEvaluationResult(
+                decision, OUTCOME_FAILED, null, EvaluationOutcome.FAILED, regular.scheduledWakeAt,
+            )
+        }
+        when (val result = registration) {
+            AlarmRegistrationResult.Registered -> {
+                occurrenceRepository.updateState(advance.occurrenceId, OccurrenceState.SCHEDULED.name, now)
+                snapshotStore.save(advanceSnapshot.copy(occurrenceState = AlarmReceiver.STATE_SCHEDULED))
+                advancesToReplace.forEach { cancelAdvance(plan, it, "更早评估结果替换提前闹钟") }
+                eventRepository.record(plan.id, advance.occurrenceId, AlarmEventType.REGISTERED, "提前闹钟已注册")
+                persistEvaluationResult(decision, OUTCOME_APPLIED, recommendedAt, defaultWakeAt = regular.scheduledWakeAt)
+            }
+            is AlarmRegistrationResult.Rejected -> {
+                occurrenceRepository.updateState(advance.occurrenceId, OccurrenceState.FAILED.name, now)
+                snapshotStore.removeOccurrence(advance.occurrenceId)
+                eventRepository.record(plan.id, advance.occurrenceId, AlarmEventType.REGISTRATION_FAILED, registrationMessage(result))
+                persistEvaluationResult(
+                    decision, OUTCOME_FAILED, null, EvaluationOutcome.FAILED, regular.scheduledWakeAt,
+                )
+            }
+        }
+    }
 
     suspend fun save(plan: AlarmPlan): AlarmPlan = mutex.withLock {
         ensureOnceIsNotPast(plan)
@@ -186,12 +304,18 @@ class LocalAlarmCoordinator @Inject constructor(
 
     suspend fun setDayOverride(override: WorkdayOverride) = mutex.withLock {
         overrideRepository.save(override)
-        planRepository.getById(override.planId)?.takeIf { it.enabled }?.let { armNext(it.id, Instant.now()) }
+        planRepository.getById(override.planId)?.takeIf { it.enabled }?.let { plan ->
+            cancelEvaluationOccurrencesForDate(plan, override.date, "日期规则已更新")
+            armNext(plan.id, Instant.now())
+        }
     }
 
     suspend fun clearDayOverride(planId: String, date: String) = mutex.withLock {
         overrideRepository.delete(planId, date)
-        planRepository.getById(planId)?.takeIf { it.enabled }?.let { armNext(it.id, Instant.now()) }
+        planRepository.getById(planId)?.takeIf { it.enabled }?.let { plan ->
+            cancelEvaluationOccurrencesForDate(plan, date, "日期规则已更新")
+            armNext(plan.id, Instant.now())
+        }
     }
 
     /** Rehydrates DB state written in device-protected storage before unlock. */
@@ -208,9 +332,13 @@ class LocalAlarmCoordinator @Inject constructor(
                 active
                     .filterNot { snapshotsByOccurrence.containsKey(it.occurrenceId) }
                     .forEach { occurrence -> recoverMissingSnapshot(plan, occurrence, now) }
-                val stillActive = occurrenceRepository.getByPlanId(plan.id)
-                    .any { it.planRevision == plan.revision && it.state in ACTIVE_STATES }
-                if (!stillActive) armNext(plan.id, Instant.ofEpochMilli(now))
+                deduplicatePendingAdvances(plan)
+                val hasRegular = occurrenceRepository.getByPlanId(plan.id)
+                    .any {
+                        it.kind == OccurrenceKind.REGULAR && it.planRevision == plan.revision &&
+                            it.state in ACTIVE_STATES
+                    }
+                if (!hasRegular) armNext(plan.id, Instant.ofEpochMilli(now))
             }
     }
 
@@ -392,7 +520,12 @@ class LocalAlarmCoordinator @Inject constructor(
             OccurrenceState.DEFAULT_REGISTERED,
             OccurrenceState.ADVANCED,
             -> {
-                val recovered = snapshot(plan, occurrence).copy(occurrenceState = AlarmReceiver.STATE_SCHEDULED)
+                val recovered = snapshot(plan, occurrence).copy(
+                    occurrenceState = AlarmReceiver.STATE_SCHEDULED,
+                    defaultWakeAtMillis = occurrence.decisionId
+                        ?.let { decisionRepository.getById(it)?.defaultWakeAt }
+                        ?.let(::parseTimestamp),
+                )
                 when {
                     occurrence.scheduledWakeAt + AlarmReceiver.LATE_TRIGGER_WINDOW_MILLIS < now ->
                         markMissed(plan, occurrence, now)
@@ -441,9 +574,11 @@ class LocalAlarmCoordinator @Inject constructor(
             occurrenceId = snapshot.occurrenceId,
             planId = snapshot.planId,
             planRevision = snapshot.planRevision,
-            targetDate = Instant.ofEpochMilli(snapshot.triggerAtMillis).atZone(ZoneId.of(plan.zoneId)).toLocalDate().toString(),
+            targetDate = snapshot.targetDate
+                ?: Instant.ofEpochMilli(snapshot.triggerAtMillis).atZone(ZoneId.of(plan.zoneId)).toLocalDate().toString(),
             scheduledWakeAt = snapshot.triggerAtMillis,
             state = OccurrenceState.valueOf(snapshot.occurrenceState),
+            decisionId = snapshot.decisionId,
             kind = OccurrenceKind.valueOf(snapshot.occurrenceKind),
             parentOccurrenceId = snapshot.parentOccurrenceId,
         )
@@ -476,8 +611,10 @@ class LocalAlarmCoordinator @Inject constructor(
         snoozeMinutes = plan.snoozeMinutes,
         alarmLabel = plan.name,
         occurrenceKind = occurrence.kind.name,
+        decisionId = occurrence.decisionId,
         parentOccurrenceId = occurrence.parentOccurrenceId,
         occurrenceState = occurrence.state.name,
+        targetDate = occurrence.targetDate,
     )
 
     private suspend fun cancelPlanOccurrences(
@@ -502,17 +639,90 @@ class LocalAlarmCoordinator @Inject constructor(
     }
 
     private suspend fun completeOneShotIfNeeded(plan: AlarmPlan) {
-        val hasActiveSnooze = occurrenceRepository.getByPlanId(plan.id).any {
-            it.kind == OccurrenceKind.SNOOZE && it.state in ACTIVE_STATES
+        val hasActiveFollowUp = occurrenceRepository.getByPlanId(plan.id).any {
+            it.kind in setOf(OccurrenceKind.REGULAR, OccurrenceKind.ADVANCE, OccurrenceKind.SNOOZE) &&
+                it.state in ACTIVE_STATES
         } || snapshotStore.observeAll().first().any {
             it.planId == plan.id &&
-                it.occurrenceKind == OccurrenceKind.SNOOZE.name &&
+                it.occurrenceKind in setOf(
+                    OccurrenceKind.REGULAR.name,
+                    OccurrenceKind.ADVANCE.name,
+                    OccurrenceKind.SNOOZE.name,
+                ) &&
                 it.occurrenceState in ACTIVE_SNAPSHOT_STATES
         }
-        if (plan.schedule is AlarmSchedule.Once && !hasActiveSnooze) {
+        if (plan.schedule is AlarmSchedule.Once && !hasActiveFollowUp) {
             planRepository.update(plan.copy(enabled = false, armedState = AlarmArmedState.COMPLETED, scheduleError = null))
         }
     }
+
+    private suspend fun cancelAdvance(plan: AlarmPlan, occurrence: AlarmOccurrence, reason: String) {
+        scheduler.cancelOccurrence(occurrence.occurrenceId)
+        occurrenceRepository.updateState(occurrence.occurrenceId, OccurrenceState.CANCELLED.name, System.currentTimeMillis())
+        eventRepository.record(plan.id, occurrence.occurrenceId, AlarmEventType.CANCELLED, reason)
+    }
+
+    /** Cancels an invalidated advance and every still-active snooze descendant. */
+    private suspend fun cancelEvaluationOccurrencesForDate(plan: AlarmPlan, targetDate: String, reason: String) {
+        val all = occurrenceRepository.getByPlanId(plan.id)
+        val affectedIds = all
+            .filter { it.kind == OccurrenceKind.ADVANCE && it.targetDate == targetDate }
+            .map { it.occurrenceId }
+            .toMutableSet()
+        var added: Boolean
+        do {
+            added = all.filter { it.parentOccurrenceId in affectedIds }
+                .map { it.occurrenceId }
+                .filter { affectedIds.add(it) }
+                .isNotEmpty()
+        } while (added)
+        all.filter { it.occurrenceId in affectedIds && it.state in ACTIVE_STATES }
+            .forEach { occurrence ->
+                val snapshot = snapshotStore.getByOccurrenceId(occurrence.occurrenceId)
+                scheduler.cancelOccurrence(occurrence.occurrenceId)
+                occurrenceRepository.updateState(occurrence.occurrenceId, OccurrenceState.CANCELLED.name, System.currentTimeMillis())
+                eventRepository.record(plan.id, occurrence.occurrenceId, AlarmEventType.CANCELLED, reason)
+                snapshot?.takeIf { occurrence.state == OccurrenceState.FIRING }?.let {
+                    context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_DISMISS, it))
+                }
+            }
+    }
+
+    /** A crash after registering a replacement can leave two valid advance snapshots. */
+    private suspend fun deduplicatePendingAdvances(plan: AlarmPlan) {
+        occurrenceRepository.getByPlanId(plan.id)
+            .filter {
+                it.kind == OccurrenceKind.ADVANCE && it.planRevision == plan.revision &&
+                    it.state in ARMABLE_STATES
+            }
+            .groupBy { it.targetDate }
+            .values
+            .forEach { advances ->
+                advances.sortedBy { it.scheduledWakeAt }.drop(1)
+                    .forEach { cancelAdvance(plan, it, "恢复时清理重复提前闹钟") }
+            }
+    }
+
+    private suspend fun persistEvaluationResult(
+        decision: AlarmDecision,
+        outcome: String,
+        actualWakeAt: Long?,
+        evaluationOutcome: EvaluationOutcome = decision.evaluationOutcome,
+        defaultWakeAt: Long? = null,
+    ): ApplyEvaluationResult {
+        decisionRepository.save(
+            decision.copy(
+                evaluationOutcome = evaluationOutcome,
+                applicationOutcome = outcome,
+                defaultWakeAt = decision.defaultWakeAt ?: defaultWakeAt?.let { Instant.ofEpochMilli(it).toString() },
+                actualWakeAt = actualWakeAt?.let { Instant.ofEpochMilli(it).toString() },
+            ),
+        )
+        return ApplyEvaluationResult(outcome, actualWakeAt)
+    }
+
+    private fun parseTimestamp(value: String): Long? =
+        value.toLongOrNull() ?: runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
 
     private suspend fun scheduleAfterTerminalRegular(plan: AlarmPlan, occurrence: AlarmOccurrence) {
         if (occurrence.kind == OccurrenceKind.REGULAR && plan.schedule !is AlarmSchedule.Once) {
@@ -628,5 +838,17 @@ class LocalAlarmCoordinator @Inject constructor(
             AlarmReceiver.STATE_FIRING,
             AlarmReceiver.STATE_SNOOZED,
         )
+        val STARTED_ADVANCE_STATES = setOf(
+            OccurrenceState.FIRING,
+            OccurrenceState.SNOOZED,
+            OccurrenceState.DISMISSED,
+            OccurrenceState.MISSED,
+        )
+
+        const val OUTCOME_APPLIED = "APPLIED"
+        const val OUTCOME_UNCHANGED = "UNCHANGED"
+        const val OUTCOME_CANCELLED = "CANCELLED"
+        const val OUTCOME_STALE = "STALE"
+        const val OUTCOME_FAILED = "FAILED"
     }
 }

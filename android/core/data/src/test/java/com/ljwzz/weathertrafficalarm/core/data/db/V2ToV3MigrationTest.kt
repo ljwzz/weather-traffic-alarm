@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -14,7 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Opens a physical v2 database directly, so Room validates the v3 schema after migration. */
+/** Opens a physical v2 database directly, so Room validates the v4 schema after migration. */
 @RunWith(RobolectricTestRunner::class)
 class V2ToV3MigrationTest {
     private lateinit var context: Context
@@ -28,6 +29,7 @@ class V2ToV3MigrationTest {
         createV2Fixture()
         db = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .addMigrations(AppDatabaseMigrations.V2_TO_V3)
+            .addMigrations(AppDatabaseMigrations.V3_TO_V4)
             .build()
     }
 
@@ -38,8 +40,8 @@ class V2ToV3MigrationTest {
     }
 
     @Test
-    fun `direct v2 migration validates v3 schema copies route and cascades override`() = runBlocking {
-        // The first DAO operation opens the database and makes Room validate the complete v3 schema.
+    fun `direct v2 migration validates v4 schema copies route and defaults decision history`() = runBlocking {
+        // The first DAO operation opens the database and makes Room validate the complete v4 schema.
         val plan = db.alarmPlanDao().getById("plan-v2")
         assertNotNull(plan)
 
@@ -49,6 +51,12 @@ class V2ToV3MigrationTest {
         assertEquals("Office", override.destination.name)
         assertEquals("TRANSIT", override.commuteMode.name)
         assertEquals(2_000L, override.updatedAt)
+
+        val decisions = db.alarmDecisionDao().getByPlanId("plan-v2")
+        assertEquals(1, decisions.size)
+        assertEquals(EvaluationOutcome.FAILED, decisions.single().evaluationOutcome)
+        assertEquals(0, decisions.single().attemptNumber)
+        assertNull(decisions.single().failureReason)
 
         db.alarmPlanDao().deleteById("plan-v2")
         assertNull(db.planCommuteOverrideDao().getByPlanId("plan-v2"))
@@ -91,6 +99,10 @@ class V2ToV3MigrationTest {
             sqlite.execSQL(
                 "INSERT INTO alarm_plans (id, revision, name, enabled, zone_id, default_wake_local_time, arrival_local_time, preparation_minutes, max_advance_minutes, commute_mode, origin, destination, waypoints, route_policy, weather_rule_version, sound, vibration, snooze_minutes, schedule, armed_state, schedule_error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arrayOf<Any?>("plan-v2", 4, "V2 commute alarm", 0, "Asia/Shanghai", "06:30", "09:00", 30, 60, "TRANSIT", home, office, "[]", "DEFAULT", "v1", "{\"title\":\"Default\"}", "{\"enabled\":true,\"patternMillis\":[0,500,500,500]}", 10, null, "NEEDS_RULE", null, 1_000L, 2_000L),
+            )
+            sqlite.execSQL(
+                "INSERT INTO alarm_decisions (decision_id, plan_id, plan_revision, target_date, workday_status, estimated_departure_at, commute_seconds, weather_severity, weather_buffer_minutes, recommended_wake_at, route_provider, route_provider_report_time, weather_provider, weather_provider_report_time, weather_window_start, weather_window_end, fallback_reason, insufficient_advance, generated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>("decision-v2", "plan-v2", 4, "2026-09-03", "WORKDAY", null, null, 0, 0, "2026-09-03T06:30", null, null, null, null, null, null, "NONE", 0, 1_000L, 2_000L),
             )
         }
     }

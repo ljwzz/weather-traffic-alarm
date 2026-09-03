@@ -22,8 +22,14 @@ data class NextAlarmSnapshot(
     val alarmLabel: String = "闹钟",
     val vibrationPatternMillis: List<Long> = listOf(0, 500, 500, 500),
     val occurrenceKind: String = "REGULAR",
+    /** Optional decision link used to rehydrate an independently armed advance occurrence. */
+    val decisionId: String? = null,
     val parentOccurrenceId: String? = null,
     val occurrenceState: String = "SCHEDULED",
     val snoozeCount: Int = 0,
     val firedAtMillis: Long? = null,
+    /** Logical wake date; may differ from trigger date when an advance crosses midnight. */
+    val targetDate: String? = null,
+    /** Baseline regular wake instant for Direct-Boot display of an advance occurrence. */
+    val defaultWakeAtMillis: Long? = null,
 )

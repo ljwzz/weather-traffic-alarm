@@ -238,6 +238,8 @@ class AlarmRingingService : Service() {
         private const val EXTRA_SNOOZE = "alarm_snooze"
         private const val EXTRA_LABEL = "alarm_label"
         private const val EXTRA_KIND = "alarm_kind"
+        private const val EXTRA_TARGET_DATE = "alarm_target_date"
+        private const val EXTRA_DEFAULT_WAKE_AT = "alarm_default_wake_at"
         private const val EXTRA_PARENT = "alarm_parent"
         private const val EXTRA_SNOOZE_COUNT = "alarm_snooze_count"
 
@@ -254,6 +256,8 @@ class AlarmRingingService : Service() {
                 putExtra(EXTRA_SNOOZE, snapshot.snoozeMinutes)
                 putExtra(EXTRA_LABEL, snapshot.alarmLabel)
                 putExtra(EXTRA_KIND, snapshot.occurrenceKind)
+                putExtra(EXTRA_TARGET_DATE, snapshot.targetDate)
+                snapshot.defaultWakeAtMillis?.let { putExtra(EXTRA_DEFAULT_WAKE_AT, it) }
                 putExtra(EXTRA_PARENT, snapshot.parentOccurrenceId)
                 putExtra(EXTRA_SNOOZE_COUNT, snapshot.snoozeCount)
             }
@@ -273,6 +277,12 @@ class AlarmRingingService : Service() {
                 snoozeMinutes = getIntExtra(EXTRA_SNOOZE, 10),
                 alarmLabel = getStringExtra(EXTRA_LABEL) ?: "闹钟",
                 occurrenceKind = getStringExtra(EXTRA_KIND) ?: "REGULAR",
+                targetDate = getStringExtra(EXTRA_TARGET_DATE),
+                defaultWakeAtMillis = if (hasExtra(EXTRA_DEFAULT_WAKE_AT)) {
+                    getLongExtra(EXTRA_DEFAULT_WAKE_AT, -1L).takeIf { it >= 0L }
+                } else {
+                    null
+                },
                 parentOccurrenceId = getStringExtra(EXTRA_PARENT),
                 snoozeCount = getIntExtra(EXTRA_SNOOZE_COUNT, 0),
             )

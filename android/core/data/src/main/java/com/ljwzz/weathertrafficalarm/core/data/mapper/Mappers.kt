@@ -10,6 +10,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmEvent
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import java.time.Instant
 
 fun AlarmPlanEntity.toDomain(): AlarmPlan = AlarmPlan(
     id = id,
@@ -108,8 +109,17 @@ fun AlarmDecisionEntity.toDomain(): AlarmDecision = AlarmDecision(
     weatherWindowEnd = weatherWindowEnd,
     fallbackReason = fallbackReason,
     insufficientAdvance = insufficientAdvance,
-    generatedAt = generatedAt.toString(),
-    expiresAt = expiresAt.toString(),
+    generatedAt = Instant.ofEpochMilli(generatedAt).toString(),
+    expiresAt = Instant.ofEpochMilli(expiresAt).toString(),
+    evaluationOutcome = evaluationOutcome,
+    failureReason = failureReason,
+    attemptNumber = attemptNumber,
+    applicationOutcome = applicationOutcome,
+    preparationMinutes = preparationMinutes,
+    defaultWakeAt = defaultWakeAt,
+    actualWakeAt = actualWakeAt,
+    calendarSource = calendarSource,
+    weatherDataSource = weatherDataSource,
 )
 
 fun AlarmDecision.toEntity(): AlarmDecisionEntity = AlarmDecisionEntity(
@@ -131,9 +141,22 @@ fun AlarmDecision.toEntity(): AlarmDecisionEntity = AlarmDecisionEntity(
     weatherWindowEnd = weatherWindowEnd,
     fallbackReason = fallbackReason,
     insufficientAdvance = insufficientAdvance,
-    generatedAt = generatedAt.toLongOrNull() ?: 0L,
-    expiresAt = expiresAt.toLongOrNull() ?: 0L,
+    generatedAt = generatedAt.toEpochMillis("generatedAt"),
+    expiresAt = expiresAt.toEpochMillis("expiresAt"),
+    evaluationOutcome = evaluationOutcome,
+    failureReason = failureReason,
+    attemptNumber = attemptNumber,
+    applicationOutcome = applicationOutcome,
+    preparationMinutes = preparationMinutes,
+    defaultWakeAt = defaultWakeAt,
+    actualWakeAt = actualWakeAt,
+    calendarSource = calendarSource,
+    weatherDataSource = weatherDataSource,
 )
+
+private fun String.toEpochMillis(field: String): Long =
+    toLongOrNull() ?: runCatching { Instant.parse(this).toEpochMilli() }
+        .getOrElse { throw IllegalArgumentException("$field must be an epoch millisecond or ISO-8601 instant", it) }
 
 fun WorkdayOverrideEntity.toDomain(): WorkdayOverride = WorkdayOverride(
     planId = planId,

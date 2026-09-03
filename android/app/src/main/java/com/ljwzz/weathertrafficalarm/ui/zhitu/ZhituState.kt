@@ -15,6 +15,9 @@ import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideReposit
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
+import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
+import com.ljwzz.weathertrafficalarm.evaluation.EvaluationWorkScheduler
+import com.ljwzz.weathertrafficalarm.evaluation.EvaluationTaskState
 import com.ljwzz.weathertrafficalarm.core.map.AmapSdkController
 import com.ljwzz.weathertrafficalarm.core.map.AmapSdkInitialization
 import com.ljwzz.weathertrafficalarm.core.map.MapLocationResult
@@ -23,6 +26,8 @@ import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
+import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
+import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
@@ -70,6 +75,8 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 class ZhituViewModel @Inject constructor(
     private val coordinator: LocalAlarmCoordinator,
+    private val decisionRepository: DecisionRepository,
+    private val evaluationWorkScheduler: EvaluationWorkScheduler,
     private val calendar: WorkdayCalendarRepository,
     private val settingsStore: LocalSettingsStore,
     private val overrideRepository: WorkdayOverrideRepository,
@@ -103,6 +110,11 @@ class ZhituViewModel @Inject constructor(
 
     val occurrences = coordinator.occurrences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val decisions: StateFlow<List<AlarmDecision>> = decisionRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val evaluationTaskStates: StateFlow<Map<String, EvaluationTaskState>> = evaluationWorkScheduler.observeTaskStates()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val evaluationSchedulingError: StateFlow<String?> = evaluationWorkScheduler.schedulingError
     val dayOverrides = plans.flatMapLatest { current ->
         if (current.isEmpty()) flowOf(emptyList()) else combine(current.map { overrideRepository.observeForPlan(it.id) }) { groups -> groups.flatMap { it } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -110,7 +122,7 @@ class ZhituViewModel @Inject constructor(
     val upcomingPlans: StateFlow<List<UpcomingPlan>> = combine(coordinator.plans, coordinator.occurrences) { plans, occurrences ->
         plans.asSequence().filter { it.enabled }.mapNotNull { plan ->
             occurrences.filter { it.planId == plan.id && it.state == com.ljwzz.weathertrafficalarm.core.model.OccurrenceState.SCHEDULED }
-                .minByOrNull { it.scheduledWakeAt }?.let { occurrence -> UpcomingPlan(plan, occurrence.scheduledWakeAt) }
+                .minByOrNull { it.scheduledWakeAt }?.let { occurrence -> UpcomingPlan(plan, occurrence) }
         }.sortedBy { it.nextWakeAt }.toList()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -134,6 +146,13 @@ class ZhituViewModel @Inject constructor(
             planCommuteOverrideRepository.observeByPlanId(plan.id).map { plan.id to it }
         }) { pairs -> pairs.mapNotNull { (id, override) -> override?.let { id to it } }.toMap() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val evaluablePlanIds: StateFlow<Set<String>> = combine(plans, settings, planCommuteOverrides) { currentPlans, currentSettings, overrides ->
+        val globalCommuteConfigured = effectiveCommuteResolver.resolveGlobal(currentSettings) != null
+        currentPlans.asSequence()
+            .filter { it.enabled && (overrides.containsKey(it.id) || globalCommuteConfigured) }
+            .map(AlarmPlan::id)
+            .toSet()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     fun save(draft: EditorDraft, onSuccess: () -> Unit) {
         saveWithCompletion(draft) { success -> if (success) onSuccess() }
@@ -150,14 +169,17 @@ class ZhituViewModel @Inject constructor(
             val previous = draft.id?.let { id -> plans.value.firstOrNull { it.id == id } }
             val plan = previous?.copy(
                 name = draft.name.trim(), defaultWakeLocalTime = draft.time,
+                arrivalLocalTime = draft.arrivalLocalTime,
+                preparationMinutes = draft.preparationMinutes,
+                maxAdvanceMinutes = draft.maxAdvanceMinutes,
                 schedule = schedule, sound = previous.sound.copy(uri = draft.soundUri, title = draft.ringtone),
                 vibration = previous.vibration.copy(enabled = draft.vibration), snoozeMinutes = draft.snoozeMinutes,
                 enabled = true, armedState = AlarmArmedState.NEEDS_PERMISSION, scheduleError = null,
             ) ?: AlarmPlan(
                 id = UUID.randomUUID().toString(), revision = 0, name = draft.name.trim(), enabled = true,
                 zoneId = ZoneId.systemDefault().id, defaultWakeLocalTime = draft.time,
-                arrivalLocalTime = AlarmPlan.DEFAULT_ARRIVAL_TIME, preparationMinutes = AlarmPlan.DEFAULT_PREPARATION_MINUTES,
-                maxAdvanceMinutes = AlarmPlan.DEFAULT_MAX_ADVANCE_MINUTES, commuteMode = CommuteMode.DRIVING,
+                arrivalLocalTime = draft.arrivalLocalTime, preparationMinutes = draft.preparationMinutes,
+                maxAdvanceMinutes = draft.maxAdvanceMinutes, commuteMode = CommuteMode.DRIVING,
                 schedule = schedule, armedState = AlarmArmedState.NEEDS_PERMISSION,
                 sound = AlarmSound(uri = draft.soundUri, title = draft.ringtone), vibration = com.ljwzz.weathertrafficalarm.core.model.VibrationPattern(enabled = draft.vibration), snoozeMinutes = draft.snoozeMinutes,
             )
@@ -495,6 +517,14 @@ class ZhituViewModel @Inject constructor(
 
     fun clearError() { _error.value = null }
     fun showError(message: String) { _error.value = message }
+    fun evaluateNow(planId: String) = viewModelScope.launch {
+        if (planId !in evaluablePlanIds.value) {
+            _error.value = "请先启用闹钟并配置通勤地点"
+            return@launch
+        }
+        runCatching { evaluationWorkScheduler.evaluateNow(planId) }
+            .onFailure { _error.value = it.message ?: "无法启动自动评估" }
+    }
     private fun safe(block: suspend () -> Unit) = viewModelScope.launch { runCatching { block() }.onFailure { _error.value = it.message ?: "操作失败" } }
 
     private fun providerMessage(failure: Throwable): String = when (failure) {
@@ -589,7 +619,9 @@ enum class ZhituDestination {
     DIAGNOSTICS, HISTORY, WEATHER, RINGING, ONBOARDING, PLACE_PICKER, PLAN_COMMUTE,
 }
 
-data class UpcomingPlan(val plan: AlarmPlan, val nextWakeAt: Long)
+data class UpcomingPlan(val plan: AlarmPlan, val occurrence: AlarmOccurrence) {
+    val nextWakeAt: Long get() = occurrence.scheduledWakeAt
+}
 
 sealed interface MapStatus {
     data object NotInitialized : MapStatus
@@ -665,6 +697,9 @@ data class EditorDraft(
     val soundUri: String? = android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI.toString(),
     val vibration: Boolean = true,
     val snoozeMinutes: Int = 10,
+    val arrivalLocalTime: String = AlarmPlan.DEFAULT_ARRIVAL_TIME,
+    val preparationMinutes: Int = AlarmPlan.DEFAULT_PREPARATION_MINUTES,
+    val maxAdvanceMinutes: Int = AlarmPlan.DEFAULT_MAX_ADVANCE_MINUTES,
 )
 
 enum class RepeatChoice(val label: String) {
