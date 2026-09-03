@@ -31,7 +31,9 @@ node --test prototype/tests/*.test.mjs
 
 ## 边界
 
-- 本原型不会注册系统闹钟、响铃、振动、读取权限或打开系统设置；这些由 Android 应用的 `LocalAlarmCoordinator`、Receiver 和响铃服务实现及验收。
+Android 已接入真实基础／贪睡响铃页面，验收与 APK 见 [`原生响铃记录`](../android/qa/native-ringing-2026-09-02/README.md)。原生结果页为“返回闹钟／关闭”，与以下离线演示按钮语义分开。
+
+- 本原型不会注册系统闹钟、播放音频、振动、读取权限或实际打开系统设置；所有系统设置跳转均为离线状态演示。基础／提前响铃仅为离线交互 fixture。演示不写入 `alarmPlans`、`alarmEvents` 或 `dateOverrides`，也不发网络请求。Android 基础本地闹钟的注册、响铃、停止与贪睡由 `LocalAlarmCoordinator`、Receiver 和响铃服务实现及验收；提前 fixture 不代表自动提前已启用。
 - 凭据页面只用于本地 fixture 测试：不进行网络连接测试；彩云 App Key 和 App Secret 不在原型中采集或保存。高德演示输入仅保留当前页面会话，刷新即清空。
 - 日历页面当前按星期判定工作日。节假日数据接入、缓存和校验由 Android 实现。
 

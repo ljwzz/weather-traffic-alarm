@@ -515,14 +515,6 @@ private fun WeatherDataSource.toWeatherSourceLabel(): String = when (this) {
 }
 
 @Composable
-fun RingingScreen(occurrenceId: String?, alarmName: String = "本地闹钟", alarmTime: String = "--:--", snoozeMinutes: Int = 10, onDismiss: () -> Unit, onSnooze: () -> Unit) = Box(Modifier.fillMaxSize().background(ZhituColors.Navy)) {
-    Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("知途 · $alarmName", color = ZhituColors.Mint); Spacer(Modifier.height(60.dp)); Text(alarmTime, color = Color.White, style = MaterialTheme.typography.displayLarge); Spacer(Modifier.height(18.dp)); Text("响铃中", color = Color.White, style = MaterialTheme.typography.headlineLarge); Text(occurrenceId?.let { "闹钟已触发" } ?: "本机闹钟", color = ZhituColors.Mint) }
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { Button(onDismiss, Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = ZhituColors.Navy), shape = RoundedCornerShape(18.dp)) { Text("停止") }; Button(onSnooze, Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand), shape = RoundedCornerShape(18.dp)) { Text("贪睡 $snoozeMinutes 分钟") } }
-    }
-}
-
-@Composable
 fun OnboardingScreen(
     onGrantAmap: () -> Unit,
     onSkipAmap: () -> Unit,

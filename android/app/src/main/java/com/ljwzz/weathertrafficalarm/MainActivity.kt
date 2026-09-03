@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory
 import com.ljwzz.weathertrafficalarm.ui.zhitu.ZhituApp
+import com.ljwzz.weathertrafficalarm.ui.zhitu.ZhituDestination
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,7 +24,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
         occurrenceId = intent.showAlarmOccurrenceId()
-        setContent { ZhituApp(ringingOccurrenceId = occurrenceId) }
+        setContent {
+            ZhituApp(
+                initialDestination = if (intent.action == ACTION_OPEN_ALARM_PLANS) ZhituDestination.PLANS else ZhituDestination.HOME,
+                ringingOccurrenceId = occurrenceId,
+            )
+        }
     }
 
     override fun onResume() {
@@ -35,7 +41,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         occurrenceId = intent.showAlarmOccurrenceId()
-        if (occurrenceId != null) recreate()
+        if (occurrenceId != null || intent.action == ACTION_OPEN_ALARM_PLANS) recreate()
     }
 
     private fun Intent.showAlarmOccurrenceId(): String? =
@@ -44,4 +50,8 @@ class MainActivity : ComponentActivity() {
         } else {
             null
         }
+
+    companion object {
+        const val ACTION_OPEN_ALARM_PLANS = "com.ljwzz.weathertrafficalarm.OPEN_ALARM_PLANS"
+    }
 }

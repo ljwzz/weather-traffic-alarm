@@ -315,7 +315,14 @@ fun ZhituApp(
                     onRefresh = viewModel::refreshWeather,
                     onBack = { destination = ZhituDestination.SETTINGS },
                 )
-                ZhituDestination.RINGING -> RingingScreen(occurrenceId = ringingOccurrenceId, onDismiss = { ringingOccurrenceId?.let(viewModel::dismiss); destination = ZhituDestination.HOME }, onSnooze = { ringingOccurrenceId?.let(viewModel::snooze); destination = ZhituDestination.HOME })
+                ZhituDestination.RINGING -> {
+                    LaunchedEffect(ringingOccurrenceId) {
+                        ringingOccurrenceId?.let { id ->
+                            context.startActivity(com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory(context).createShowAlarmIntent(id))
+                        }
+                        destination = ZhituDestination.PLANS
+                    }
+                }
                 ZhituDestination.ONBOARDING -> OnboardingScreen(
                     onGrantAmap = { viewModel.setAmapConsent(true); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.CREDENTIALS },
                     onSkipAmap = { viewModel.setAmapConsent(false); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.HOME },

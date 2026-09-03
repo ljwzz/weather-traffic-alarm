@@ -8,6 +8,8 @@
 
 2026-09-03 权限引导实现、218 项提交快照单元测试，以及开发阶段 APK、233 项单元测试与权限专项设备记录见 [`权限引导验收`](./permissions-2026-09-03/README.md)。
 
+最新原生响铃界面与模拟器回归见 [`2026-09-02 原生响铃验收`](./native-ringing-2026-09-02/README.md)，小米实体手机 9 项验证见 [`2026-09-02 真机响铃记录`](./physical-ringing-2026-09-02/README.md)。下方为 2026-09-01 历史基线，不代表最新 APK 的哈希或测试数量。
+
 - 日期：2026-09-01
 - 设备：`Mi_15_Ultra` Android 36 模拟器，412 × 892 dp 竖屏
 - APK：[`app-debug.apk`](../app/build/outputs/apk/debug/app-debug.apk)
