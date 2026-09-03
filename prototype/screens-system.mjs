@@ -13,7 +13,7 @@ const escapeHTML = (value) => String(value ?? '').replace(/[&<>'"]/g, (character
  * @param {object} deps
  * @param {(file: string, alt: string, className?: string) => string} deps.asset
  * @param {object|(() => object)} deps.state Current { config, runtime } state.
- * @returns {Record<'lock' | 'island' | 'island-expand' | 'ringing', () => string>}
+ * @returns {Record<'lock' | 'island' | 'island-expand' | 'ringing' | 'ringing-basic', () => string>}
  */
 export function createSystemScreens(deps) {
   const { asset, state } = deps;
@@ -26,12 +26,12 @@ export function createSystemScreens(deps) {
     return { config: snapshot.config || snapshot, runtime: snapshot.runtime || {} };
   };
   const art = (file, alt, className = '') => asset(file, alt, `system-asset ${className}`);
-  const action = (label, name, className = '') =>
-    `<button type="button" class="system-action ${className}" data-action="${name}">${escapeHTML(label)}</button>`;
+  const action = (label, name, className = '', icon = '') =>
+    `<button type="button" class="system-action ${className}" data-action="${name}">${icon}${escapeHTML(label)}</button>`;
 
   const status = (time, light, dot, signal) => `
-    <div class="system-status ${light ? 'is-light' : ''}" aria-label="${time}">
-      <span class="system-status-time">${time}</span>
+      <div class="system-status ${light ? 'is-light' : ''}" aria-label="${escapeHTML(time)}">
+      <span class="system-status-time">${escapeHTML(time)}</span>
       ${art(dot, '', 'system-status-dot')}
       ${art(signal, '', 'system-status-signal')}
     </div>`;
@@ -131,22 +131,51 @@ export function createSystemScreens(deps) {
     },
 
     ringing() {
-      const { config, runtime } = read();
-      const baseline = escapeHTML(config.recurringPlan?.defaultWake || '07:30');
-      const snoozed = runtime.snoozed ? '<p class="system-simulation-state">已模拟贪睡，本原型未调用系统闹钟。</p>' : '';
-      const snoozeMinutes = config.preferences?.snoozeMinutes ?? 10;
-      return `<section class="system-screen system-ringing" aria-label="提前闹钟响铃模拟">
-        ${art('90efd783-558d-459e-9023-617c1323b182.svg', '提前闹钟壁纸', 'system-wallpaper')}
-        ${status('07:18', true, 'c7b6f881-64e0-4bf1-b90a-7678a3cb38f9.svg', '24b9be6c-eb1d-4f38-9995-4f633c4823bc.svg')}
+      return renderRinging('early');
+    },
+
+    'ringing-basic'() {
+      return renderRinging('basic');
+    },
+  };
+
+  function renderRinging(expectedKind) {
+      const { runtime } = read();
+      const session = runtime.ringingSession;
+      const kind = session?.kind || expectedKind;
+      const isBasic = kind === 'basic';
+      const occurrence = session?.occurrence || { date:'2026-09-02', time:isBasic ? '07:30' : '07:18' };
+      const phase = session?.phase || 'ringing';
+      const snoozeMinutes = session?.snoozeMinutes ?? 10;
+      const displayOccurrence = phase === 'snoozed' ? session.nextOccurrence : occurrence;
+      const isSnoozeRepeat = phase === 'ringing' && occurrence.sequence > 0;
+      const defaultBadge = isBasic ? '按设定时间提醒' : '今天，比平时早 12 分钟';
+      const defaultReasonTitle = isBasic ? '基础闹钟' : '今天路上有小雨';
+      const defaultReason = isBasic ? '按计划 07:30 提醒；\n不依赖天气或路线。' : '通勤约 47 分钟，建议 08:03 出发。\n慢慢准备，也能准时到达。';
+      const badge = phase === 'stopped' ? '本次响铃已停止' : phase === 'snoozed' ? `已贪睡 ${snoozeMinutes} 分钟` : isSnoozeRepeat ? '贪睡后再次响铃' : defaultBadge;
+      const reasonTitle = phase === 'stopped' ? '本次响铃仅为演示' : phase === 'snoozed' ? '下次模拟响铃' : isSnoozeRepeat ? '贪睡提醒' : defaultReasonTitle;
+      const reason = phase === 'stopped' ? '仅结束当前模拟实例；不修改已保存计划。' : phase === 'snoozed' ? `将在 ${displayOccurrence?.time} 触发新的模拟实例。` : isSnoozeRepeat ? '本次为贪睡后的模拟提醒。\n不修改已保存计划或基础闹钟。' : defaultReason;
+      const info = isBasic ? '仅操作本次模拟实例；不修改已保存计划' : '自动提前尚未启用；不修改基础闹钟';
+      const [year, month, day] = displayOccurrence.date.split('-').map(Number);
+      const weekday = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+      const dateLabel = `${Number(displayOccurrence.date.slice(5, 7))}月${Number(displayOccurrence.date.slice(8, 10))}日　${weekday}`;
+      const reasonIcon = isBasic || phase !== 'ringing' || isSnoozeRepeat ? '' : art('59798ef3-4b7c-419a-b01f-742c7587a2ba.svg', '', 'system-ringing-rain');
+      const controls = phase === 'stopped'
+        ? `<div class="system-ringing-actions">${action('返回闹钟', 'ringing-return', 'is-stop')}${action('重新演示', 'ringing-replay', 'is-snooze')}</div>`
+        : phase === 'snoozed'
+          ? `<div class="system-ringing-actions">${action('返回闹钟', 'ringing-return', 'is-stop')}${action('模拟再次响铃', 'ringing-again', 'is-snooze')}</div>`
+          : `<div class="system-ringing-actions">${action('停止', 'ringing-stop', 'is-stop')}${action(`贪睡 ${snoozeMinutes} 分钟`, 'ringing-snooze', 'is-snooze', art('c39a1de1-294e-485c-9ba3-547085e07c94.svg', '', 'system-snooze-clock'))}</div>`;
+      return `<section class="system-screen system-ringing" aria-label="${isBasic ? '基础' : '提前'}闹钟响铃模拟">
+        ${art('90efd783-558d-459e-9023-617c1323b182.svg', '', 'system-wallpaper')}
+        ${status(displayOccurrence.time, false, 'c7b6f881-64e0-4bf1-b90a-7678a3cb38f9.svg', '24b9be6c-eb1d-4f38-9995-4f633c4823bc.svg')}
         <div class="system-ringing-body">
-          <header>${art('bda1ff1c-5875-4d86-89d5-d5e2340fdb6a.svg', '', 'system-ringing-clock')}<b>知途 · 提前闹钟</b></header>
-          <div class="system-ringing-time"><span>8月27日&nbsp; 星期四</span><time>07:18</time><b>今天，比平时早 12 分钟</b></div>
-          <article class="system-ringing-reason"><h2>${art('59798ef3-4b7c-419a-b01f-742c7587a2ba.svg', '', 'system-ringing-rain')}今天路上有小雨</h2><p>通勤约 47 分钟，建议 08:03 出发。<br>慢慢准备，也能准时到达。</p></article>
-          <div class="system-ringing-actions">${action('停止', 'system-stop-alarm', 'is-stop')}${action(`贪睡 ${snoozeMinutes} 分钟`, 'system-snooze-alarm', 'is-snooze')}${snoozed}</div>
-          <p class="system-ringing-foot">仅停止本次提前闹钟<br>系统时钟的 ${baseline} 闹钟仍保持原设置</p>
+          <header>${art('bda1ff1c-5875-4d86-89d5-d5e2340fdb6a.svg', '', 'system-ringing-clock')}<b>知途 · ${isBasic ? '基础闹钟' : '提前闹钟'}</b></header>
+          <div class="system-ringing-time"><span>${escapeHTML(dateLabel)}</span><time>${escapeHTML(displayOccurrence.time)}</time><b>${escapeHTML(badge)}</b></div>
+          <article class="system-ringing-reason"><h2>${reasonIcon}${escapeHTML(reasonTitle)}</h2><p>${escapeHTML(reason).replaceAll('\n', '<br>')}</p></article>
+          ${controls}
+          <p class="system-ringing-foot">离线交互演示 · 不播放声音或振动<br>${info}</p>
         </div>
         ${gesture(true)}
       </section>`;
-    },
-  };
+  }
 }

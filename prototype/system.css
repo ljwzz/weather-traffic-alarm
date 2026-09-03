@@ -101,5 +101,7 @@
 .system-ringing-actions { display: flex; flex-direction: column; gap: 12px; width: 364px; margin-top: 104px; }
 .system-ringing-actions .system-action { width: 364px; height: 64px; border: 0; border-radius: 16px; background: #fff; color: #007f78; font-size: 20px; font-weight: 500; line-height: 28px; }
 .system-ringing-actions .is-snooze { height: 56px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font-size: 15px; line-height: 22px; }
+.system-ringing-actions .is-snooze { display:flex; align-items:center; justify-content:center; gap:8px; }
+.system-snooze-clock { width:18px; height:18px; }
 .system-simulation-state { margin: -4px 0 0; color: #c5dfde; text-align: center; font-size: 10px; line-height: 14px; }
 .system-ringing-foot { margin: 20px 0 0; color: #c5dfde; text-align: center; font-size: 11px; line-height: 16px; }
