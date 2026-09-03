@@ -1,5 +1,7 @@
 # Web 原型验证记录
 
+2026-09-03 通用 Android／小米权限引导、39 项提交快照测试及开发验收截图见 [权限原型验收](./permissions-2026-09-03/README.md)，33 个 Figma 场景与 109 条关键连接见 [设计校验](./permissions-2026-09-03/figma-qa.md)。
+
 日期：2026-08-31。对象为 `prototype/`，不构成 Android 系统能力验收。
 
 ## 自动化检查

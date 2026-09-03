@@ -3,6 +3,7 @@
 @import url("./alarm.css");
 @import url("./system.css");
 @import url("./support.css");
+@import url("./permissions.css");
 
 :root {
   --bg:#f7f9fa; --surface:#fff; --ink:#172d3c; --muted:#647782; --subtle:#8a9aa3;
