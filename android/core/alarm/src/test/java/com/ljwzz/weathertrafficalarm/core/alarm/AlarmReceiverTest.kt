@@ -38,4 +38,53 @@ class AlarmReceiverTest {
             AlarmReceiver.triggerHandling(snapshot, snapshot.triggerAtMillis + AlarmReceiver.LATE_TRIGGER_WINDOW_MILLIS + 1L),
         )
     }
+
+    @Test
+    fun ringingActionGateAllowsOnlyTheCurrentFiringSnapshot() {
+        assertEquals(
+            true,
+            AlarmReceiver.canApplyRingingAction(
+                snapshot.copy(occurrenceState = AlarmReceiver.STATE_FIRING),
+            ),
+        )
+        assertEquals(false, AlarmReceiver.canApplyRingingAction(snapshot))
+        assertEquals(
+            false,
+            AlarmReceiver.canApplyRingingAction(
+                snapshot.copy(occurrenceState = AlarmReceiver.STATE_SNOOZED),
+            ),
+        )
+        assertEquals(
+            false,
+            AlarmReceiver.canApplyRingingAction(
+                snapshot.copy(occurrenceState = AlarmReceiver.STATE_DISMISSED),
+            ),
+        )
+    }
+
+    @Test
+    fun snoozeChildDoesNotInheritParentActionFailureReceipt() {
+        val parent = snapshot.copy(
+            occurrenceState = AlarmReceiver.STATE_FIRING,
+            snoozeCount = 2,
+            actionRevision = 7,
+            actionError = "贪睡未能注册，请重试或停止闹钟",
+        )
+
+        val child = AlarmReceiver.createSnoozeSnapshot(
+            snapshot = parent,
+            nowMillis = 2_000_000L,
+            occurrenceId = "snooze-3",
+        )
+
+        assertEquals("snooze-3", child.occurrenceId)
+        assertEquals(parent.occurrenceId, child.parentOccurrenceId)
+        assertEquals(parent.planRevision, child.planRevision)
+        assertEquals(2_600_000L, child.triggerAtMillis)
+        assertEquals("SNOOZE", child.occurrenceKind)
+        assertEquals(AlarmReceiver.STATE_SCHEDULED, child.occurrenceState)
+        assertEquals(3, child.snoozeCount)
+        assertEquals(0L, child.actionRevision)
+        assertEquals(null, child.actionError)
+    }
 }

@@ -33,10 +33,13 @@ class AlarmReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val store = NextAlarmSnapshotStore(context.applicationContext)
-                val snapshot = store.getByOccurrenceId(occurrenceId) ?: return@launch
                 val action = intent.getStringExtra(PendingIntentFactory.EXTRA_ACTION)
                 val unlocked = context.getSystemService(UserManager::class.java).isUserUnlocked
                 directBootMutex.withLock {
+                    // Read under the same lock as state transition. Otherwise two
+                    // rapid snooze broadcasts can both observe FIRING and create
+                    // separate children before either writes SNOOZED.
+                    val snapshot = store.getByOccurrenceId(occurrenceId) ?: return@withLock
                     when (action) {
                     AlarmAction.ALARM.path -> {
                         when (triggerHandling(snapshot)) {
@@ -57,12 +60,16 @@ class AlarmReceiver : BroadcastReceiver() {
                         }
                     }
                     AlarmAction.DISMISS.path -> {
-                        if (unlocked) coordinator(context).dismiss(snapshot.occurrenceId)
-                        else handleDismiss(context, store, snapshot)
+                        if (canApplyRingingAction(snapshot)) {
+                            if (unlocked) coordinator(context).dismiss(snapshot.occurrenceId)
+                            else handleDismiss(context, store, snapshot)
+                        }
                     }
                     AlarmAction.SNOOZE.path -> {
-                        if (unlocked) coordinator(context).snooze(snapshot.occurrenceId)
-                        else handleSnooze(context, store, snapshot)
+                        if (canApplyRingingAction(snapshot)) {
+                            if (unlocked) coordinator(context).snooze(snapshot.occurrenceId)
+                            else handleSnooze(context, store, snapshot)
+                        }
                     }
                     }
                 }
@@ -90,7 +97,7 @@ class AlarmReceiver : BroadcastReceiver() {
         snapshot: NextAlarmSnapshot,
     ) {
         if (snapshot.occurrenceState != STATE_FIRING) return
-        store.save(snapshot.copy(occurrenceState = STATE_DISMISSED))
+        store.save(snapshot.withActionReceipt(STATE_DISMISSED))
         context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_DISMISS, snapshot))
     }
 
@@ -106,27 +113,33 @@ class AlarmReceiver : BroadcastReceiver() {
             PendingIntentFactory(context.applicationContext),
             store,
         )
-        val next = snapshot.copy(
+        val next = createSnoozeSnapshot(
+            snapshot = snapshot,
+            nowMillis = System.currentTimeMillis(),
             occurrenceId = UUID.randomUUID().toString(),
-            triggerAtMillis = System.currentTimeMillis() + snapshot.snoozeMinutes * 60_000L,
-            occurrenceKind = "SNOOZE",
-            parentOccurrenceId = snapshot.occurrenceId,
-            occurrenceState = STATE_SCHEDULED,
-            snoozeCount = snapshot.snoozeCount + 1,
-            firedAtMillis = null,
         )
         store.save(next)
         when (scheduler.schedule(next)) {
             AlarmRegistrationResult.Registered -> {
-                store.save(snapshot.copy(occurrenceState = STATE_SNOOZED))
+                store.save(snapshot.withActionReceipt(STATE_SNOOZED))
                 context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_SNOOZE, snapshot))
             }
             is AlarmRegistrationResult.Rejected -> {
                 // Keep the original ringing when the child could not be armed.
                 store.removeOccurrence(next.occurrenceId)
+                store.save(snapshot.withActionReceipt(STATE_FIRING, SNOOZE_RETRY_MESSAGE))
             }
         }
     }
+
+    private fun NextAlarmSnapshot.withActionReceipt(
+        occurrenceState: String,
+        actionError: String? = null,
+    ): NextAlarmSnapshot = copy(
+        occurrenceState = occurrenceState,
+        actionRevision = actionRevision + 1,
+        actionError = actionError,
+    )
 
     companion object {
         const val ACTION_ALARM = "alarm"
@@ -141,6 +154,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
         const val LATE_TRIGGER_WINDOW_MILLIS = 10 * 60_000L
         private const val EARLY_TRIGGER_TOLERANCE_MILLIS = 60_000L
+        const val SNOOZE_RETRY_MESSAGE = "贪睡未能注册，请重试或停止闹钟"
         private val directBootMutex = Mutex()
 
         fun startRinging(context: Context, snapshot: NextAlarmSnapshot) {
@@ -160,6 +174,33 @@ class AlarmReceiver : BroadcastReceiver() {
             now > snapshot.triggerAtMillis + LATE_TRIGGER_WINDOW_MILLIS -> AlarmHandling.MISSED
             else -> AlarmHandling.TRIGGERED
         }
+
+        /**
+         * Notification and full-screen actions are admitted only for the
+         * currently ringing snapshot. The state is read under [directBootMutex]
+         * before this guard runs, so a queued second action cannot undo a
+         * successful snooze or stop.
+         */
+        internal fun canApplyRingingAction(snapshot: NextAlarmSnapshot): Boolean =
+            snapshot.occurrenceState == STATE_FIRING
+
+        /** A snooze is a new occurrence and must not inherit parent action feedback. */
+        internal fun createSnoozeSnapshot(
+            snapshot: NextAlarmSnapshot,
+            nowMillis: Long,
+            occurrenceId: String,
+        ): NextAlarmSnapshot = snapshot.copy(
+            occurrenceId = occurrenceId,
+            triggerAtMillis = nowMillis + snapshot.snoozeMinutes * 60_000L,
+            occurrenceKind = "SNOOZE",
+            decisionId = null,
+            parentOccurrenceId = snapshot.occurrenceId,
+            occurrenceState = STATE_SCHEDULED,
+            snoozeCount = snapshot.snoozeCount + 1,
+            firedAtMillis = null,
+            actionRevision = 0,
+            actionError = null,
+        )
 
         internal suspend fun <T> withDirectBootLock(block: suspend () -> T): T = directBootMutex.withLock { block() }
     }

@@ -246,13 +246,18 @@ class LocalAlarmCoordinator @Inject constructor(
     suspend fun dismiss(occurrenceId: String): Boolean = mutex.withLock {
         val occurrence = occurrenceRepository.getById(occurrenceId) ?: return false
         if (occurrence.state == OccurrenceState.DISMISSED) return@withLock true
-        if (occurrence.state !in setOf(OccurrenceState.FIRING, OccurrenceState.SNOOZED, OccurrenceState.SCHEDULED)) return false
+        // UI actions and the ringing timeout may only end the occurrence that
+        // is actively sounding. In particular, do not overwrite SNOOZED after
+        // its child has registered successfully.
+        if (occurrence.state != OccurrenceState.FIRING) return false
         occurrenceRepository.updateState(occurrenceId, OccurrenceState.DISMISSED.name, System.currentTimeMillis())
         val snapshot = snapshotStore.getByOccurrenceId(occurrenceId)
-        snapshot?.let {
-            snapshotStore.save(it.copy(occurrenceState = AlarmReceiver.STATE_DISMISSED))
-        }
+        val receipt = snapshot?.withActionReceipt(AlarmReceiver.STATE_DISMISSED)
         scheduler.cancelOccurrence(occurrenceId)
+        // cancelOccurrence removes the Direct-Boot snapshot. Restore the small
+        // terminal receipt so a full-screen surface can confirm the stop after
+        // its PendingIntent returns, including across Activity recreation.
+        receipt?.let { snapshotStore.save(it) }
         snapshot?.let {
             context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_DISMISS, it))
         }
@@ -268,6 +273,7 @@ class LocalAlarmCoordinator @Inject constructor(
 
         val child = createSnoozeOccurrence(plan, parent)
         val snapshot = snapshot(plan, child)
+        val parentSnapshot = snapshotStore.getByOccurrenceId(parent.occurrenceId)
         occurrenceRepository.save(child)
         snapshotStore.save(snapshot)
         return when (val result = scheduler.schedule(snapshot)) {
@@ -275,8 +281,8 @@ class LocalAlarmCoordinator @Inject constructor(
                 occurrenceRepository.updateState(parent.occurrenceId, OccurrenceState.SNOOZED.name, System.currentTimeMillis())
                 occurrenceRepository.updateState(child.occurrenceId, OccurrenceState.SCHEDULED.name, System.currentTimeMillis())
                 snapshotStore.save(snapshot.copy(occurrenceState = AlarmReceiver.STATE_SCHEDULED))
-                snapshotStore.getByOccurrenceId(parent.occurrenceId)?.let {
-                    snapshotStore.save(it.copy(occurrenceState = AlarmReceiver.STATE_SNOOZED))
+                parentSnapshot?.let {
+                    snapshotStore.save(it.withActionReceipt(AlarmReceiver.STATE_SNOOZED))
                     context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_SNOOZE, it))
                 }
                 eventRepository.record(plan.id, parent.occurrenceId, AlarmEventType.SNOOZED, "已稍后 ${plan.snoozeMinutes} 分钟")
@@ -285,6 +291,14 @@ class LocalAlarmCoordinator @Inject constructor(
             is AlarmRegistrationResult.Rejected -> {
                 occurrenceRepository.updateState(child.occurrenceId, OccurrenceState.FAILED.name, System.currentTimeMillis())
                 snapshotStore.removeOccurrence(child.occurrenceId)
+                parentSnapshot?.let {
+                    snapshotStore.save(
+                        it.withActionReceipt(
+                            occurrenceState = AlarmReceiver.STATE_FIRING,
+                            actionError = AlarmReceiver.SNOOZE_RETRY_MESSAGE,
+                        ),
+                    )
+                }
                 eventRepository.record(plan.id, child.occurrenceId, AlarmEventType.REGISTRATION_FAILED, registrationMessage(result))
                 false
             }
@@ -816,6 +830,15 @@ class LocalAlarmCoordinator @Inject constructor(
         RegistrationFailure.NOTIFICATIONS_DISABLED -> "通知权限不可用"
         RegistrationFailure.PLATFORM_REJECTED -> "系统拒绝注册闹钟"
     }
+
+    private fun NextAlarmSnapshot.withActionReceipt(
+        occurrenceState: String,
+        actionError: String? = null,
+    ): NextAlarmSnapshot = copy(
+        occurrenceState = occurrenceState,
+        actionRevision = actionRevision + 1,
+        actionError = actionError,
+    )
 
     private companion object {
         const val RECEIVER_EARLY_TOLERANCE_MILLIS = 60_000L

@@ -35,6 +35,20 @@ class NextAlarmSnapshotStoreTest {
     }
 
     @Test
+    fun legacySnapshotJsonUsesDefaultActionReceiptFields() {
+        val legacy = """
+            {"occurrenceId":"occ-1","planId":"plan-1","planRevision":1,
+             "triggerAtMillis":1000,"soundUri":null,"vibrationEnabled":true,
+             "snoozeMinutes":10}
+        """.trimIndent()
+
+        val restored = json.decodeFromString<NextAlarmSnapshot>(legacy)
+
+        assertEquals(0L, restored.actionRevision)
+        assertEquals(null, restored.actionError)
+    }
+
+    @Test
     fun snapshotToStringDoesNotContainCoordinates() {
         val snapshot = NextAlarmSnapshot(
             occurrenceId = "occ-1",
@@ -90,5 +104,26 @@ class NextAlarmSnapshotStoreTest {
         assertEquals("regular-1", restored.parentOccurrenceId)
         assertEquals(2, restored.snoozeCount)
         assertEquals("SCHEDULED", restored.occurrenceState)
+    }
+
+    @Test
+    fun actionReceiptFieldsRoundTripWithoutSensitiveDetails() {
+        val snapshot = NextAlarmSnapshot(
+            occurrenceId = "occ-1",
+            planId = "plan-1",
+            planRevision = 1,
+            triggerAtMillis = 1_000L,
+            soundUri = null,
+            vibrationEnabled = true,
+            snoozeMinutes = 10,
+            occurrenceState = "FIRING",
+            actionRevision = 3,
+            actionError = "贪睡未能注册，请重试或停止闹钟",
+        )
+
+        val restored = json.decodeFromString<NextAlarmSnapshot>(json.encodeToString(snapshot))
+
+        assertEquals(3L, restored.actionRevision)
+        assertEquals("贪睡未能注册，请重试或停止闹钟", restored.actionError)
     }
 }

@@ -48,13 +48,13 @@ class PendingIntentFactoryTest {
         assertPendingIntent(
             factory.findPendingIntent(occurrenceId, AlarmAction.DISMISS, StubReceiver::class.java),
             isBroadcast = true,
-            isOneShot = true,
+            isOneShot = false,
             componentClass = StubReceiver::class.java,
         )
         assertPendingIntent(
             factory.findPendingIntent(occurrenceId, AlarmAction.SNOOZE, StubReceiver::class.java),
             isBroadcast = true,
-            isOneShot = true,
+            isOneShot = false,
             componentClass = StubReceiver::class.java,
         )
         assertPendingIntent(

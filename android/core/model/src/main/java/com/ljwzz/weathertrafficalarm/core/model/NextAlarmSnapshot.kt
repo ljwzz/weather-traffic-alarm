@@ -28,6 +28,14 @@ data class NextAlarmSnapshot(
     val occurrenceState: String = "SCHEDULED",
     val snoozeCount: Int = 0,
     val firedAtMillis: Long? = null,
+    /**
+     * Monotonically increases when a user-visible stop or snooze action has a
+     * durable outcome. It lets the Direct-Boot-safe ringing Activity confirm a
+     * result without opening credential-protected Room storage.
+     */
+    val actionRevision: Long = 0,
+    /** Static, safe-to-display action feedback; never persist platform errors. */
+    val actionError: String? = null,
     /** Logical wake date; may differ from trigger date when an advance crosses midnight. */
     val targetDate: String? = null,
     /** Baseline regular wake instant for Direct-Boot display of an advance occurrence. */

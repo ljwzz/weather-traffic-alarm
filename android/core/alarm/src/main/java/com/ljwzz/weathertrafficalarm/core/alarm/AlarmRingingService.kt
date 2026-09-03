@@ -79,10 +79,13 @@ class AlarmRingingService : Service() {
                         .coordinator()
                         .dismiss(snapshot.occurrenceId)
                 } else {
-                    NextAlarmSnapshotStore(applicationContext).getByOccurrenceId(snapshot.occurrenceId)?.let { stored ->
-                        NextAlarmSnapshotStore(applicationContext).save(
-                            stored.copy(occurrenceState = AlarmReceiver.STATE_DISMISSED),
-                        )
+                    val store = NextAlarmSnapshotStore(applicationContext)
+                    AlarmReceiver.withDirectBootLock {
+                        store.getByOccurrenceId(snapshot.occurrenceId)
+                            ?.takeIf { stored -> canTimeoutDismiss(stored) }
+                            ?.let { stored ->
+                                store.save(stored.copy(occurrenceState = AlarmReceiver.STATE_DISMISSED))
+                            }
                     }
                 }
             }
@@ -290,6 +293,9 @@ class AlarmRingingService : Service() {
 
         private fun notificationId(occurrenceId: String): Int =
             10_000 + (occurrenceId.hashCode() and 0x0FFF_FFFF)
+
+        internal fun canTimeoutDismiss(snapshot: NextAlarmSnapshot): Boolean =
+            snapshot.occurrenceState == AlarmReceiver.STATE_FIRING
 
     }
 
