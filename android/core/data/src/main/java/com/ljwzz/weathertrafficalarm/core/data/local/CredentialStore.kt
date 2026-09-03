@@ -142,6 +142,25 @@ class CredentialStore internal constructor(
     }
 
     /**
+     * Replaces every credential with [input]. Blank values explicitly clear their field.
+     * Caiyun connection-test metadata is reset because an imported credential must be tested
+     * on this device, even when its values happen to match the previously stored candidate.
+     */
+    suspend fun replace(input: CredentialInput) {
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val replacement = input.replacement()
+                if (replacement.hasNoCredentials()) {
+                    storage.clear()
+                    publish(null, storageError = false)
+                } else {
+                    writeStored(replacement)
+                }
+            }
+        }
+    }
+
+    /**
      * Stores only a successfully tested Caiyun candidate and preserves all AMap values.
      * A failed candidate must use [recordCaiyunTestFailure] and cannot replace a working key.
      */
@@ -288,6 +307,18 @@ class CredentialStore internal constructor(
         )
     }
 
+    private fun CredentialInput.replacement(): StoredCredentials = StoredCredentials(
+        amapWebKey = amapWebKey.trim().takeIf(String::isNotEmpty),
+        amapSdkKey = amapSdkKey.trim().takeIf(String::isNotEmpty),
+        caiyunAppKey = caiyunAppKey.trim().takeIf(String::isNotEmpty),
+        caiyunSecret = caiyunSecret.trim().takeIf(String::isNotEmpty),
+        caiyunLastTestedAtEpochMillis = null,
+        caiyunTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
+    )
+
+    private fun StoredCredentials.hasNoCredentials(): Boolean =
+        amapWebKey == null && amapSdkKey == null && caiyunAppKey == null && caiyunSecret == null
+
     private companion object {
         val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
     }
@@ -330,8 +361,8 @@ internal class NoBackupCredentialStorage(context: Context) : CredentialStorage {
     }
 
     override fun clear() {
-        if (file.exists() && !file.delete()) throw IOException("Unable to clear credentials")
         if (temporary.exists() && !temporary.delete()) throw IOException("Unable to clear credential temporary file")
+        if (file.exists() && !file.delete()) throw IOException("Unable to clear credentials")
     }
 
     private companion object {

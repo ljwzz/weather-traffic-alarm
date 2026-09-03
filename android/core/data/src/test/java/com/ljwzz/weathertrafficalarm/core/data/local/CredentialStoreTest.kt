@@ -46,6 +46,113 @@ class CredentialStoreTest {
     }
 
     @Test
+    fun replaceOverwritesEveryCredentialAndIsRetainedAfterReopen() = runTest {
+        val storage = MemoryStorage()
+        val store = CredentialStore(storage, PlaintextCipher, backgroundScope)
+        store.save(
+            CredentialInput(
+                amapWebKey = "old-web",
+                amapSdkKey = "old-sdk",
+                caiyunAppKey = "old-caiyun",
+                caiyunSecret = "old-secret",
+            ),
+        )
+
+        store.replace(
+            CredentialInput(
+                amapWebKey = " new-web ",
+                amapSdkKey = "new-sdk",
+                caiyunAppKey = "new-caiyun",
+                caiyunSecret = "new-secret",
+            ),
+        )
+
+        val reopened = CredentialStore(storage, PlaintextCipher, backgroundScope)
+        val credentials = reopened.credentialsForServiceUse()
+        assertEquals("new-web", credentials?.amapWebKey)
+        assertEquals("new-sdk", credentials?.amapSdkKey)
+        assertEquals("new-caiyun", credentials?.caiyunAppKey)
+        assertEquals("new-secret", credentials?.caiyunSecret)
+    }
+
+    @Test
+    fun replaceClearsBlankOrMissingFieldsAndResetsCaiyunMetadata() = runTest {
+        val storage = MemoryStorage()
+        val store = CredentialStore(storage, PlaintextCipher, backgroundScope)
+        store.save(CredentialInput(amapWebKey = "old-web", amapSdkKey = "old-sdk"))
+        store.saveVerifiedCaiyun(CaiyunCredentialInput("caiyun-key", "caiyun-secret"), testedAtEpochMillis = 123L)
+
+        store.replace(
+            CredentialInput(
+                amapWebKey = "new-web",
+                amapSdkKey = "  ",
+                caiyunAppKey = "caiyun-key",
+                caiyunSecret = "caiyun-secret",
+            ),
+        )
+
+        val credentials = store.credentialsForServiceUse()
+        assertEquals("new-web", credentials?.amapWebKey)
+        assertNull(credentials?.amapSdkKey)
+        assertEquals("caiyun-key", credentials?.caiyunAppKey)
+        assertEquals("caiyun-secret", credentials?.caiyunSecret)
+        assertEquals(CaiyunConnectionTestResult.NEVER_TESTED, store.state.value.caiyunTestResult)
+        assertNull(store.state.value.caiyunLastTestedAtEpochMillis)
+    }
+
+    @Test
+    fun replaceAllBlankCredentialsClearsPersistedStorage() = runTest {
+        val storage = MemoryStorage()
+        val store = CredentialStore(storage, PlaintextCipher, backgroundScope)
+        store.save(CredentialInput(amapWebKey = "web-key", caiyunAppKey = "caiyun-key", caiyunSecret = "caiyun-secret"))
+
+        store.replace(CredentialInput())
+
+        assertNull(storage.value)
+        assertNull(store.credentialsForServiceUse())
+        assertFalse(store.state.value.hasAmapWebKey)
+        assertFalse(store.state.value.hasCaiyunAppKey)
+        assertEquals(CaiyunConnectionTestResult.NEVER_TESTED, store.state.value.caiyunTestResult)
+    }
+
+    @Test
+    fun failedReplaceWriteOrEncryptionKeepsPreviousPersistentCredentials() = runTest {
+        val storage = MemoryStorage()
+        val store = CredentialStore(storage, PlaintextCipher, backgroundScope)
+        store.save(CredentialInput(amapWebKey = "old-web"))
+        storage.failWrites = true
+
+        val writeFailure = runCatching { store.replace(CredentialInput(amapWebKey = "new-web")) }.exceptionOrNull()
+
+        assertEquals("write failure", writeFailure?.message)
+        assertTrue(store.state.value.hasAmapWebKey)
+        assertEquals("old-web", CredentialStore(storage, PlaintextCipher, backgroundScope).credentialsForServiceUse()?.amapWebKey)
+
+        storage.failWrites = false
+        val failingCipherStore = CredentialStore(storage, FailingEncryptCipher, backgroundScope)
+        failingCipherStore.maskedValues()
+        val encryptionFailure = runCatching { failingCipherStore.replace(CredentialInput(amapWebKey = "newer-web")) }.exceptionOrNull()
+
+        assertEquals("encryption failure", encryptionFailure?.message)
+        assertTrue(failingCipherStore.state.value.hasAmapWebKey)
+        assertEquals("old-web", CredentialStore(storage, PlaintextCipher, backgroundScope).credentialsForServiceUse()?.amapWebKey)
+    }
+
+    @Test
+    fun failedReplaceClearKeepsPreviousPersistentCredentials() = runTest {
+        val storage = MemoryStorage()
+        val store = CredentialStore(storage, PlaintextCipher, backgroundScope)
+        store.save(CredentialInput(amapWebKey = "old-web"))
+        storage.failClear = true
+
+        val failure = runCatching { store.replace(CredentialInput()) }.exceptionOrNull()
+
+        assertEquals("clear failure", failure?.message)
+        assertEquals("old-web", CredentialStore(storage, PlaintextCipher, backgroundScope).credentialsForServiceUse()?.amapWebKey)
+        assertTrue(store.state.value.hasAmapWebKey)
+    }
+
+    @Test
     fun verifiedCaiyunSavePreservesAmapAndRecordsPassedMetadata() = runTest {
         val storage = MemoryStorage()
         val store = CredentialStore(storage, PlaintextCipher, backgroundScope)
@@ -204,6 +311,12 @@ class CredentialStoreTest {
             iv = "test",
             ciphertext = plaintext.decodeToString(),
         )
+
+        override fun decrypt(payload: EncryptedPayload): String = payload.ciphertext
+    }
+
+    private object FailingEncryptCipher : CredentialCipher {
+        override fun encrypt(plaintext: ByteArray): EncryptedPayload = error("encryption failure")
 
         override fun decrypt(payload: EncryptedPayload): String = payload.ciphertext
     }
