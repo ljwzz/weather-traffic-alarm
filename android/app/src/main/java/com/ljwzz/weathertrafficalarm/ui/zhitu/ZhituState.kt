@@ -136,6 +136,10 @@ class ZhituViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun save(draft: EditorDraft, onSuccess: () -> Unit) {
+        saveWithCompletion(draft) { success -> if (success) onSuccess() }
+    }
+
+    fun saveWithCompletion(draft: EditorDraft, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             runCatching {
             val schedule = when (draft.repeat) {
@@ -158,11 +162,19 @@ class ZhituViewModel @Inject constructor(
                 sound = AlarmSound(uri = draft.soundUri, title = draft.ringtone), vibration = com.ljwzz.weathertrafficalarm.core.model.VibrationPattern(enabled = draft.vibration), snoozeMinutes = draft.snoozeMinutes,
             )
             coordinator.save(plan)
-            }.onSuccess { onSuccess() }.onFailure { _error.value = it.message ?: "保存闹钟失败" }
+            }.onSuccess { onComplete(true) }.onFailure {
+                _error.value = it.message ?: "保存闹钟失败"
+                onComplete(false)
+            }
         }
     }
 
     fun setEnabled(planId: String, enabled: Boolean) = safe { coordinator.setEnabled(planId, enabled) }
+    fun setEnabledWithCompletion(planId: String, enabled: Boolean, onComplete: (Boolean) -> Unit) = viewModelScope.launch {
+        runCatching { coordinator.setEnabled(planId, enabled) }
+            .onSuccess { onComplete(true) }
+            .onFailure { _error.value = it.message ?: "更新闹钟失败"; onComplete(false) }
+    }
     fun delete(planId: String) = safe { coordinator.delete(planId) }
     fun dismiss(occurrenceId: String) = safe { coordinator.dismiss(occurrenceId) }
     fun snooze(occurrenceId: String) = safe { coordinator.snooze(occurrenceId) }
@@ -292,14 +304,22 @@ class ZhituViewModel @Inject constructor(
             .onFailure { failure -> _placePickerState.update { it.copy(loading = false, message = providerMessage(failure)) } }
     }
 
-    fun locateCurrentPlace(context: Context) = viewModelScope.launch {
+    fun locateCurrentPlace(context: Context, onComplete: () -> Unit = {}) = viewModelScope.launch {
         _placePickerState.update { it.copy(loading = true, message = null) }
-        when (val location = amapSdk.locateOnce(context)) {
-            is MapLocationResult.Success -> selectMapPoint(location.point)
-            MapLocationResult.PermissionDenied -> _placePickerState.update { it.copy(loading = false, message = "未获得位置权限") }
-            MapLocationResult.Timeout -> _placePickerState.update { it.copy(loading = false, message = "定位超时") }
-            MapLocationResult.InitializationRequired -> _placePickerState.update { it.copy(loading = false, message = "地图尚未初始化") }
-            MapLocationResult.Unavailable -> _placePickerState.update { it.copy(loading = false, message = "当前位置不可用") }
+        try {
+            when (val location = amapSdk.locateOnce(context)) {
+                is MapLocationResult.Success -> selectMapPoint(location.point).join()
+                MapLocationResult.PermissionDenied -> _placePickerState.update { it.copy(loading = false, message = "未获得位置权限") }
+                MapLocationResult.Timeout -> _placePickerState.update { it.copy(loading = false, message = "定位超时") }
+                MapLocationResult.InitializationRequired -> _placePickerState.update { it.copy(loading = false, message = "地图尚未初始化") }
+                MapLocationResult.Unavailable -> _placePickerState.update { it.copy(loading = false, message = "当前位置不可用") }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            _placePickerState.update { it.copy(loading = false, message = "当前位置不可用，请检查定位权限和服务后重试") }
+        } finally {
+            onComplete()
         }
     }
 

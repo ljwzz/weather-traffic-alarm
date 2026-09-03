@@ -1,6 +1,8 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,11 +37,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +56,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ljwzz.weathertrafficalarm.core.data.preferences.FavoritePlace
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
@@ -64,6 +72,7 @@ fun ZhituApp(
     initialDestination: ZhituDestination = ZhituDestination.HOME,
     ringingOccurrenceId: String? = null,
     viewModel: ZhituViewModel = hiltViewModel(),
+    permissionViewModel: AlarmPermissionViewModel = viewModel(),
 ) {
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val upcomingPlans by viewModel.upcomingPlans.collectAsStateWithLifecycle()
@@ -81,9 +90,64 @@ fun ZhituApp(
     val planCommuteEditor by viewModel.planCommuteEditor.collectAsStateWithLifecycle()
     val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var destination by remember { mutableStateOf(if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING) }
-    var initialized by remember { mutableStateOf(false) }
-    var editorDraft by remember { mutableStateOf(EditorDraft()) }
+    if (!permissionViewModel.navigationInitialized || permissionViewModel.entryOccurrenceId != ringingOccurrenceId || permissionViewModel.entryDestination != initialDestination) {
+        permissionViewModel.destination = if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING
+        permissionViewModel.navigationInitialized = true
+        permissionViewModel.entryOccurrenceId = ringingOccurrenceId
+        permissionViewModel.entryDestination = initialDestination
+        permissionViewModel.cancel()
+    }
+    var destination by permissionViewModel::destination
+    var initialized by permissionViewModel::initialized
+    var editorDraft by permissionViewModel::editorDraft
+    val permissionAccess = remember(context) { PermissionAccess(context) }
+    var permissionSnapshot by remember { mutableStateOf(permissionAccess.read()) }
+    var settingsMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var notificationRequested by rememberSaveable { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    fun refreshPermissions() { permissionSnapshot = permissionAccess.read() }
+    fun openPermissionSettings(setting: PermissionSetting) {
+        settingsMessage = when (permissionAccess.openSettings(setting)) {
+            SettingsLaunchResult.Opened -> null
+            is SettingsLaunchResult.FallbackOpened -> "专项设置入口不可用，已打开备用系统页面。请查找对应权限；若未找到，可返回继续。"
+            is SettingsLaunchResult.Unavailable -> "系统设置入口不可用或未找到。请手动打开系统设置中的本应用权限页；仍可返回继续。"
+        }
+    }
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        refreshPermissions()
+        settingsMessage = if (granted) null else "通知权限未开启，可再次点按“去设置”手动开启；仍可返回继续。"
+    }
+    val requestNotification: () -> Unit = {
+        refreshPermissions()
+        if (!permissionSnapshot.notificationRuntimeGranted && !notificationRequested) {
+            notificationRequested = true
+            runCatching { notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+                .onFailure { openPermissionSettings(PermissionSetting.Notifications) }
+        } else openPermissionSettings(PermissionSetting.Notifications)
+    }
+    fun returnFromDiagnostics() {
+        refreshPermissions()
+        if (permissionViewModel.flow.phase == AlarmEnablePhase.Checking) {
+            destination = if (permissionViewModel.flow.pending is AlarmEnableAction.Save) ZhituDestination.EDITOR else ZhituDestination.PLANS
+            permissionViewModel.returnFromCheck()
+        } else destination = ZhituDestination.SETTINGS
+    }
+    DisposableEffect(lifecycleOwner, permissionAccess) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refreshPermissions() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(permissionViewModel.flow.phase) {
+        when (permissionViewModel.flow.phase) {
+            AlarmEnablePhase.Ready -> when (val action = permissionViewModel.takeAction()) {
+                is AlarmEnableAction.Save -> viewModel.saveWithCompletion(action.draft, permissionViewModel::complete)
+                is AlarmEnableAction.Enable -> viewModel.setEnabledWithCompletion(action.planId, true, permissionViewModel::complete)
+                null -> Unit
+            }
+            AlarmEnablePhase.Finished -> { destination = ZhituDestination.PLANS; permissionViewModel.finish() }
+            else -> Unit
+        }
+    }
     var placeTarget by remember { mutableStateOf(PlaceSelectionTarget.ORIGIN) }
     val openEditor: (AlarmPlan?) -> Unit = { plan ->
         editorDraft = plan?.toEditorDraft() ?: EditorDraft()
@@ -99,7 +163,11 @@ fun ZhituApp(
     LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey) { viewModel.initializeAmap(context) }
     LaunchedEffect(localSettings.originId, localSettings.destinationId, localSettings.commuteMode, localSettings.amapConsentGranted) { viewModel.refreshRoute() }
     BackHandler(enabled = destination != ZhituDestination.HOME && destination != ZhituDestination.RINGING) {
-        destination = if (destination == ZhituDestination.EDITOR) ZhituDestination.PLANS else ZhituDestination.HOME
+        if (destination == ZhituDestination.DIAGNOSTICS) returnFromDiagnostics()
+        else {
+            permissionViewModel.cancel()
+            destination = if (destination == ZhituDestination.EDITOR) ZhituDestination.PLANS else ZhituDestination.HOME
+        }
     }
 
     ZhituTheme {
@@ -114,8 +182,16 @@ fun ZhituApp(
                     onWeather = { destination = ZhituDestination.WEATHER },
                     onSettings = { destination = ZhituDestination.SETTINGS },
                 )
-                ZhituDestination.PLANS -> PlansScreen(plans, openEditor, { destination = ZhituDestination.HOME }, viewModel::setEnabled, { destination = it })
-                ZhituDestination.EDITOR -> AlarmEditorScreen(editorDraft, { editorDraft = it }, { destination = ZhituDestination.PLANS }, { viewModel.save(editorDraft) { destination = ZhituDestination.PLANS } }, { editorDraft.id?.let(viewModel::delete); destination = ZhituDestination.PLANS })
+                ZhituDestination.PLANS -> PlansScreen(plans, openEditor, { destination = ZhituDestination.HOME }, { planId, enabled ->
+                    if (enabled) {
+                        refreshPermissions()
+                        permissionViewModel.start(AlarmEnableAction.Enable(planId), permissionSnapshot.signature(permissionViewModel.confirmations))
+                    } else viewModel.setEnabled(planId, false)
+                }, { destination = it })
+                ZhituDestination.EDITOR -> AlarmEditorScreen(editorDraft, { editorDraft = it }, { permissionViewModel.cancel(); destination = ZhituDestination.PLANS }, {
+                    refreshPermissions()
+                    permissionViewModel.start(AlarmEnableAction.Save(editorDraft), permissionSnapshot.signature(permissionViewModel.confirmations))
+                }, { editorDraft.id?.let(viewModel::delete); destination = ZhituDestination.PLANS })
                 ZhituDestination.ROUTE -> LocalRouteScreen(
                     settings = localSettings,
                     routeState = routeState,
@@ -138,7 +214,7 @@ fun ZhituApp(
                     mapStatus = mapStatus,
                     mapState = AmapMapUiState(selectedPoint = placePickerState.selected?.let { GeoPoint(it.longitudeGcj02, it.latitudeGcj02) }),
                     onQueryChanged = viewModel::updatePlaceQuery,
-                    onUseCurrentLocation = { viewModel.locateCurrentPlace(context) },
+                    onUseCurrentLocation = { onComplete -> viewModel.locateCurrentPlace(context, onComplete) },
                     onLocationPermissionDenied = { viewModel.showError("未获得位置权限") },
                     onMapClick = viewModel::selectMapPoint,
                     onConfirm = { candidate ->
@@ -178,6 +254,8 @@ fun ZhituApp(
                 )
                 ZhituDestination.CALENDAR -> LocalCalendarScreen(plans, dayOverrides, calendarState, viewModel::saveDayOverride, viewModel::refreshCalendar, { destination = ZhituDestination.SETTINGS })
                 ZhituDestination.SETTINGS -> SettingsScreen(
+                    permissionSnapshot = permissionSnapshot,
+                    permissionConfirmations = permissionViewModel.confirmations,
                     settings = localSettings,
                     onSettingsChange = { updated -> viewModel.updateSettings { updated } },
                     onCalendar = { destination = ZhituDestination.CALENDAR },
@@ -202,7 +280,17 @@ fun ZhituApp(
                     onTestCaiyun = viewModel::testCaiyun,
                     onBack = { destination = ZhituDestination.SETTINGS },
                 )
-                ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen { destination = ZhituDestination.SETTINGS }
+                ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen(
+                    snapshot = permissionSnapshot,
+                    confirmations = permissionViewModel.confirmations,
+                    onSetting = ::openPermissionSettings,
+                    onConfirm = { permissionViewModel.confirm(it); refreshPermissions() },
+                    onRefresh = ::refreshPermissions,
+                    onBack = ::returnFromDiagnostics,
+                    onNotificationRequest = requestNotification,
+                    statusMessage = settingsMessage,
+                    returningToAlarm = permissionViewModel.flow.phase == AlarmEnablePhase.Checking,
+                )
                 ZhituDestination.HISTORY -> HistoryScreen(events) { destination = ZhituDestination.SETTINGS }
                 ZhituDestination.WEATHER -> WeatherScreen(
                     state = weatherState,
@@ -217,6 +305,14 @@ fun ZhituApp(
             }
         }
         error?.let { message -> androidx.compose.material3.Snackbar(modifier = Modifier.align(Alignment.BottomCenter).padding(20.dp), action = { androidx.compose.material3.TextButton(viewModel::clearError) { Text("关闭") } }) { Text(message) } }
+        if (permissionViewModel.flow.phase == AlarmEnablePhase.Guide) {
+            AlarmPermissionGuide(
+                missing = permissionSnapshot.signature(permissionViewModel.confirmations).missing,
+                onCheck = { permissionViewModel.check(); destination = ZhituDestination.DIAGNOSTICS },
+                onContinue = { refreshPermissions(); permissionViewModel.continueWith(permissionSnapshot.signature(permissionViewModel.confirmations)) },
+                onCancel = permissionViewModel::cancel,
+            )
+        }
         }
     }
 }

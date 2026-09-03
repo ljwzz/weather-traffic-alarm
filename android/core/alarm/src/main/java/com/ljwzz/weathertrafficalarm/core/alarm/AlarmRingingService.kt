@@ -1,7 +1,6 @@
 package com.ljwzz.weathertrafficalarm.core.alarm
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.pm.ServiceInfo
@@ -54,7 +53,7 @@ class AlarmRingingService : Service() {
         val wasEmpty = active.isEmpty()
         active[snapshot.occurrenceId] = snapshot
         publishActive()
-        createNotificationChannel()
+        AlarmNotificationChannel.ensureCreated(this)
         val notification = buildNotification(snapshot)
         if (wasEmpty) {
             startForeground(
@@ -151,21 +150,6 @@ class AlarmRingingService : Service() {
             .build()
     }
 
-    private fun createNotificationChannel() {
-        val manager = getSystemService(NotificationManager::class.java)
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "闹钟响铃",
-            NotificationManager.IMPORTANCE_HIGH,
-        ).apply {
-            description = "本地闹钟响铃通知"
-            setSound(null, null)
-            enableVibration(false)
-        }
-        manager.createNotificationChannel(channel)
-    }
-
     private fun startAudio(snapshot: NextAlarmSnapshot): Boolean {
         stopAudio()
         val attributes = AudioAttributes.Builder()
@@ -239,7 +223,7 @@ class AlarmRingingService : Service() {
         const val ACTION_DISMISS = "com.ljwzz.weathertrafficalarm.action.DISMISS"
         const val ACTION_SNOOZE = "com.ljwzz.weathertrafficalarm.action.SNOOZE"
 
-        private const val CHANNEL_ID = "alarm_ringing"
+        private const val CHANNEL_ID = AlarmNotificationChannel.ID
         private const val RING_TIMEOUT_MILLIS = 10 * 60_000L
 
         private val _activeAlarms = MutableStateFlow<List<NextAlarmSnapshot>>(emptyList())

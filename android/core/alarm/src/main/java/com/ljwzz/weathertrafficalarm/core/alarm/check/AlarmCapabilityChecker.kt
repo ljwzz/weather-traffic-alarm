@@ -5,9 +5,9 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.RingtoneManager
 import android.os.Build
 import android.provider.Settings
+import com.ljwzz.weathertrafficalarm.core.alarm.AlarmNotificationChannel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -43,8 +43,17 @@ class AlarmCapabilityChecker @Inject constructor(
             if (!granted) return CapabilityLevel.BLOCKING
         }
         val nm = context.getSystemService(NotificationManager::class.java)
-        val channel = nm?.getNotificationChannel(ALARM_CHANNEL_ID)
-        if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
+            ?: return CapabilityLevel.BLOCKING
+        if (!nm.areNotificationsEnabled()) return CapabilityLevel.BLOCKING
+        val channel = nm.getNotificationChannel(ALARM_CHANNEL_ID)
+        if (channel == null) return CapabilityLevel.DEGRADED
+        if (channel.group?.let { groupId -> nm.getNotificationChannelGroup(groupId)?.isBlocked } == true) {
+            return CapabilityLevel.BLOCKING
+        }
+        if (channel.importance == NotificationManager.IMPORTANCE_NONE) {
+            return CapabilityLevel.BLOCKING
+        }
+        if (channel.importance < NotificationManager.IMPORTANCE_HIGH) {
             return CapabilityLevel.DEGRADED
         }
         return CapabilityLevel.AVAILABLE
@@ -81,6 +90,6 @@ class AlarmCapabilityChecker @Inject constructor(
     }
 
     companion object {
-        const val ALARM_CHANNEL_ID = "alarm_ringing"
+        const val ALARM_CHANNEL_ID = AlarmNotificationChannel.ID
     }
 }

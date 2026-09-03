@@ -1,14 +1,9 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import android.app.Activity
-import android.app.AlarmManager
-import android.app.NotificationManager
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.media.AudioManager
-import android.os.Build
-import android.provider.Settings
 import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,9 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.ljwzz.weathertrafficalarm.core.alarm.check.AlarmCapabilityChecker
-import com.ljwzz.weathertrafficalarm.core.alarm.check.CapabilityDiagnostic
-import com.ljwzz.weathertrafficalarm.core.alarm.check.CapabilityLevel
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
@@ -325,120 +317,37 @@ private fun CredentialField(
 )
 
 @Composable
-fun AlarmDiagnosticsScreen(onBack: () -> Unit) {
+fun AlarmDiagnosticsScreen(
+    snapshot: PermissionSnapshot,
+    confirmations: Set<XiaomiDisplayPermission>,
+    onSetting: (PermissionSetting) -> Unit,
+    onConfirm: (XiaomiDisplayPermission) -> Unit,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+    onNotificationRequest: () -> Unit,
+    statusMessage: String? = null,
+    returningToAlarm: Boolean = false,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val checker = remember(context) { AlarmCapabilityChecker(context.applicationContext) }
-    var diagnostics by remember { mutableStateOf(context.readAlarmDiagnostics(checker)) }
-
-    fun refresh() {
-        diagnostics = context.readAlarmDiagnostics(checker)
-    }
-
-    DisposableEffect(lifecycleOwner, context) {
+    val audioManager = remember(context) { context.getSystemService(AudioManager::class.java) }
+    fun readVolume() = audioManager?.let {
+        "${it.getStreamVolume(AudioManager.STREAM_ALARM)}/${it.getStreamMaxVolume(AudioManager.STREAM_ALARM)}"
+    } ?: "不可用"
+    var volume by remember { mutableStateOf(readVolume()) }
+    DisposableEffect(lifecycleOwner, audioManager) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refresh()
+            if (event == Lifecycle.Event.ON_RESUME) volume = readVolume()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-
-    androidx.compose.material3.Scaffold(
-        containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar("权限与诊断", subtitle = "从系统设置返回后自动重新检查", navigation = onBack) },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                AdvancedNoticeCard(
-                    text = if (diagnostics.hasFallback) "存在降级能力，闹钟会按当前系统授权条件处理。" else "系统能力满足当前本地闹钟注册条件。",
-                    background = if (diagnostics.hasFallback) ZhituColors.AmberBackground else ZhituColors.Mint,
-                    foreground = if (diagnostics.hasFallback) ZhituColors.Amber else ZhituColors.Brand,
-                )
-            }
-            item {
-                AdvancedCard {
-                    Text("通知", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    DiagnosticRow("应用通知", diagnostics.notificationsEnabled.toChineseStatus(), onClick = {
-                        context.openSystemSettings(checker.notificationSettingsIntent())
-                    })
-                    DiagnosticRow("闹钟通知渠道", diagnostics.channelStatus, onClick = {
-                        context.openSystemSettings(checker.notificationSettingsIntent())
-                    })
-                    Text("诊断：${diagnostics.capability.notification.toChineseLabel()}", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
-                }
-            }
-            item {
-                AdvancedCard {
-                    Text("闹钟与提醒", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    DiagnosticRow("精确闹钟", diagnostics.exactAlarmEnabled.toChineseStatus(), onClick = {
-                        context.openSystemSettings(checker.exactAlarmSettingsIntent())
-                    })
-                    DiagnosticRow("全屏提醒", diagnostics.fullScreenEnabled.toChineseStatus(), onClick = {
-                        val intent = if (Build.VERSION.SDK_INT >= 34) {
-                            Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).setData(android.net.Uri.parse("package:${context.packageName}"))
-                        } else null
-                        context.openSystemSettings(intent)
-                    })
-                    Text("精确闹钟诊断：${diagnostics.capability.exactAlarm.toChineseLabel()}\n全屏提醒诊断：${diagnostics.capability.fullScreenIntent.toChineseLabel()}", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
-                }
-            }
-            item {
-                AdvancedCard {
-                    Text("声音", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    DiagnosticRow("闹钟音量", diagnostics.alarmVolume, onClick = {
-                        context.openSystemSettings(Intent(Settings.Panel.ACTION_VOLUME))
-                    })
-                }
-            }
-        }
-    }
-}
-
-private data class AlarmDiagnosticsState(
-    val capability: CapabilityDiagnostic,
-    val notificationsEnabled: Boolean,
-    val channelStatus: String,
-    val exactAlarmEnabled: Boolean,
-    val fullScreenEnabled: Boolean,
-    val alarmVolume: String,
-) {
-    val hasFallback: Boolean
-        get() = !notificationsEnabled || !exactAlarmEnabled || !fullScreenEnabled ||
-            capability.notification != CapabilityLevel.AVAILABLE ||
-            capability.exactAlarm != CapabilityLevel.AVAILABLE ||
-            capability.fullScreenIntent != CapabilityLevel.AVAILABLE
-}
-
-private fun Context.readAlarmDiagnostics(checker: AlarmCapabilityChecker): AlarmDiagnosticsState {
-    val notificationManager = getSystemService(NotificationManager::class.java)
-    val alarmManager = getSystemService(AlarmManager::class.java)
-    val audioManager = getSystemService(AudioManager::class.java)
-    val channel = notificationManager?.getNotificationChannel(AlarmCapabilityChecker.ALARM_CHANNEL_ID)
-    val channelStatus = when {
-        channel == null -> "尚未创建"
-        channel.importance == NotificationManager.IMPORTANCE_NONE -> "已关闭"
-        else -> "已启用"
-    }
-    val volume = if (audioManager == null) "不可用" else {
-        "${audioManager.getStreamVolume(AudioManager.STREAM_ALARM)}/${audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)}"
-    }
-    return AlarmDiagnosticsState(
-        capability = checker.check(),
-        notificationsEnabled = notificationManager?.areNotificationsEnabled() == true,
-        channelStatus = channelStatus,
-        exactAlarmEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager?.canScheduleExactAlarms() == true,
-        fullScreenEnabled = Build.VERSION.SDK_INT < 34 || notificationManager?.canUseFullScreenIntent() == true,
+    PermissionDiagnosticsContent(
+        snapshot, confirmations, onSetting, onConfirm,
+        onRefresh = { volume = readVolume(); onRefresh() },
+        onBack, onNotificationRequest, statusMessage, returningToAlarm,
         alarmVolume = volume,
     )
-}
-
-private fun Context.openSystemSettings(intent: Intent?) {
-    if (intent == null || intent.resolveActivity(packageManager) == null) return
-    runCatching { startActivity(intent) }
 }
 
 private fun Context.findActivity(): Activity? {
@@ -450,14 +359,6 @@ private fun Context.findActivity(): Activity? {
     return null
 }
 
-@Composable
-private fun DiagnosticRow(title: String, value: String, onClick: () -> Unit) = Row(
-    modifier = Modifier.fillMaxWidth().height(52.dp),
-    verticalAlignment = Alignment.CenterVertically,
-) {
-    Text(title, Modifier.weight(1f), color = ZhituColors.Ink)
-    TextButton(onClick = onClick) { Text(value) }
-}
 
 @Composable
 private fun AdvancedCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) = Card(
@@ -475,7 +376,6 @@ private fun AdvancedNoticeCard(text: String, background: Color, foreground: Colo
     Text(text, Modifier.fillMaxWidth().padding(20.dp), color = foreground)
 }
 
-private fun Boolean.toChineseStatus(): String = if (this) "已启用" else "未启用"
 
 private fun CredentialStatus.caiyunTestStateLabel(): String {
     val result = when (caiyunTestResult) {
@@ -487,10 +387,4 @@ private fun CredentialStatus.caiyunTestStateLabel(): String {
         Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
     }
     return if (testedAt == null) result else "$result · $testedAt"
-}
-
-private fun CapabilityLevel.toChineseLabel(): String = when (this) {
-    CapabilityLevel.AVAILABLE -> "可用"
-    CapabilityLevel.DEGRADED -> "降级"
-    CapabilityLevel.BLOCKING -> "阻塞"
 }

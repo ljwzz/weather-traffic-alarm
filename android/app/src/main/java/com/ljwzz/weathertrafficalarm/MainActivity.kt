@@ -1,13 +1,9 @@
 package com.ljwzz.weathertrafficalarm
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
@@ -22,13 +18,11 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var coordinator: LocalAlarmCoordinator
     private var occurrenceId: String? = null
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
         occurrenceId = intent.showAlarmOccurrenceId()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         setContent { ZhituApp(ringingOccurrenceId = occurrenceId) }
     }
 

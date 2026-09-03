@@ -27,6 +27,7 @@
 - 状态必须区分用户的启用意图与实际调度结果：`DISABLED`、`NEEDS_RULE`、`NEEDS_PERMISSION`、`SCHEDULED`、`FAILED`、`COMPLETED`。未取得所需精确闹钟能力时，界面不得显示“已注册”；系统设置返回后重新读取状态。Android 官方要求在调度前检查精确闹钟能力，并在设置页返回后重新检查。https://developer.android.com/training/permissions/requesting-special
 - 响铃服务循环播放可读铃声并按设置振动；停止、连续停止、贪睡和重复广播均按实例 ID 幂等。贪睡创建独立子实例，不改写后续重复实例；单次实例完成后自动停用，重复实例只安排其下一次。
 - 日历提供真实月份和日期选择；本日覆盖按“计划 ID + 日期”保存为沿用计划、本日停用、本日启用或替代时间。基础兜底按周一至周五判为工作日，后续可由 holiday-cn 数据覆盖。
+- Android 原生权限页由 `PermissionAccess` 读取通知运行时授权、应用通知与闹钟渠道状态、精确闹钟、全屏提醒、前台粗精位置和定位服务状态；启用引导与当前位置流程分别由 `AlarmPermissionFlow`、`LocationPermissionFlow` 管理，页面装配于 `ZhituApp` 和 `PermissionScreens`。
 
 ### 0.2 明确留白
 
