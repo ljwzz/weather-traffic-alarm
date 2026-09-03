@@ -4,12 +4,12 @@
 - 起点：仓库已删除后端、contract、calendar-data、infra 与旧草稿；保留 `android/` 工程（app、core/{model,data,network,alarm,map}、feature/*）
 - 目标：从纯 Android 本地优先架构推进到可公开发布的 Android 应用
 - Android 包名：`com.ljwzz.weathertrafficalarm`
-- 当前天气 Provider：未接入；高德 Android SDK、Web API、加密运行时 Key、专项授权、地图／定位／POI、五种路线、三条候选、路况和计划覆盖已实现。待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。
-- 后续规划：彩云天气 v2.6；高德 Web 服务 API 与 Android SDK。
+- 当前天气 Provider：Android 的彩云天气实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动提前计算仍为后续能力。高德 Android SDK、Web API、加密运行时 Key、专项授权、地图／定位／POI、五种路线、三条候选、路况和计划覆盖已实现。待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。
+- 后续规划：自动提前计算；高德 Web 服务 API 与 Android SDK 的设备实网验收。
 - 工作日数据源：holiday-cn 年度 JSON（App 抓取缓存）
 - 页面与原型交接：见 [`docs/design-handoff.md`](./docs/design-handoff.md)；Figma 的 21 个页面是视觉素材基线，当前 Android 范围为 12 个主页面及路线／日历功能整合。
 
-> 2026-08-31 当前执行线先完成本地闹钟；2026-09-01 已完成 `P7` 高德 Provider。天气和提前计算保留为后续能力，不得用模拟结果替代。每个任务是否完成必须以本轮构建、测试和设备记录为准。
+> 2026-08-31 当前执行线先完成本地闹钟；2026-09-01 已完成 `P7` 高德 Provider；彩云天气验证记录见 `android/qa/caiyun-device-2026-09-02.md`。自动提前计算保留为后续能力，不得用模拟结果替代。每个任务是否完成必须以本轮构建、测试和设备记录为准。
 
 > 2026-09-01 高德实现：Android 已完成授权、运行时 Web／SDK Key加密存储、地图、单次定位、地点输入提示／搜索、五种路线、最多三条备选、路况和计划覆盖；原型继续以离线 fixture 验收相同页面状态。待用户提供两项真实 Key 后进行设备实网验收。
 
@@ -51,6 +51,31 @@
 - Debug APK、测试结果和截图是交付物；未做的真机验证不得标记通过。
 
 验收记录：[`android/qa/README.md`](./android/qa/README.md)。JVM 129 项、Android 36 设备 7 项、原型 15 项通过；另完成 holiday-cn 设备联网验证和未解锁重启响铃验证。实体设备及发布环境仍按验收记录中的边界处理。
+
+### [x] L008 同步基础／提前响铃离线演示
+
+- 同步 Figma `95:600` 八态状态组、`SPEC.md`、`docs/design-handoff.md` 与原型说明；原型新增 `ringing-basic` 基础 fixture，并保留 `ringing` 作为提前 fixture。
+- 两个 fixture 均为独立全屏离线会话：停止、贪睡、再次响铃及按实例 ID 幂等；贪睡创建演示子实例并校验 1–30 分钟。不得写入 `alarmPlans`、`alarmEvents` 或 `dateOverrides`，不得调用系统闹钟、音频、振动或网络。
+- Android 基础闹钟与独立提前提醒按真实实例分别标示；离线响铃 fixture 与真实自动评估验收分开记录。
+
+验收：2026-09-02 执行 `node --test prototype/tests/*.test.mjs`，共 31 项通过（含本机回环服务测试）。浏览器实点与 Figma 校验见 [`响铃同步验证记录`](./prototype/qa/ringing-2026-09-02/README.md)。
+
+### [x] L009 Android 真实响铃界面与动作确认
+
+- 将原型布局接入 `AlarmRingingActivity`，展示真实计划、日期与时间；基础和贪睡子实例分别显示对应文案。
+- 增加停止／贪睡处理中、成功、失败、待响和失效状态；动作回执兼容旧设备保护快照，失败不终止父实例响铃；重复操作不新增多余子实例。
+- 原生结果页返回闹钟／关闭；先解锁再进入计划页。真实贪睡由系统到点触发，不提供模拟触发按钮。
+- 自动提前实例的生成和评估编排继续按 T032／T038 执行，不以固定 fixture 代替真实调度。
+
+验收：Android 构建通过；205 项单元测试、12 项设备测试及 31 项原型测试通过。注册失败→重试由单元和 Compose 测试覆盖；设备故障注入未生效，该用例明确跳过，不计入通过数。APK、截图和其余边界见 [`原生响铃验收`](./android/qa/native-ringing-2026-09-02/README.md)。
+
+### [x] L010 小米真机基础响铃与锁屏验证
+
+- Xiaomi `25019PNF3C`、Android 16 / API 36 真机通过 6 项界面测试、真实停止／重建、1 分钟贪睡再次响铃、持续锁屏下系统自然全屏响铃，共 9 项。
+- Android 全屏提醒经用户授权开启；小米“锁屏显示／后台弹出界面”由用户修改后读回允许。
+- 新增显式 opt-in 的锁屏设备测试，普通测试默认跳过；仅创建、清理 UUID 自有计划，保留其他计划与设备设置。
+
+验收：[`真机响铃记录与 12 张截图`](./android/qa/physical-ringing-2026-09-02/README.md)。实体听感／振动待人工确认；本次不代表重启、Doze、长期待机或完整厂商矩阵完成。
 
 ### [x] L011 权限引导设计与离线原型
 
@@ -548,18 +573,19 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
-## 5. P3：一次性提前闹钟和离线可靠性
+## 5. P3：提前闹钟扩展与离线可靠性
 
-### [ ] T030 实现提前闹钟能力诊断与系统闹钟引导
+> `L003`／`L004` 记录本 App 已有基础调度、Receiver、前台响铃服务、停止、贪睡与恢复；保存或启用计划会注册下一次基础实例。以下分别列出基础契约／验收缺口与自动提前扩展，不得回退或替换基础本地闹钟的既有职责。2026-09-02 的原生全屏页面、动作回执和设备回归见 `L009` 及 [`原生响铃验收`](./android/qa/native-ringing-2026-09-02/README.md)；本次增量不代表下列扩展或完整设备矩阵已经完成。
+
+### [ ] T030 实现提前扩展能力诊断
 
 依赖：T020。
 
 实施：
 
-1. 检查通知权限、精确闹钟权限、全屏 Intent 能力；缺失时提前闹钟标记降级（SPEC FR-009），不阻止计划启用；提供系统设置入口。
-2. 每次回到前台与启用前重新诊断。
-3. 系统闹钟引导：保存/启用计划时记录期望的系统闹钟时间（计划 `defaultWakeLocalTime`），首次启动与计划创建页展示“请在系统时钟 App 设置 X:XX 闹钟”引导。
-4. 系统闹钟核对（启发式）：读取 `AlarmManager.getNextAlarmClock()`，全局下一闹钟落在 `defaultWakeLocalTime ±10 分钟`窗口内时标记“已确认”，否则显示“请确认已设置”常驻提醒；注册运行时 receiver 监听 `ACTION_NEXT_ALARM_CLOCK_CHANGED` 刷新核对；核对结果不参与任何调度（SPEC 14 章取舍）。
+1. 复用基础本地闹钟的通知、精确闹钟和全屏 Intent 诊断；提前扩展不可用时只标记扩展降级，不阻止基础计划启用或已注册基础实例响铃。
+2. 每次回到前台与启用提前扩展前重新诊断；提供现有系统设置入口。
+3. 不引入系统时钟 App 引导或 `getNextAlarmClock()` 启发式核对：正常起床闹钟由本 App 的基础本地实例注册。
 
 验收：
 
@@ -567,7 +593,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
 
-### [ ] T031 实现唯一 PendingIntent 工厂
+### [ ] T031 实现唯一 PendingIntent 工厂（基础基线待补）
 
 依赖：T013。
 
@@ -575,6 +601,7 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 1. 每个 occurrence 唯一 request code；occurrence ID 放入唯一 data URI；Intent 显式、不可变。
 2. 身份校验不依赖 extras。
+3. 当前基础实现已有显式、不可变 PendingIntent 与 data URI；requestCode 哈希不保证满足第 1 条的独立唯一要求，仍需核对该契约，并使 Receiver 身份校验不依赖 extras。此项是契约差异，不据此断言已有唯一 data URI 的实例会相互覆盖。
 
 验收：
 
@@ -598,9 +625,9 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
 
-### [ ] T033 声明 Receiver、Service 和权限
+### [x] T033 声明 Receiver、Service 和权限（基础基线）
 
-依赖：T030。
+依赖：L003、L004。
 
 实施：
 
@@ -613,7 +640,7 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 cd android && ./gradlew :app:assembleDebug
 ```
 
-### [ ] T034 实现 AlarmReceiver 校验
+### [ ] T034 实现 AlarmReceiver 校验（基础基线待补）
 
 依赖：T031、T033。
 
@@ -621,6 +648,7 @@ cd android && ./gradlew :app:assembleDebug
 
 1. Receiver 只做 occurrence 校验（ID、revision、状态、触发时间窗口）与启动响铃服务，**不得进行任何网络请求**。
 2. 校验失败只记录诊断并结束。
+3. 当前基础实现已校验可用快照并启动响铃服务；仍需补齐失败诊断，以及未解锁时 plan revision 校验的证据与验收。
 
 验收：
 
@@ -628,7 +656,7 @@ cd android && ./gradlew :app:assembleDebug
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
 
-### [ ] T035 实现响铃音频和振动
+### [x] T035 实现响铃音频和振动（基础基线）
 
 依赖：无。
 
@@ -643,13 +671,13 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 cd android && ./gradlew :app:assembleDebug
 ```
 
-### [ ] T036 实现响铃前台服务和通知
+### [ ] T036 实现响铃前台服务和通知（基础基线验收待补）
 
 依赖：T034、T035。
 
 实施：
 
-1. API 34+ 使用 `FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED` 启动；API 29–33 兼容路径（minSdk 36 下该分支保留以支持未来下探）。
+1. 当前 `minSdk = 36`，基础实现使用 `FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED` 启动。API 29–33 兼容不属于当前完成范围；如确认下探，须另行实现并完成专项验收。
 2. 通知提供停止与贪睡动作；操作 Intent 显式、不可变、带 occurrence 身份；幂等。
 
 验收：
@@ -658,13 +686,13 @@ cd android && ./gradlew :app:assembleDebug
 cd android && ./gradlew :app:assembleDebug
 ```
 
-### [ ] T037 实现停止和贪睡
+### [x] T037 实现停止和贪睡（基础基线）
 
 依赖：T036。
 
 实施：
 
-1. 停止 → `DISMISSED`；贪睡 → 新 `SNOOZED` occurrence 并 `setAlarmClock()`。
+1. 停止 → `DISMISSED`；贪睡 → 新 `SNOOZE` 子实例并 `setAlarmClock()`，不改写后续重复实例。
 2. 重复点击不创建多个 occurrence。
 
 验收：
@@ -690,15 +718,17 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 用例：fake provider 失败 → 基础与提前 occurrence 均不变、不新注册；成功且需提前 → 只创建或提前替换提前实例，不推迟且不替换基础实例；成功且无需提前 → 仅待触发提前实例被取消。
 
-### [ ] T039 实现启动、重启和时间变化恢复
+### [ ] T039 实现基础本地闹钟的启动、重启和时间变化恢复（基础基线待补）
 
-依赖：T032、T033、T024。
+依赖：L004。
 
 实施：
 
-1. `LOCKED_BOOT_COMPLETED`：从快照恢复**未触发的提前闹钟**，不启动响铃前台服务（正常起床闹钟由系统时钟 App 负责，与本 App 无关）。
-2. 解锁后读 Room 校验 revision 并完整重算；时间/时区/语言变化处理；`MY_PACKAGE_REPLACED` 不丢数据。
-3. 触发点已过 10 分钟以上 → `MISSED` 并取消该次提前闹钟，不安排补位闹钟。
+1. `LOCKED_BOOT_COMPLETED`：从快照恢复未触发的基础本地实例，不启动响铃前台服务。
+2. 解锁后读 Room 校验 revision 并完整重算；时间／时区／语言变化处理；`MY_PACKAGE_REPLACED` 不丢数据。
+3. 触发点已过 10 分钟以上 → `MISSED` 并取消该次本地实例，不安排补位闹钟。
+4. 当前基础实现已覆盖重启、解锁、时间／时区变化与覆盖安装；语言变化处理及专项验收尚未覆盖。
+5. 提前实例的恢复扩展在 T032、T038 完成后补充，不影响基础恢复路径。
 
 验收：
 
@@ -1583,7 +1613,7 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 实施：
 
 1. 重启未解锁恢复未触发的提前闹钟、解锁重算；系统时间/时区/语言变化；应用覆盖安装（数据与凭证密文保留）。
-2. 备份/恢复后凭证消失且应用正常引导重新配置；强制停止后系统时钟 App 的正常闹钟仍可响铃。
+2. 备份/恢复后凭证消失且应用正常引导重新配置；强制停止后的本 App 本地闹钟恢复边界按 SPEC FR-010 验收。
 
 验收：
 
