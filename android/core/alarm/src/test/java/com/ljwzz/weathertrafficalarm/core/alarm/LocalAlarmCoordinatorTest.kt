@@ -343,6 +343,107 @@ class LocalAlarmCoordinatorTest {
     }
 
     @Test
+    fun `dismiss restores a terminal direct boot receipt after cancellation`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val firing = occurrence(existing, "firing", OccurrenceState.FIRING)
+        occurrences.save(firing)
+        snapshots.save(
+            snapshot(existing, firing.occurrenceId, firing.scheduledWakeAt, AlarmReceiver.STATE_FIRING)
+                .copy(actionRevision = 2, actionError = "old error"),
+        )
+        gateway.onCancel = { snapshots.removeOccurrence(it) }
+
+        assertTrue(coordinator.dismiss(firing.occurrenceId))
+
+        val receipt = requireNotNull(snapshots.getByOccurrenceId(firing.occurrenceId))
+        assertEquals(AlarmReceiver.STATE_DISMISSED, receipt.occurrenceState)
+        assertEquals(3L, receipt.actionRevision)
+        assertEquals(null, receipt.actionError)
+        assertEquals(OccurrenceState.DISMISSED, occurrences.getById(firing.occurrenceId)?.state)
+    }
+
+    @Test
+    fun `failed snooze keeps the parent firing and records a retry receipt`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val firing = occurrence(existing, "firing", OccurrenceState.FIRING)
+        occurrences.save(firing)
+        snapshots.save(
+            snapshot(existing, firing.occurrenceId, firing.scheduledWakeAt, AlarmReceiver.STATE_FIRING)
+                .copy(actionRevision = 4),
+        )
+        gateway.result = AlarmRegistrationResult.Rejected(RegistrationFailure.PLATFORM_REJECTED)
+
+        assertFalse(coordinator.snooze(firing.occurrenceId))
+
+        val parent = requireNotNull(snapshots.getByOccurrenceId(firing.occurrenceId))
+        assertEquals(AlarmReceiver.STATE_FIRING, parent.occurrenceState)
+        assertEquals(5L, parent.actionRevision)
+        assertEquals("贪睡未能注册，请重试或停止闹钟", parent.actionError)
+        assertEquals(OccurrenceState.FIRING, occurrences.getById(firing.occurrenceId)?.state)
+        assertTrue(snapshots.observeAll().first().none { it.parentOccurrenceId == firing.occurrenceId })
+        assertEquals(
+            1,
+            occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.SNOOZE && it.state == OccurrenceState.FAILED },
+        )
+
+        gateway.result = AlarmRegistrationResult.Registered
+        assertTrue(coordinator.snooze(firing.occurrenceId))
+        val retriedParent = requireNotNull(snapshots.getByOccurrenceId(firing.occurrenceId))
+        assertEquals(AlarmReceiver.STATE_SNOOZED, retriedParent.occurrenceState)
+        assertEquals(6L, retriedParent.actionRevision)
+        assertEquals(null, retriedParent.actionError)
+        val registeredChildren = snapshots.observeAll().first().filter {
+            it.parentOccurrenceId == firing.occurrenceId
+        }
+        assertEquals(1, registeredChildren.size)
+        assertEquals(AlarmReceiver.STATE_SCHEDULED, registeredChildren.single().occurrenceState)
+        assertEquals(null, registeredChildren.single().actionError)
+    }
+
+    @Test
+    fun `concurrent snoozes create one child and one successful parent receipt`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val firing = occurrence(existing, "firing", OccurrenceState.FIRING)
+        occurrences.save(firing)
+        snapshots.save(snapshot(existing, firing.occurrenceId, firing.scheduledWakeAt, AlarmReceiver.STATE_FIRING))
+        gateway.scheduleDelayMillis = 25L
+
+        coroutineScope {
+            val results = awaitAll(
+                async { coordinator.snooze(firing.occurrenceId) },
+                async { coordinator.snooze(firing.occurrenceId) },
+            )
+            assertEquals(1, results.count { it })
+        }
+
+        val parent = requireNotNull(snapshots.getByOccurrenceId(firing.occurrenceId))
+        assertEquals(AlarmReceiver.STATE_SNOOZED, parent.occurrenceState)
+        assertEquals(1L, parent.actionRevision)
+        assertEquals(1, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.SNOOZE && it.state == OccurrenceState.SCHEDULED })
+        assertFalse(coordinator.dismiss(firing.occurrenceId))
+        assertEquals(OccurrenceState.SNOOZED, occurrences.getById(firing.occurrenceId)?.state)
+        assertEquals(1, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.SNOOZE && it.state == OccurrenceState.SCHEDULED })
+    }
+
+    @Test
+    fun `dismiss wins before snooze and prevents a child occurrence`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val firing = occurrence(existing, "firing", OccurrenceState.FIRING)
+        occurrences.save(firing)
+        snapshots.save(snapshot(existing, firing.occurrenceId, firing.scheduledWakeAt, AlarmReceiver.STATE_FIRING))
+
+        assertTrue(coordinator.dismiss(firing.occurrenceId))
+        assertFalse(coordinator.snooze(firing.occurrenceId))
+
+        assertEquals(OccurrenceState.DISMISSED, occurrences.getById(firing.occurrenceId)?.state)
+        assertTrue(occurrences.getByPlanId(existing.id).none { it.kind == OccurrenceKind.SNOOZE })
+    }
+
+    @Test
     fun `past once plan is rejected before any persistent write`() = runBlocking {
         val past = plan(id = "past", schedule = AlarmSchedule.Once(LocalDate.now().minusDays(1).toString()))
 
@@ -510,11 +611,13 @@ class LocalAlarmCoordinatorTest {
         occurrences.save(parent)
         snapshots.save(snapshot(once, parent.occurrenceId, parent.scheduledWakeAt, AlarmReceiver.STATE_DISMISSED))
         snapshots.save(snapshot(once, child.occurrenceId, child.scheduledWakeAt, AlarmReceiver.STATE_SCHEDULED, OccurrenceKind.SNOOZE, parent.occurrenceId))
+        gateway.onCancel = { snapshots.removeOccurrence(it) }
 
         coordinator.recover()
 
         assertTrue(plans.getById(once.id)!!.enabled)
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(child.occurrenceId)!!.state)
+        assertEquals(null, snapshots.getByOccurrenceId(parent.occurrenceId))
     }
 
     @Test
@@ -623,6 +726,7 @@ class LocalAlarmCoordinatorTest {
         var scheduleDelayMillis: Long = 0L
         var activeSchedules: Int = 0
         var maxConcurrentSchedules: Int = 0
+        var onCancel: suspend (String) -> Unit = {}
 
         override suspend fun schedule(snapshot: NextAlarmSnapshot): AlarmRegistrationResult {
             activeSchedules += 1
@@ -640,6 +744,7 @@ class LocalAlarmCoordinatorTest {
         }
         override suspend fun cancelOccurrence(occurrenceId: String) {
             cancelled += occurrenceId
+            onCancel(occurrenceId)
         }
         override fun canScheduleExactAlarms(): Boolean = true
     }

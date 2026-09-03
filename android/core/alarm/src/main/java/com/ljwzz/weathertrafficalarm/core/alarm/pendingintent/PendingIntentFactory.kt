@@ -88,7 +88,7 @@ class PendingIntentFactory @Inject constructor(
             context,
             requestCode,
             intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }
 
@@ -99,7 +99,7 @@ class PendingIntentFactory @Inject constructor(
             context,
             requestCode,
             intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }
 
@@ -138,10 +138,7 @@ class PendingIntentFactory @Inject constructor(
             AlarmAction.SHOW_ALARM -> createShowAlarmIntent(occurrenceId)
         }
         // Identity flags must match creation; looking up a missing token must not create one.
-        val flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE or when (action) {
-            AlarmAction.DISMISS, AlarmAction.SNOOZE -> PendingIntent.FLAG_ONE_SHOT
-            else -> 0
-        }
+        val flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
         return when (action) {
             AlarmAction.FULL_SCREEN, AlarmAction.SHOW_ALARM ->
                 PendingIntent.getActivity(context, requestCode, intent, flags)
