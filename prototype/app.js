@@ -4,14 +4,17 @@ import { createTravelScreens } from './screens-travel.mjs';
 import { createAlarmScreens } from './screens-alarm.mjs';
 import { createSettingsScreens } from './screens-settings.mjs';
 import { createSupportScreens } from './screens-support.mjs';
+import { createSystemScreens } from './screens-system.mjs';
+import { createRingingSession, RINGING_KINDS, ringSnoozedSession, snoozeRingingSession, stopRingingSession } from './ringing-state.mjs';
 import { canUseLocation, createPermissionState, missingAlarmDisplayPermissions } from './permission-state.mjs';
 import { createPermissionScreens } from './screens-permissions.mjs';
 
 const STORAGE_KEY = 'zhitu-prototype-config-v3';
-const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','lock','island','island-expand','ringing','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
+const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','lock','island','island-expand','ringing','ringing-basic','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
 const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['我的通勤','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['提前计算',''], settings:['通知与保障',''], history:['本机记录',''], failure:['评估状态',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['可靠性诊断',''], 'place-search':['选择地点',''] };
-const BACK = { weather:'home', route:'home', 'route-edit':'route', 'plan-edit':'plans', why:'home', history:'plans', failure:'plans', rest:'plans', 'overtime-select':'plans', 'overtime-active':'plans', onboarding:'home', credentials:'settings', calendar:'plan-edit', diagnostics:'settings', 'place-search':'route-edit', lock:'settings', island:'settings', 'island-expand':'island', ringing:'plans' };
+const BACK = { weather:'home', route:'home', 'route-edit':'route', 'plan-edit':'plans', why:'home', history:'plans', failure:'plans', rest:'plans', 'overtime-select':'plans', 'overtime-active':'plans', onboarding:'home', credentials:'settings', calendar:'plan-edit', diagnostics:'settings', 'place-search':'route-edit', lock:'settings', island:'settings', 'island-expand':'island', ringing:'plans', 'ringing-basic':'plans' };
 const NAV = [['home','今日','bea94e9a-63d6-46a2-be51-c2a550277636.svg'],['route','路线','91c986c2-5c7e-4908-a9ea-11f77f84ba30.svg'],['plans','闹钟','1ae38d70-e6a0-416f-85d1-71545f1256bf.svg'],['settings','设置','7b9895bd-a3db-41ea-b369-eb67fda8373d.svg']];
+const RINGING_ROUTES = new Set(['ringing', 'ringing-basic']);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const clone = value => structuredClone(value);
 const action = (label, route, extra = '') => `<button type="button" class="prototype-button" data-route="${route}" ${extra}>${esc(label)}</button>`;
@@ -24,7 +27,7 @@ function defaults() {
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
 function createRuntime() {
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -59,6 +62,7 @@ const travel = createTravelScreens({ action, overlayAction, asset, state });
 const alarms = createAlarmScreens({ action, overlayAction, asset, state });
 const settings = createSettingsScreens({ asset, state, overlayAction });
 const support = createSupportScreens({ escapeHTML:esc, action, overlayAction });
+const system = createSystemScreens({ asset, state });
 const permissions = createPermissionScreens({ state, overlayAction });
 
 function notice(message) { runtime.notice = message; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { runtime.notice = ''; render(); }, 3200); }
@@ -75,6 +79,10 @@ function navigate(route, { replace = false, fromHistory = false } = {}) {
   if (old === 'plan-edit' && !['calendar','route-edit','place-search'].includes(route) && !preservesPermissionFlow) { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
   if (old === 'route-edit' && route !== 'place-search' && runtime.routeScope !== 'plan') runtime.routeDraft = null;
   if ((route === 'route-edit' || route === 'place-search') && runtime.routeScope !== 'plan') enterRouteDraft();
+  if (route === 'ringing' || route === 'ringing-basic') {
+    const kind = route === 'ringing-basic' ? RINGING_KINDS.BASIC : RINGING_KINDS.EARLY;
+    if (old !== route || !runtime.ringingSession) runtime.ringingSession = createRingingSession(kind);
+  } else if (old === 'ringing' || old === 'ringing-basic') runtime.ringingSession = null;
   if (!replace && old !== route) runtime.history.push(old);
   runtime.route = route; closeOverlay();
   if (resumesPermissionFlow) runtime.overlay = 'permission-guide';
@@ -94,10 +102,13 @@ function extraOverlay() {
 }
 function render() {
   const page = runtime.route; const snapshot = state();
-  const body = travel[page]?.() || alarms[page]?.() || settings[page]?.() || (page === 'diagnostics' ? permissions.diagnostics() : (['lock','island','island-expand','ringing'].includes(page) ? concept(page) : support.renderRoute(page, snapshot)));
+  const systemBody = RINGING_ROUTES.has(page) ? system[page]?.() : '';
+  const body = systemBody || travel[page]?.() || alarms[page]?.() || settings[page]?.() || (page === 'diagnostics' ? permissions.diagnostics() : (['lock','island','island-expand'].includes(page) ? concept(page) : support.renderRoute(page, snapshot)));
   const overlay = permissions.renderOverlay(runtime.overlay) || support.renderOverlay(runtime.overlay, snapshot) || extraOverlay();
-  document.getElementById('app').innerHTML = `<main class="prototype-screen" data-page="${page}">${status()}${header()}<div class="prototype-scroll">${body}</div>${['home','route','plans','settings'].includes(page) ? nav() : '<div class="prototype-gesture" aria-hidden="true"><i></i></div>'}</main>${overlay}${runtime.notice ? `<p class="prototype-notice" role="status">${esc(runtime.notice)}</p>` : ''}`;
-  for (const footer of document.querySelectorAll('.prototype-scroll .screen-footer')) document.querySelector('.prototype-screen').insertBefore(footer, document.querySelector('.prototype-nav,.prototype-gesture'));
+  document.getElementById('app').innerHTML = systemBody
+    ? `${body}${overlay}${runtime.notice ? `<p class="prototype-notice" role="status">${esc(runtime.notice)}</p>` : ''}`
+    : `<main class="prototype-screen" data-page="${page}">${status()}${header()}<div class="prototype-scroll">${body}</div>${['home','route','plans','settings'].includes(page) ? nav() : '<div class="prototype-gesture" aria-hidden="true"><i></i></div>'}</main>${overlay}${runtime.notice ? `<p class="prototype-notice" role="status">${esc(runtime.notice)}</p>` : ''}`;
+  if (!systemBody) for (const footer of document.querySelectorAll('.prototype-scroll .screen-footer')) document.querySelector('.prototype-screen').insertBefore(footer, document.querySelector('.prototype-nav,.prototype-gesture'));
   document.getElementById('scenario-select').value = page;
   const deviceControl = document.getElementById('permission-device-select');
   const entryControl = document.getElementById('permission-entry-select');
@@ -168,6 +179,11 @@ function handleClick(event) {
   const op = target.dataset.action; const value = target.dataset.value || '';
   try {
     if (op === 'back') return back();
+    if (op === 'ringing-stop') { runtime.ringingSession = stopRingingSession(runtime.ringingSession); render(); return; }
+    if (op === 'ringing-snooze') { runtime.ringingSession = snoozeRingingSession(runtime.ringingSession); render(); return; }
+    if (op === 'ringing-again') { runtime.ringingSession = ringSnoozedSession(runtime.ringingSession); render(); return; }
+    if (op === 'ringing-replay') { const kind = runtime.route === 'ringing-basic' ? RINGING_KINDS.BASIC : RINGING_KINDS.EARLY; runtime.ringingSession = createRingingSession(kind); render(); return; }
+    if (op === 'ringing-return') return navigate('plans');
     if (op === 'close-overlay') { closeOverlay(); render(); return; }
     if (op === 'overlay') return openOverlay(value);
     if (op === 'new-alarm') { runtime.alarmDraft = defaultAlarmDraft(); runtime.editingAlarmId = null; return navigate('plan-edit'); }

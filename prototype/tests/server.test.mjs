@@ -41,3 +41,23 @@ test('does not accept form posts or other state-changing requests', async () => 
   assert.equal(response.status, 405);
   assert.equal(response.headers.get('allow'), 'GET, HEAD');
 });
+
+test('ships both ringing routes and their real full-screen renderer wiring', async () => {
+  const [page, app, system, state] = await Promise.all([
+    fetch(base).then(response => response.text()),
+    fetch(`${base}/app.js`).then(response => response.text()),
+    fetch(`${base}/screens-system.mjs`).then(response => response.text()),
+    fetch(`${base}/ringing-state.mjs`).then(response => response.text()),
+  ]);
+
+  assert.match(page, /value="ringing-basic"/);
+  assert.match(page, /value="ringing"/);
+  assert.match(app, /createSystemScreens/);
+  assert.match(app, /innerHTML = systemBody\s*\? `\$\{body\}/);
+  assert.match(app, /createRingingSession\(kind\)/);
+  assert.match(app, /old !== route \|\| !runtime\.ringingSession/);
+  assert.match(app, /ringingSession:null/);
+  assert.match(system, /'ringing-basic'/);
+  assert.match(system, /'ringing-snooze'/);
+  assert.match(state, /ringSnoozedSession/);
+});

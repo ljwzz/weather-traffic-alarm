@@ -1,0 +1,522 @@
+{
+  "date": "2026-09-02",
+  "fileKey": "wN04BlxRelbJyBVF35DyXE",
+  "pageId": "0:1",
+  "boardId": "95:600",
+  "scope": "First-cycle Figma references; repeat snooze and cross-day interaction verified in the local prototype.",
+  "fontMismatches": [],
+  "report": [
+    {
+      "id": "95:601",
+      "name": "12B / 基础响铃",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:30",
+        "知途 · 基础闹钟",
+        "9月2日  星期三",
+        "07:30",
+        "按设定时间提醒",
+        "基础闹钟",
+        "按计划 07:30 提醒；\n不依赖天气或路线。",
+        "停止",
+        "贪睡 10 分钟",
+        "离线交互演示 · 不播放声音或振动\n仅操作本次模拟实例；不修改已保存计划"
+      ],
+      "links": [
+        {
+          "id": "95:640",
+          "name": "Button/停止",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "95:655",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "95:655",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "95:642",
+          "name": "Snooze / 10 minutes",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "95:709",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "95:709",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "95:655",
+      "name": "12B / 基础 · 已停止",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:30",
+        "知途 · 基础闹钟",
+        "9月2日  星期三",
+        "07:30",
+        "本次响铃已停止",
+        "本次响铃仅为演示",
+        "仅结束当前模拟实例；不修改已保存计划。",
+        "返回闹钟",
+        "重新演示",
+        "离线交互演示 · 不播放声音或振动\n仅操作本次模拟实例；不修改已保存计划"
+      ],
+      "links": [
+        {
+          "id": "95:694",
+          "name": "Button/停止",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "57:1000",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "57:1000",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "95:696",
+          "name": "Snooze / 10 minutes",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "95:601",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "95:601",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "95:709",
+      "name": "12B / 基础 · 已贪睡",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:40",
+        "知途 · 基础闹钟",
+        "9月2日  星期三",
+        "07:40",
+        "已贪睡 10 分钟",
+        "下次模拟响铃",
+        "将在 07:40 触发新的模拟实例。",
+        "返回闹钟",
+        "模拟再次响铃",
+        "离线交互演示 · 不播放声音或振动\n仅操作本次模拟实例；不修改已保存计划"
+      ],
+      "links": [
+        {
+          "id": "95:748",
+          "name": "Button/停止",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "57:1000",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "57:1000",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "95:750",
+          "name": "Snooze / 10 minutes",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "119:624",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "119:624",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "95:763",
+      "name": "12E / 提前响铃 · 演示",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:18",
+        "知途 · 提前闹钟",
+        "9月2日  星期三",
+        "07:18",
+        "今天，比平时早 12 分钟",
+        "今天路上有小雨",
+        "通勤约 47 分钟，建议 08:03 出发。\n慢慢准备，也能准时到达。",
+        "停止",
+        "贪睡 10 分钟",
+        "离线交互演示 · 不播放声音或振动\n自动提前尚未启用；不修改基础闹钟"
+      ],
+      "links": [
+        {
+          "id": "95:802",
+          "name": "Button/停止",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "95:817",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "95:817",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "95:804",
+          "name": "Snooze / 10 minutes",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "95:871",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "95:871",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "95:817",
+      "name": "12E / 提前 · 已停止",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:18",
+        "知途 · 提前闹钟",
+        "9月2日  星期三",
+        "07:18",
+        "本次响铃已停止",
+        "本次响铃仅为演示",
+        "仅结束当前模拟实例；不修改已保存计划。",
+        "返回闹钟",
+        "重新演示",
+        "离线交互演示 · 不播放声音或振动\n自动提前尚未启用；不修改基础闹钟"
+      ],
+      "links": [
+        {
+          "id": "95:856",
+          "name": "Button/停止",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "57:1000",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "57:1000",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "95:858",
+          "name": "Snooze / 10 minutes",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "95:763",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "95:763",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "95:871",
+      "name": "12E / 提前 · 已贪睡",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:28",
+        "知途 · 提前闹钟",
+        "9月2日  星期三",
+        "07:28",
+        "已贪睡 10 分钟",
+        "下次模拟响铃",
+        "将在 07:28 触发新的模拟实例。",
+        "返回闹钟",
+        "模拟再次响铃",
+        "离线交互演示 · 不播放声音或振动\n自动提前尚未启用；不修改基础闹钟"
+      ],
+      "links": [
+        {
+          "id": "95:910",
+          "name": "Button/停止",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "57:1000",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "57:1000",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "95:912",
+          "name": "Snooze / 10 minutes",
+          "reactions": [
+            {
+              "action": {
+                "type": "NODE",
+                "destinationId": "119:678",
+                "navigation": "NAVIGATE",
+                "transition": null,
+                "resetVideoPosition": false
+              },
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "119:678",
+                  "navigation": "NAVIGATE",
+                  "transition": null,
+                  "resetVideoPosition": false
+                }
+              ],
+              "trigger": {
+                "type": "ON_CLICK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "119:624",
+      "name": "12B / 基础 · 贪睡后再次响铃",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:40",
+        "知途 · 基础闹钟",
+        "9月2日  星期三",
+        "07:40",
+        "贪睡后再次响铃",
+        "贪睡提醒",
+        "本次为贪睡后的模拟提醒。\n不修改已保存计划或基础闹钟。",
+        "停止",
+        "贪睡 10 分钟",
+        "离线交互演示 · 不播放声音或振动\n仅操作本次模拟实例；不修改已保存计划"
+      ],
+      "links": [
+        {
+          "id": "119:663",
+          "name": "Button/停止",
+          "reactions": []
+        },
+        {
+          "id": "119:665",
+          "name": "Snooze / 10 minutes",
+          "reactions": []
+        }
+      ]
+    },
+    {
+      "id": "119:678",
+      "name": "12E / 提前 · 贪睡后再次响铃",
+      "w": 412,
+      "h": 892,
+      "placeholder": false,
+      "texts": [
+        "07:28",
+        "知途 · 提前闹钟",
+        "9月2日  星期三",
+        "07:28",
+        "贪睡后再次响铃",
+        "贪睡提醒",
+        "本次为贪睡后的模拟提醒。\n不修改已保存计划或基础闹钟。",
+        "停止",
+        "贪睡 10 分钟",
+        "离线交互演示 · 不播放声音或振动\n自动提前尚未启用；不修改基础闹钟"
+      ],
+      "links": [
+        {
+          "id": "119:717",
+          "name": "Button/停止",
+          "reactions": []
+        },
+        {
+          "id": "119:719",
+          "name": "Snooze / 10 minutes",
+          "reactions": []
+        }
+      ]
+    }
+  ]
+}
