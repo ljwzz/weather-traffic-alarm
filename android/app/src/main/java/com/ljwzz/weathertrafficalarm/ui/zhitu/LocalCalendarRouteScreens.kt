@@ -814,6 +814,10 @@ private val commuteModes = listOf(
     Text(if (state.days.isEmpty()) "日历来源 · 星期回退" else "日历来源 · 本地缓存", color = if (state.error == null) ZhituColors.Brand else ZhituColors.Amber, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(4.dp))
     Text(state.error ?: state.fetchedAt?.let { "已加载年度日历" } ?: "首次进入正在检查本地日历。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+    state.diagnostics.lastOrNull()?.let { diagnostic ->
+        Spacer(Modifier.height(8.dp))
+        CalendarRefreshDiagnosticDetails(diagnostic, includeTitle = false)
+    }
     TextButton({ refresh(true) }, enabled = !state.loading) { Text(if (state.loading) "正在刷新" else "刷新日历") }
 }
 

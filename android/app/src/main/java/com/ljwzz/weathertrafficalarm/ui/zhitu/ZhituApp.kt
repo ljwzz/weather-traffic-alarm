@@ -332,6 +332,7 @@ fun ZhituApp(
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen(
                     snapshot = permissionSnapshot,
                     confirmations = permissionViewModel.confirmations,
+                    calendarDiagnostics = calendarState.diagnostics,
                     onSetting = ::openPermissionSettings,
                     onConfirm = { permissionViewModel.confirm(it); refreshPermissions() },
                     onRefresh = ::refreshPermissions,

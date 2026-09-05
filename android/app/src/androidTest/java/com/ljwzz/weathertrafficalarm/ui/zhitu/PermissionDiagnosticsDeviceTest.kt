@@ -9,6 +9,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshFailure
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshOutcome
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceAttempt
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceOutcome
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -66,6 +73,49 @@ class PermissionDiagnosticsDeviceTest {
 
         assertEquals(PermissionSetting.FullScreenIntent, setting.value)
         assertEquals(1, returns.value)
+    }
+
+    @Test
+    fun calendarRefreshDiagnosticsRenderFailureCategoryAndLimitedSource() {
+        compose.setContent {
+            ZhituTheme {
+                PermissionDiagnosticsContent(
+                    snapshot = snapshot(isXiaomi = false),
+                    confirmations = emptySet(),
+                    onSetting = {},
+                    onConfirm = {},
+                    onRefresh = {},
+                    onBack = {},
+                    onNotificationRequest = {},
+                    calendarDiagnostics = listOf(
+                        CalendarRefreshDiagnostic(
+                            startedAt = 0L,
+                            durationMillis = 1_230L,
+                            outcome = CalendarRefreshOutcome.FAILED,
+                            failure = CalendarRefreshFailure.NETWORK,
+                            consecutiveFailures = 2,
+                            attempts = listOf(
+                                CalendarSourceAttempt(
+                                    year = 2026,
+                                    sourceHost = "raw.githubusercontent.com",
+                                    outcome = CalendarSourceOutcome.SKIPPED_LIMIT,
+                                    durationMillis = 0L,
+                                    consecutiveFailures = 4,
+                                    dailyFailures = 4,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
+
+        compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasText("最近日历刷新"))
+        compose.onNodeWithText("最近日历刷新").assertExists()
+        compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasText("今日失败已达上限", substring = true))
+        compose.onNodeWithText("网络失败", substring = true).assertExists()
+        compose.onNodeWithText("今日失败已达上限", substring = true).assertExists()
+        compose.onNodeWithText("连续失败 2 次").assertExists()
     }
 
     private fun setDiagnostics(

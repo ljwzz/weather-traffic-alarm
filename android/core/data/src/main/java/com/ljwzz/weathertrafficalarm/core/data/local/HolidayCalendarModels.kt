@@ -13,6 +13,7 @@ data class CalendarUiState(
     val sourceUrl: String? = null,
     val error: String? = null,
     val days: Map<String, DayStatus> = emptyMap(),
+    val diagnostics: List<CalendarRefreshDiagnostic> = emptyList(),
 )
 
 @Serializable

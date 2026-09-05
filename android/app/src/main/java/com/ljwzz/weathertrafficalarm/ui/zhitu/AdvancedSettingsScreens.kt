@@ -46,6 +46,7 @@ import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -327,6 +328,7 @@ fun AlarmDiagnosticsScreen(
     onNotificationRequest: () -> Unit,
     statusMessage: String? = null,
     returningToAlarm: Boolean = false,
+    calendarDiagnostics: List<CalendarRefreshDiagnostic> = emptyList(),
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -347,6 +349,7 @@ fun AlarmDiagnosticsScreen(
         onRefresh = { volume = readVolume(); onRefresh() },
         onBack, onNotificationRequest, statusMessage, returningToAlarm,
         alarmVolume = volume,
+        calendarDiagnostics = calendarDiagnostics,
     )
 }
 

@@ -30,6 +30,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshFailure
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshOutcome
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceOutcome
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 fun PermissionSnapshot.signature(confirmations: Set<XiaomiDisplayPermission>) = AlarmPermissionSignature(
     notification = notificationRuntimeGranted && notificationsAvailable && alarmChannelAvailable,
@@ -97,6 +104,7 @@ fun PermissionDiagnosticsContent(
     statusMessage: String? = null,
     returningToAlarm: Boolean = false,
     alarmVolume: String? = null,
+    calendarDiagnostics: List<CalendarRefreshDiagnostic> = emptyList(),
 ) {
     Scaffold(
         containerColor = ZhituColors.Background,
@@ -147,10 +155,97 @@ fun PermissionDiagnosticsContent(
             alarmVolume?.let { volume -> item {
                 PermissionCard { PermissionItem("闹钟音量", "使用系统闹钟音量", volume, "alarm_volume", { onSetting(PermissionSetting.AlarmVolume) }) }
             } }
+            if (calendarDiagnostics.isNotEmpty()) {
+                item {
+                    Text("最近日历刷新", color = ZhituColors.Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                }
+                calendarDiagnostics.takeLast(5).asReversed().forEachIndexed { index, diagnostic ->
+                    item(key = "calendar_refresh_${diagnostic.startedAt}_$index") {
+                        CalendarRefreshDiagnosticCard(diagnostic)
+                    }
+                }
+            }
             item { TonalButton("重新检查", onRefresh, Modifier.fillMaxWidth().testTag("permissions_refresh")) }
             if (returningToAlarm) item { TonalButton("返回继续启用", onBack, Modifier.fillMaxWidth().testTag("permissions_return")) }
         }
     }
+}
+
+@Composable
+fun CalendarRefreshDiagnosticCard(diagnostic: CalendarRefreshDiagnostic) = PermissionCard {
+    CalendarRefreshDiagnosticDetails(diagnostic, includeTitle = true)
+}
+
+@Composable
+fun ColumnScope.CalendarRefreshDiagnosticDetails(
+    diagnostic: CalendarRefreshDiagnostic,
+    includeTitle: Boolean,
+) {
+    val success = diagnostic.outcome == CalendarRefreshOutcome.SUCCESS
+    val statusColor = if (success) ZhituColors.Brand else ZhituColors.Amber
+    if (includeTitle) {
+        Text(
+            "${formatCalendarDiagnosticTime(diagnostic.startedAt)} · 日历刷新",
+            color = ZhituColors.Ink,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+    Text(
+        "${diagnostic.outcome.calendarOutcomeLabel(diagnostic.failure)} · ${formatCalendarDuration(diagnostic.durationMillis)} · ${diagnostic.attempts.distinctBy { it.sourceHost }.size} 个来源",
+        color = statusColor,
+        style = MaterialTheme.typography.bodySmall,
+    )
+    val years = buildList {
+        if (diagnostic.cacheHitYears.isNotEmpty()) add("使用缓存 ${diagnostic.cacheHitYears.joinToString("、")}")
+        if (diagnostic.refreshedYears.isNotEmpty()) add("刷新 ${diagnostic.refreshedYears.joinToString("、")}")
+    }
+    if (years.isNotEmpty()) {
+        Text(years.joinToString(" · "), color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+    }
+    if (!success) {
+        Text("连续失败 ${diagnostic.consecutiveFailures} 次", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+    }
+    diagnostic.attempts.forEach { attempt ->
+        val attemptStatus = attempt.outcome.calendarAttemptLabel(attempt.failure)
+        val failureCount = if (attempt.dailyFailures > 0) " · 今日失败 ${attempt.dailyFailures} 次" else ""
+        Text(
+            "${attempt.year} · ${attempt.sourceHost} · $attemptStatus · ${formatCalendarDuration(attempt.durationMillis)}$failureCount",
+            color = ZhituColors.Muted,
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+internal fun formatCalendarDiagnosticTime(timestamp: Long): String = Instant.ofEpochMilli(timestamp)
+    .atZone(ZoneId.systemDefault())
+    .format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+
+internal fun formatCalendarDuration(durationMillis: Long): String = when {
+    durationMillis < 1_000L -> "${durationMillis.coerceAtLeast(0L)} 毫秒"
+    else -> "${durationMillis / 1_000}.${(durationMillis % 1_000) / 100} 秒"
+}
+
+private fun CalendarRefreshOutcome.calendarOutcomeLabel(failure: CalendarRefreshFailure?): String = when (this) {
+    CalendarRefreshOutcome.SUCCESS -> "刷新成功"
+    CalendarRefreshOutcome.FAILED -> failure.calendarFailureLabel()
+}
+
+private fun CalendarSourceOutcome.calendarAttemptLabel(failure: CalendarRefreshFailure?): String = when (this) {
+    CalendarSourceOutcome.SUCCESS -> "成功"
+    CalendarSourceOutcome.SKIPPED_LIMIT -> "今日失败已达上限"
+    CalendarSourceOutcome.FAILED -> failure.calendarFailureLabel()
+}
+
+private fun CalendarRefreshFailure?.calendarFailureLabel(): String = when (this) {
+    CalendarRefreshFailure.NETWORK -> "网络失败"
+    CalendarRefreshFailure.TIMEOUT -> "请求超时"
+    CalendarRefreshFailure.HTTP -> "服务响应失败"
+    CalendarRefreshFailure.VALIDATION -> "数据校验失败"
+    CalendarRefreshFailure.STORAGE -> "本地存储失败"
+    CalendarRefreshFailure.RATE_LIMITED -> "请求受限"
+    CalendarRefreshFailure.CANCELLED -> "已取消"
+    CalendarRefreshFailure.UNKNOWN -> "未知错误"
+    null -> "刷新失败"
 }
 
 @Composable

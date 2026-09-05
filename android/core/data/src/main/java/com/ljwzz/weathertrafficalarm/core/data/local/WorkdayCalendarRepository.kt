@@ -4,8 +4,12 @@ import android.content.Context
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +18,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.nio.file.AtomicMoveNotSupportedException
@@ -30,10 +36,14 @@ private const val OCTOBER = 10
 private const val CONNECT_TIMEOUT_MS = 10_000
 private const val READ_TIMEOUT_MS = 15_000
 private const val MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1_000L
+// FR-015: stop a source for the day once its failures exceed three.
+private const val DAILY_SOURCE_FAILURE_THRESHOLD = 3
+private const val MAX_REFRESH_DIAGNOSTICS = 100
 
 internal interface HolidayCalendarClock {
     fun today(): LocalDate
     fun currentTimeMillis(): Long
+    fun elapsedRealtimeMillis(): Long = System.nanoTime() / 1_000_000
 }
 
 internal object SystemHolidayCalendarClock : HolidayCalendarClock {
@@ -44,6 +54,8 @@ internal object SystemHolidayCalendarClock : HolidayCalendarClock {
 internal fun interface HolidayCalendarTransport {
     fun get(url: String): String
 }
+
+internal class HolidayCalendarHttpException(val statusCode: Int) : IOException()
 
 internal object UrlHolidayCalendarTransport : HolidayCalendarTransport {
     override fun get(url: String): String {
@@ -56,7 +68,7 @@ internal object UrlHolidayCalendarTransport : HolidayCalendarTransport {
         }
         try {
             if (connection.responseCode !in 200..299) {
-                throw IllegalStateException("HTTP ${connection.responseCode}")
+                throw HolidayCalendarHttpException(connection.responseCode)
             }
             return connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
         } finally {
@@ -89,11 +101,14 @@ class WorkdayCalendarRepository internal constructor(
     /** Protects short cache reads/writes while a refresh fetches outside this lock. */
     private val cacheMutex = Mutex()
     private val directory = File(context.filesDir, CALENDAR_CACHE_DIRECTORY)
+    private val refreshStore = HolidayCalendarRefreshStore(directory)
+    private var refreshHistory: CalendarRefreshHistory? = null
+    private var diagnosticStorageFailed = false
     private val _state = MutableStateFlow(CalendarUiState())
     val state: StateFlow<CalendarUiState> = _state.asStateFlow()
 
     init {
-        scope.launch { publishCachedState() }
+        scope.launch { refreshMutex.withLock { publishCachedState() } }
     }
 
     /** Returns validated cached official days. This never performs network I/O. */
@@ -109,45 +124,106 @@ class WorkdayCalendarRepository internal constructor(
      */
     suspend fun refresh(force: Boolean = false): Boolean = refreshMutex.withLock {
         withContext(Dispatchers.IO) {
+            val startedAt = clock.currentTimeMillis()
+            val startedElapsed = clock.elapsedRealtimeMillis()
+            diagnosticStorageFailed = false
             val refreshYears = yearsForRefresh()
-            val before = cacheMutex.withLock {
-                HolidayCalendarCodec.toStatuses(readCachedDocuments(yearsForState()))
-            }
-            _state.value = _state.value.copy(loaded = true, loading = true, error = null, days = before)
-
-            val errors = mutableListOf<String>()
+            var before = _state.value.days
+            val errors = mutableListOf<Pair<Int?, CalendarRefreshFailure>>()
+            val attempts = mutableListOf<CalendarSourceAttempt>()
+            val cacheHitYears = mutableListOf<Int>()
+            val refreshedYears = mutableListOf<Int>()
             var successfulSource: String? = null
-            refreshYears.forEach { year ->
-                val shouldFetch = cacheMutex.withLock { force || !hasValidFreshCache(year) }
-                if (!shouldFetch) return@forEach
+            var changed = false
+            try {
+                history()
+                before = cacheMutex.withLock {
+                    removeObsoleteCacheFiles()
+                    HolidayCalendarCodec.toStatuses(readCachedDocuments(yearsForState()))
+                }
+                currentCoroutineContext().ensureActive()
+                _state.value = _state.value.copy(loaded = true, loading = true, error = null, days = before)
+                refreshYears.forEach { year ->
+                    currentCoroutineContext().ensureActive()
+                    val shouldFetch = cacheMutex.withLock { force || !hasValidFreshCache(year) }
+                    if (!shouldFetch) {
+                        cacheHitYears += year
+                        return@forEach
+                    }
 
-                val download = download(year)
-                if (download.isFailure) {
-                    errors += "$year: ${download.exceptionOrNull()?.message ?: "refresh failed"}"
-                    return@forEach
+                    val download = download(year, attempts)
+                    if (download.failure != null) {
+                        errors += year to download.failure
+                        return@forEach
+                    }
+                    currentCoroutineContext().ensureActive()
+                    try {
+                        cacheMutex.withLock { writeAtomically(cacheFile(year), requireNotNull(download.payload)) }
+                        refreshedYears += year
+                        successfulSource = download.sourceUrl
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        errors += year to CalendarRefreshFailure.STORAGE
+                    }
                 }
-                val (source, payload) = download.getOrThrow()
-                cacheMutex.withLock {
-                    writeAtomically(cacheFile(year), payload)
+            } catch (cancelled: CancellationException) {
+                errors += null to CalendarRefreshFailure.CANCELLED
+                throw cancelled
+            } catch (_: Exception) {
+                errors += null to CalendarRefreshFailure.UNKNOWN
+            } finally {
+                withContext(NonCancellable) {
+                    if (diagnosticStorageFailed) errors += null to CalendarRefreshFailure.STORAGE
+                    val previous = history()
+                    val diagnostic = CalendarRefreshDiagnostic(
+                        startedAt = startedAt,
+                        durationMillis = elapsedSince(startedElapsed),
+                        outcome = if (errors.isEmpty()) CalendarRefreshOutcome.SUCCESS else CalendarRefreshOutcome.FAILED,
+                        failure = errors.firstOrNull()?.second,
+                        consecutiveFailures = if (errors.isEmpty()) 0 else increment(previous.consecutiveFailures),
+                        cacheHitYears = cacheHitYears,
+                        refreshedYears = refreshedYears,
+                        attempts = attempts,
+                    )
+                    val updated = previous.copy(
+                        consecutiveFailures = diagnostic.consecutiveFailures,
+                        diagnostics = (previous.diagnostics + diagnostic).takeLast(MAX_REFRESH_DIAGNOSTICS),
+                    )
+                    if (!saveHistory(updated)) {
+                        errors += null to CalendarRefreshFailure.STORAGE
+                        val failedDiagnostic = diagnostic.copy(
+                            outcome = CalendarRefreshOutcome.FAILED,
+                            failure = diagnostic.failure ?: CalendarRefreshFailure.STORAGE,
+                            consecutiveFailures = increment(previous.consecutiveFailures),
+                        )
+                        refreshHistory = updated.copy(
+                            consecutiveFailures = failedDiagnostic.consecutiveFailures,
+                            diagnostics = updated.diagnostics.dropLast(1) + failedDiagnostic,
+                        )
+                    }
+                    val afterDocuments = cacheMutex.withLock { readCachedDocuments(yearsForState()) }
+                    val after = HolidayCalendarCodec.toStatuses(afterDocuments)
+                    _state.value = CalendarUiState(
+                        loaded = true,
+                        loading = false,
+                        fetchedAt = afterDocuments.maxOfOrNull { cacheFile(it.year).lastModified() }?.takeIf { it > 0L },
+                        sourceUrl = successfulSource ?: _state.value.sourceUrl,
+                        error = errors.distinct().takeIf { it.isNotEmpty() }?.joinToString("; ") { (year, failure) ->
+                            listOfNotNull(year?.toString(), failureMessage(failure)).joinToString(": ")
+                        },
+                        days = after,
+                        diagnostics = history().diagnostics,
+                    )
+                    changed = after != before
                 }
-                successfulSource = source
             }
-
-            val afterDocuments = cacheMutex.withLock { readCachedDocuments(yearsForState()) }
-            val after = HolidayCalendarCodec.toStatuses(afterDocuments)
-            _state.value = CalendarUiState(
-                loaded = true,
-                loading = false,
-                fetchedAt = afterDocuments.maxOfOrNull { cacheFile(it.year).lastModified() }?.takeIf { it > 0L },
-                sourceUrl = successfulSource ?: _state.value.sourceUrl,
-                error = errors.takeIf { it.isNotEmpty() }?.joinToString(separator = "; "),
-                days = after,
-            )
-            after != before
+            changed
         }
     }
 
     private suspend fun publishCachedState() = withContext(Dispatchers.IO) {
+        if (_state.value.loaded) return@withContext
         cacheMutex.withLock {
             val documents = readCachedDocuments(yearsForState())
             removeObsoleteCacheFiles()
@@ -155,6 +231,7 @@ class WorkdayCalendarRepository internal constructor(
                 loaded = true,
                 fetchedAt = documents.maxOfOrNull { cacheFile(it.year).lastModified() }?.takeIf { it > 0L },
                 days = HolidayCalendarCodec.toStatuses(documents),
+                diagnostics = history().diagnostics,
             )
         }
     }
@@ -184,18 +261,92 @@ class WorkdayCalendarRepository internal constructor(
         }.getOrNull()
     }
 
-    private fun download(year: Int): Result<Pair<String, String>> {
-        var lastFailure: Throwable? = null
+    private data class Download(
+        val sourceUrl: String? = null,
+        val payload: String? = null,
+        val failure: CalendarRefreshFailure? = null,
+    )
+
+    private suspend fun download(year: Int, attempts: MutableList<CalendarSourceAttempt>): Download {
+        var lastFailure = CalendarRefreshFailure.RATE_LIMITED
         for (url in sourceUrls(year)) {
-            try {
-                val payload = transport.get(url)
-                HolidayCalendarCodec.decodeAndValidate(year, payload)
-                return Result.success(url to payload)
-            } catch (failure: Throwable) {
-                lastFailure = failure
+            currentCoroutineContext().ensureActive()
+            val host = URL(url).host
+            val today = clock.today().toString()
+            val stored = history().sources[host]
+            val failures = if (stored?.day == today) stored else CalendarSourceFailures(
+                day = today,
+                consecutiveFailures = stored?.consecutiveFailures ?: 0,
+            )
+            if (failures.dailyFailures > DAILY_SOURCE_FAILURE_THRESHOLD) {
+                attempts += CalendarSourceAttempt(
+                    year, host, CalendarSourceOutcome.SKIPPED_LIMIT, CalendarRefreshFailure.RATE_LIMITED,
+                    durationMillis = 0, consecutiveFailures = failures.consecutiveFailures, dailyFailures = failures.dailyFailures,
+                )
+                continue
             }
+            val started = clock.elapsedRealtimeMillis()
+            var payload: String? = null
+            val failure: CalendarRefreshFailure? = try {
+                payload = transport.get(url)
+                currentCoroutineContext().ensureActive()
+                try {
+                    HolidayCalendarCodec.decodeAndValidate(year, payload)
+                    null
+                } catch (_: Exception) {
+                    CalendarRefreshFailure.VALIDATION
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: HolidayCalendarHttpException) {
+                CalendarRefreshFailure.HTTP
+            } catch (_: SocketTimeoutException) {
+                CalendarRefreshFailure.TIMEOUT
+            } catch (_: IOException) {
+                CalendarRefreshFailure.NETWORK
+            } catch (_: Exception) {
+                CalendarRefreshFailure.UNKNOWN
+            }
+            val next = failures.copy(
+                dailyFailures = if (failure == null) failures.dailyFailures else increment(failures.dailyFailures),
+                consecutiveFailures = if (failure == null) 0 else increment(failures.consecutiveFailures),
+            )
+            saveHistory(history().copy(sources = history().sources + (host to next)))
+            attempts += CalendarSourceAttempt(
+                year, host, if (failure == null) CalendarSourceOutcome.SUCCESS else CalendarSourceOutcome.FAILED, failure,
+                durationMillis = elapsedSince(started), consecutiveFailures = next.consecutiveFailures, dailyFailures = next.dailyFailures,
+            )
+            if (failure == null) return Download(sourceUrl = url, payload = payload)
+            lastFailure = failure
         }
-        return Result.failure(lastFailure ?: IllegalStateException("No calendar source available"))
+        return Download(failure = lastFailure)
+    }
+
+    private fun history(): CalendarRefreshHistory = refreshHistory ?: refreshStore.read().also { refreshHistory = it }
+
+    private fun saveHistory(updated: CalendarRefreshHistory): Boolean {
+        refreshHistory = updated
+        return try {
+            refreshStore.write(updated)
+            true
+        } catch (_: Exception) {
+            diagnosticStorageFailed = true
+            false
+        }
+    }
+
+    private fun elapsedSince(started: Long): Long = (clock.elapsedRealtimeMillis() - started).coerceAtLeast(0L)
+    private fun increment(value: Int): Int = if (value == Int.MAX_VALUE) value else value + 1
+
+    private fun failureMessage(failure: CalendarRefreshFailure): String = when (failure) {
+        CalendarRefreshFailure.NETWORK -> "日历网络连接失败"
+        CalendarRefreshFailure.TIMEOUT -> "日历请求超时"
+        CalendarRefreshFailure.HTTP -> "日历服务响应错误"
+        CalendarRefreshFailure.VALIDATION -> "日历数据校验失败"
+        CalendarRefreshFailure.STORAGE -> "日历本地保存失败"
+        CalendarRefreshFailure.RATE_LIMITED -> "日历源已达当日失败限制，次日重试"
+        CalendarRefreshFailure.CANCELLED -> "日历刷新已取消"
+        CalendarRefreshFailure.UNKNOWN -> "日历刷新失败"
     }
 
     private fun writeAtomically(destination: File, payload: String) {
