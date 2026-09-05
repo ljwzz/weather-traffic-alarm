@@ -58,6 +58,30 @@ class EvaluationCoordinatorPolicyTest {
     }
 
     @Test
+    fun `driving candidates span three hours in fifteen minute steps anchored to arrival`() {
+        val arrival = ZonedDateTime.parse("2026-09-07T09:07:30+08:00[Asia/Shanghai]")
+
+        assertEquals(
+            listOf(
+                "06:07:30", "06:22:30", "06:37:30", "06:52:30", "07:07:30", "07:22:30", "07:37:30",
+                "07:52:30", "08:07:30", "08:22:30", "08:37:30", "08:52:30", "09:07:30",
+            ),
+            EvaluationCoordinatorPolicy.drivingCandidateDepartures(arrival).map { it.toLocalTime().toString() },
+        )
+    }
+
+    @Test
+    fun `driving candidate window crosses midnight in the plan zone`() {
+        val arrival = ZonedDateTime.parse("2026-09-07T01:00:00+08:00[Asia/Shanghai]")
+        val candidates = EvaluationCoordinatorPolicy.drivingCandidateDepartures(arrival)
+
+        assertEquals(ZonedDateTime.parse("2026-09-06T22:00:00+08:00[Asia/Shanghai]"), candidates.first())
+        assertEquals(arrival, candidates.last())
+        assertEquals(13, candidates.size)
+        assertTrue(candidates.all { it.zone == arrival.zone })
+    }
+
+    @Test
     fun `transit candidates begin ninety minutes before arrival then advance in fifteen minute steps`() {
         val arrival = ZonedDateTime.parse("2026-09-07T09:00:00+08:00[Asia/Shanghai]")
 

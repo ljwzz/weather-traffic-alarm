@@ -205,6 +205,7 @@ class EvaluationCoordinator @Inject constructor(
     }
 
     private suspend fun resolveRoute(inputs: EvaluationInputs): RouteResult = when (inputs.commute.commuteMode) {
+        CommuteMode.DRIVING -> resolveDrivingRoute(inputs)
         CommuteMode.TRANSIT -> resolveTransitRoute(inputs)
         else -> {
             val estimate = routes.estimate(inputs.routeRequest(departureAt = null))
@@ -213,9 +214,27 @@ class EvaluationCoordinator @Inject constructor(
             RouteResult(
                 calculationCommuteSeconds = duration,
                 estimatedDeparture = inputs.arrival.minusSeconds(duration).toInstant(),
-                fallbackReason = if (inputs.commute.commuteMode == CommuteMode.DRIVING) FallbackReason.CURRENT_TRAFFIC_FALLBACK else null,
             )
         }
+    }
+
+    private suspend fun resolveDrivingRoute(inputs: EvaluationInputs): RouteResult {
+        // The v5 driving API has no departure-time parameter. Reuse its current-traffic
+        // estimate across the local candidates and retain the fallback in the decision.
+        // https://lbs.amap.com/api/webservice/guide/api/newroute
+        val estimate = routes.estimate(inputs.routeRequest(departureAt = null))
+        val duration = estimate.alternatives.map(RouteAlternative::durationSeconds).filter { it >= 0 }.minOrNull()
+            ?: throw ProviderError(ProviderError.Category.ROUTE_NOT_FOUND, message = "No usable route duration")
+        val arrival = inputs.arrival
+        val departure = EvaluationCoordinatorPolicy.drivingCandidateDepartures(arrival).lastOrNull {
+            duration <= Duration.between(it, arrival).seconds
+        } ?: throw ProviderError(ProviderError.Category.ROUTE_NOT_FOUND, message = "No driving candidate arrives before the target")
+        return RouteResult(
+            // Include the candidate's early-arrival margin so wake calculation uses this departure.
+            calculationCommuteSeconds = Duration.between(departure, arrival).seconds,
+            estimatedDeparture = departure.toInstant(),
+            fallbackReason = FallbackReason.CURRENT_TRAFFIC_FALLBACK,
+        )
     }
 
     private suspend fun resolveTransitRoute(inputs: EvaluationInputs): RouteResult {
@@ -433,6 +452,9 @@ internal object EvaluationCoordinatorPolicy {
             end,
         )
     }
+
+    fun drivingCandidateDepartures(arrival: ZonedDateTime): List<ZonedDateTime> =
+        (180 downTo 0 step 15).map { arrival.minusMinutes(it.toLong()) }
 
     fun transitCandidateDepartures(arrival: ZonedDateTime): List<ZonedDateTime> =
         (0..3).map { arrival.minusMinutes(90L + it * 15L) }

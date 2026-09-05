@@ -24,6 +24,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
+import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
@@ -107,6 +108,101 @@ class EvaluationCoordinatorIntegrationTest {
     }
 
     @Test
+    fun `driving fallback queries once and uses the latest fifteen minute candidate`() = runBlocking {
+        val plan = persistPlan()
+        val regular = regular(plan)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 47 * 60L, 1_000, emptyList())))
+        val weather = RecordingWeather(now)
+        coordinator = coordinatorWith(route, weather)
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "driving-grid")
+
+        val expectedDeparture = target.atTime(9, 0).atZone(zone).toInstant()
+        val expectedWake = target.atTime(8, 20).atZone(zone).toInstant().toEpochMilli()
+        assertEquals(EvaluationOutcome.SUCCESS, result.decision?.evaluationOutcome)
+        assertEquals(FallbackReason.CURRENT_TRAFFIC_FALLBACK, result.decision?.fallbackReason)
+        assertEquals(expectedDeparture.toString(), result.decision?.estimatedDepartureAt)
+        assertEquals(60 * 60L, result.decision?.commuteSeconds)
+        assertEquals(expectedWake, result.decision?.recommendedWakeAt?.let(Instant::parse)?.toEpochMilli())
+        assertEquals(1, route.requests.size)
+        assertEquals(null, route.requests.single().departureAt)
+        assertEquals(1, weather.requests)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        val advance = occurrences.getByPlanId(plan.id).single { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED }
+        assertEquals(expectedWake, advance.scheduledWakeAt)
+    }
+
+    @Test
+    fun `driving fallback includes the arrival minus 180 minute candidate`() = runBlocking {
+        val plan = persistPlan()
+        val regular = regular(plan)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 180 * 60L, 1_000, emptyList())))
+        coordinator = coordinatorWith(route, RecordingWeather(now))
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "driving-180-minute-boundary")
+
+        assertEquals(EvaluationOutcome.SUCCESS, result.decision?.evaluationOutcome)
+        assertEquals(target.atTime(7, 0).atZone(zone).toInstant().toString(), result.decision?.estimatedDepartureAt)
+        assertEquals(180 * 60L, result.decision?.commuteSeconds)
+        assertTrue(result.decision?.insufficientAdvance == true)
+        assertEquals(1, route.requests.size)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+    }
+
+    @Test
+    fun `driving fallback rejects duration beyond 180 minutes without evaluating weather`() = runBlocking {
+        val plan = persistPlan()
+        val regular = regular(plan)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 180 * 60L + 1, 1_000, emptyList())))
+        val weather = RecordingWeather(now)
+        coordinator = coordinatorWith(route, weather)
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "driving-over-horizon")
+
+        assertFalse(result.retryable)
+        assertEquals(EvaluationOutcome.FAILED, result.decision?.evaluationOutcome)
+        assertEquals("ROUTE_ROUTE_NOT_FOUND", result.decision?.failureReason)
+        assertEquals(FallbackReason.ROUTE_NOT_FOUND, result.decision?.fallbackReason)
+        assertEquals(1, route.requests.size)
+        assertEquals(0, weather.requests)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    @Test
+    fun `driving fallback rounds route seconds up to the next candidate without querying again`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 45 * 60L + 1, 1_000, emptyList())))
+        coordinator = coordinatorWith(route, RecordingWeather(now))
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "driving-second-rounding")
+
+        assertEquals(EvaluationOutcome.SUCCESS, result.decision?.evaluationOutcome)
+        assertEquals(target.atTime(9, 0).atZone(zone).toInstant().toString(), result.decision?.estimatedDepartureAt)
+        assertEquals(60 * 60L, result.decision?.commuteSeconds)
+        assertEquals(1, route.requests.size)
+    }
+
+    @Test
+    fun `driving fallback reports no route without evaluating weather when estimate is empty`() = runBlocking {
+        val plan = persistPlan()
+        val regular = regular(plan)
+        val route = RecordingRoute(emptyList())
+        val weather = RecordingWeather(now)
+        coordinator = coordinatorWith(route, weather)
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "driving-empty-route")
+
+        assertEquals(EvaluationOutcome.FAILED, result.decision?.evaluationOutcome)
+        assertEquals("ROUTE_ROUTE_NOT_FOUND", result.decision?.failureReason)
+        assertEquals(1, route.requests.size)
+        assertEquals(0, weather.requests)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    @Test
     fun `retryable route failure records failure and leaves regular untouched`() = runBlocking {
         val plan = persistPlan()
         val regular = regular(plan)
@@ -181,6 +277,14 @@ class EvaluationCoordinatorIntegrationTest {
     private class FailingRoute(private val category: ProviderError.Category) : RouteProvider {
         override suspend fun estimate(request: RouteRequest): RouteEstimate = throw ProviderError(category, message = "failure")
     }
+    private class RecordingRoute(private val alternatives: List<RouteAlternative>) : RouteProvider {
+        val requests = mutableListOf<RouteRequest>()
+
+        override suspend fun estimate(request: RouteRequest): RouteEstimate {
+            requests += request
+            return RouteEstimate(alternatives)
+        }
+    }
     private class FakeWeather(private val report: Instant) : WeatherProvider {
         override suspend fun evaluate(request: WeatherRequest): WeatherEvaluation {
             fun location(role: WeatherLocationRole) = WeatherLocationEvaluation(role, WeatherSeverity.MODERATE, report, request.window.start, request.window.end, WeatherDataSource.NETWORK)
@@ -189,6 +293,16 @@ class EvaluationCoordinatorIntegrationTest {
     }
     private class FailingWeather(private val category: ProviderError.Category) : WeatherProvider {
         override suspend fun evaluate(request: WeatherRequest): WeatherEvaluation = throw ProviderError(category, message = "failure")
+    }
+    private class RecordingWeather(private val report: Instant) : WeatherProvider {
+        var requests = 0
+            private set
+
+        override suspend fun evaluate(request: WeatherRequest): WeatherEvaluation {
+            requests += 1
+            fun location(role: WeatherLocationRole) = WeatherLocationEvaluation(role, WeatherSeverity.MODERATE, report, request.window.start, request.window.end, WeatherDataSource.NETWORK)
+            return WeatherRules.combine(location(WeatherLocationRole.HOME), location(WeatherLocationRole.WORK), request.weatherBufferProfile, request.weatherRuleVersion)
+        }
     }
     private class EditingWeather(private val report: Instant, private val edit: suspend () -> Unit) : WeatherProvider {
         override suspend fun evaluate(request: WeatherRequest): WeatherEvaluation {
