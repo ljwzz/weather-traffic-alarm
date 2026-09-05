@@ -1,6 +1,9 @@
 package com.ljwzz.weathertrafficalarm.evaluation
 
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
@@ -44,6 +47,7 @@ import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 /** Result consumed by [EvaluationWorker]; provider errors are recorded as decisions, not thrown. */
 data class EvaluationRunResult(
@@ -69,6 +73,7 @@ class EvaluationCoordinator @Inject constructor(
     private val decisions: DecisionRepository,
     private val alarms: LocalAlarmCoordinator,
     private val clock: Clock,
+    private val diagnostics: RedactingEventLogger,
 ) {
     suspend fun evaluate(
         planId: String,
@@ -76,6 +81,36 @@ class EvaluationCoordinator @Inject constructor(
         targetDate: LocalDate? = null,
         deadline: Instant? = null,
         evaluationId: String = UUID.randomUUID().toString(),
+    ): EvaluationRunResult {
+        val started = System.nanoTime()
+        var resultCode = DiagnosticResultCode.FAILED
+        try {
+            val result = evaluateRun(planId, attemptNumber, targetDate, deadline, evaluationId)
+            resultCode = when (result.decision?.evaluationOutcome) {
+                EvaluationOutcome.SUCCESS -> DiagnosticResultCode.SUCCESS
+                EvaluationOutcome.FAILED -> DiagnosticResultCode.FAILED
+                EvaluationOutcome.STALE -> DiagnosticResultCode.STALE
+                EvaluationOutcome.SKIPPED, null -> DiagnosticResultCode.SKIPPED
+            }
+            return result
+        } catch (cancelled: CancellationException) {
+            resultCode = DiagnosticResultCode.CANCELLED
+            throw cancelled
+        } finally {
+            diagnostics.record(
+                DiagnosticEventType.EVALUATION, resultCode, planId = planId,
+                durationMs = (System.nanoTime() - started) / 1_000_000,
+                timestamp = clock.millis(),
+            )
+        }
+    }
+
+    private suspend fun evaluateRun(
+        planId: String,
+        attemptNumber: Int,
+        targetDate: LocalDate?,
+        deadline: Instant?,
+        evaluationId: String,
     ): EvaluationRunResult {
         val initialPlan = plans.getById(planId)?.takeIf { it.enabled } ?: return EvaluationRunResult(false)
         val date = targetDate ?: clock.instant().atZone(initialPlan.zoneIdInstance()).toLocalDate().plusDays(1)

@@ -1555,7 +1555,7 @@ cd android && ./gradlew :app:testDebugUnitTest
 cd android && ./gradlew :app:connectedDebugAndroidTest
 ```
 
-### [ ] T124 完善低基数指标与诊断
+### [x] T124 完善低基数指标与诊断
 
 依赖：T073。
 
@@ -1563,6 +1563,8 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 
 1. 环形诊断字段核对（eventType/resultCode/appVersion/sdkInt/哈希 ID/durationMs/timestamp），确认无敏感字段。
 2. 日历刷新、评估结果、闹钟事件都写入诊断。
+
+2026-09-05：统一设备保护存储的 200 条环形记录，补齐 8 个约定字段与 ID 哈希；接入日历、评估、闹钟生命周期、恢复和播放结果。诊断页显示版本/API、铃声可读性、统一最近记录及日历详情。提交快照的 274 项相关 JVM 测试、7 项模拟器测试及 66 项原型测试通过；开发工作树结果与验证边界见 [统一诊断验收](android/qa/diagnostics-2026-09-05/README.md)。
 
 验收：
 

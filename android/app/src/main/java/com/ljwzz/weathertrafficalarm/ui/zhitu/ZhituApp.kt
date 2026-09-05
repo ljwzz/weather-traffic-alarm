@@ -82,6 +82,7 @@ fun ZhituApp(
     initialDestination: ZhituDestination = ZhituDestination.HOME,
     ringingOccurrenceId: String? = null,
     viewModel: ZhituViewModel = hiltViewModel(),
+    diagnosticsViewModel: DiagnosticsViewModel = hiltViewModel(),
     permissionViewModel: AlarmPermissionViewModel = viewModel(),
 ) {
     val plans by viewModel.plans.collectAsStateWithLifecycle()
@@ -105,6 +106,9 @@ fun ZhituApp(
     val planCommuteEditor by viewModel.planCommuteEditor.collectAsStateWithLifecycle()
     val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
     val homeUiState by viewModel.homeUiState.collectAsStateWithLifecycle()
+    val diagnosticEvents by diagnosticsViewModel.events.collectAsStateWithLifecycle()
+    val ringtoneReadability by diagnosticsViewModel.ringtoneReadability.collectAsStateWithLifecycle()
+    val checkingRingtone by diagnosticsViewModel.checkingRingtone.collectAsStateWithLifecycle()
     val context = LocalContext.current
     if (!permissionViewModel.navigationInitialized || permissionViewModel.entryOccurrenceId != ringingOccurrenceId || permissionViewModel.entryDestination != initialDestination) {
         permissionViewModel.destination = if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING
@@ -123,6 +127,10 @@ fun ZhituApp(
     var notificationRequested by rememberSaveable { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     fun refreshPermissions() { permissionSnapshot = permissionAccess.read() }
+    fun refreshDiagnostics() {
+        refreshPermissions()
+        diagnosticsViewModel.refreshRingtoneReadability(plans.map(AlarmPlan::sound))
+    }
     fun openPermissionSettings(setting: PermissionSetting) {
         settingsMessage = when (permissionAccess.openSettings(setting)) {
             SettingsLaunchResult.Opened -> null
@@ -183,6 +191,9 @@ fun ZhituApp(
     }
     LaunchedEffect(error) { if (error != null) { delay(4_000); viewModel.clearError() } }
     LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey, credentialStatus.amapSdkVersion) { viewModel.initializeAmap(context) }
+    LaunchedEffect(destination, plans.map { plan -> plan.id to plan.sound }) {
+        if (destination == ZhituDestination.DIAGNOSTICS) refreshDiagnostics()
+    }
     LaunchedEffect(
         destination,
         localSettings.originId,
@@ -332,10 +343,15 @@ fun ZhituApp(
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen(
                     snapshot = permissionSnapshot,
                     confirmations = permissionViewModel.confirmations,
+                    appVersion = diagnosticsViewModel.appVersion,
+                    sdkInt = diagnosticsViewModel.sdkInt,
                     calendarDiagnostics = calendarState.diagnostics,
+                    diagnosticEvents = diagnosticEvents,
+                    ringtoneReadability = ringtoneReadability,
+                    checkingRingtone = checkingRingtone,
                     onSetting = ::openPermissionSettings,
                     onConfirm = { permissionViewModel.confirm(it); refreshPermissions() },
-                    onRefresh = ::refreshPermissions,
+                    onRefresh = ::refreshDiagnostics,
                     onBack = ::returnFromDiagnostics,
                     onNotificationRequest = requestNotification,
                     statusMessage = settingsMessage,

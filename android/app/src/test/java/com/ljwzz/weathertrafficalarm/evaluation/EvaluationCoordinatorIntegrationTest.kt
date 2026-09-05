@@ -9,6 +9,9 @@ import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmRegistrationResul
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmSchedulingGateway
 import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
 import com.ljwzz.weathertrafficalarm.core.data.db.AppDatabase
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
@@ -47,6 +50,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,10 +73,12 @@ class EvaluationCoordinatorIntegrationTest {
     private lateinit var decisions: DecisionRepository
     private lateinit var overrides: PlanCommuteOverrideRepository
     private lateinit var coordinator: EvaluationCoordinator
+    private lateinit var diagnostics: RedactingEventLogger
 
     @Before
     fun setUp() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        diagnostics = RedactingEventLogger(context).also { it.clear() }
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         plans = AlarmPlanRepository(db.alarmPlanDao())
         occurrences = OccurrenceRepository(db.alarmOccurrenceDao())
@@ -86,7 +92,7 @@ class EvaluationCoordinatorIntegrationTest {
         val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, events, dayOverrides, calendar, FakeGateway(), snapshots)
         coordinator = EvaluationCoordinator(
             plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar,
-            FakeRoute, FakeWeather(now), decisions, alarm, Clock.fixed(now, zone),
+            FakeRoute, FakeWeather(now), decisions, alarm, Clock.fixed(now, zone), diagnostics,
         )
     }
 
@@ -105,6 +111,12 @@ class EvaluationCoordinatorIntegrationTest {
         assertEquals("APPLIED", result.decision?.applicationOutcome)
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
         assertEquals(1, occurrences.getByPlanId(plan.id).count { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED })
+        val diagnostic = diagnostics.recentEvents().single { it.eventType == DiagnosticEventType.EVALUATION }
+        assertEquals(DiagnosticResultCode.SUCCESS, diagnostic.resultCode)
+        assertEquals(now.toEpochMilli(), diagnostic.timestamp)
+        assertTrue(requireNotNull(diagnostic.durationMs) >= 0)
+        assertTrue(diagnostic.planIdHash != null && diagnostic.planIdHash != plan.id)
+        assertFalse(diagnostic.toString().contains(home.displayAddress))
     }
 
     @Test
@@ -213,6 +225,8 @@ class EvaluationCoordinatorIntegrationTest {
         assertTrue(result.retryable)
         assertEquals(EvaluationOutcome.FAILED, result.decision?.evaluationOutcome)
         assertEquals("ROUTE_NETWORK", result.decision?.failureReason)
+        assertEquals(DiagnosticResultCode.FAILED,
+            diagnostics.recentEvents().single { it.eventType == DiagnosticEventType.EVALUATION }.resultCode)
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
         assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
     }
@@ -229,6 +243,8 @@ class EvaluationCoordinatorIntegrationTest {
         assertFalse(weatherFailure.retryable)
         assertEquals("WEATHER_INVALID_KEY", weatherFailure.decision?.failureReason)
         assertEquals(EvaluationOutcome.STALE, expired.decision?.evaluationOutcome)
+        assertEquals(listOf(DiagnosticResultCode.FAILED, DiagnosticResultCode.STALE),
+            diagnostics.recentEvents().filter { it.eventType == DiagnosticEventType.EVALUATION }.map { it.resultCode })
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
         assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
     }
@@ -245,6 +261,42 @@ class EvaluationCoordinatorIntegrationTest {
         assertEquals("EVALUATION_INPUTS_CHANGED", result.decision?.failureReason)
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
         assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    @Test
+    fun `inapplicable and missing plans record skipped without calling providers`() = runBlocking {
+        val plan = persistPlan()
+        val route = RecordingRoute(emptyList())
+        val weather = RecordingWeather(now)
+        coordinator = coordinatorWith(route, weather)
+
+        coordinator.evaluate(plan.id, targetDate = target.plusDays(1))
+        coordinator.evaluate("missing-plan")
+
+        assertEquals(listOf(DiagnosticResultCode.SKIPPED, DiagnosticResultCode.SKIPPED),
+            diagnostics.recentEvents().filter { it.eventType == DiagnosticEventType.EVALUATION }.map { it.resultCode })
+        assertTrue(route.requests.isEmpty())
+        assertEquals(0, weather.requests)
+    }
+
+    @Test
+    fun `cancelled evaluation records cancellation and propagates without a decision`() = runBlocking {
+        val plan = persistPlan()
+        coordinator = coordinatorWith(object : RouteProvider {
+            override suspend fun estimate(request: RouteRequest): RouteEstimate =
+                throw CancellationException("secret=short-secret content://private/ringtone 北京 116.3")
+        }, FakeWeather(now))
+
+        try {
+            coordinator.evaluate(plan.id, targetDate = target)
+            org.junit.Assert.fail("Cancellation must propagate")
+        } catch (_: CancellationException) {
+            val event = diagnostics.recentEvents().single { it.eventType == DiagnosticEventType.EVALUATION }
+            assertEquals(DiagnosticResultCode.CANCELLED, event.resultCode)
+            assertFalse(event.toString().contains("short-secret"))
+            assertFalse(event.toString().contains("content://"))
+            assertTrue(occurrences.getByPlanId(plan.id).isEmpty())
+        }
     }
 
     private suspend fun persistPlan(): AlarmPlan {
@@ -268,7 +320,7 @@ class EvaluationCoordinatorIntegrationTest {
         val calendar = WorkdayCalendarRepository(context)
         val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao())
         val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides, calendar, FakeGateway(), NextAlarmSnapshotStore(context))
-        return EvaluationCoordinator(plans, LocalSettingsStore(context), EffectiveCommuteResolver(overrides), dayOverrides, calendar, route, weather, decisions, alarm, Clock.fixed(now, zone))
+        return EvaluationCoordinator(plans, LocalSettingsStore(context), EffectiveCommuteResolver(overrides), dayOverrides, calendar, route, weather, decisions, alarm, Clock.fixed(now, zone), diagnostics)
     }
 
     private object FakeRoute : RouteProvider {

@@ -21,6 +21,8 @@ import androidx.core.app.NotificationCompat
 import dagger.hilt.android.EntryPointAccessors
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory
 import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +87,12 @@ class AlarmRingingService : Service() {
                             ?.takeIf { stored -> canTimeoutDismiss(stored) }
                             ?.let { stored ->
                                 store.save(stored.copy(occurrenceState = AlarmReceiver.STATE_DISMISSED))
+                                AlarmReceiver.recordDiagnostic(
+                                    applicationContext,
+                                    DiagnosticEventType.ALARM_DISMISS,
+                                    DiagnosticResultCode.SUCCESS,
+                                    stored,
+                                )
                             }
                     }
                 }
@@ -159,14 +167,32 @@ class AlarmRingingService : Service() {
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
-        val ringtone = sequenceOf(
-            snapshot.soundUri?.let(Uri::parse),
-            Settings.System.DEFAULT_ALARM_ALERT_URI,
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-            fallbackAlarmUri(),
-        ).filterNotNull().firstNotNullOfOrNull { candidate -> playRingtone(candidate, attributes) }
-        this.ringtone = ringtone
-        return ringtone != null
+        val preferred = snapshot.soundUri?.let(Uri::parse)
+        val candidates = buildList {
+            preferred?.let(::add)
+            listOf(
+                Settings.System.DEFAULT_ALARM_ALERT_URI,
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                fallbackAlarmUri(),
+            ).filterNotNull().forEach { candidate ->
+                if (candidate != preferred) add(candidate)
+            }
+        }
+        val playback = candidates.withIndex().firstNotNullOfOrNull { (index, candidate) ->
+            playRingtone(candidate, attributes)?.let { PlaybackStart(it, usedFallback = index > 0) }
+        }
+        this.ringtone = playback?.ringtone
+        AlarmReceiver.recordDiagnostic(
+            applicationContext,
+            DiagnosticEventType.ALARM_PLAYBACK,
+            when {
+                playback == null -> DiagnosticResultCode.UNREADABLE
+                playback.usedFallback -> DiagnosticResultCode.DEFAULT_FALLBACK
+                else -> DiagnosticResultCode.SUCCESS
+            },
+            snapshot,
+        )
+        return playback != null
     }
 
     private fun playRingtone(uri: Uri, attributes: AudioAttributes): Ringtone? = runCatching {
@@ -183,6 +209,11 @@ class AlarmRingingService : Service() {
 
     private fun fallbackAlarmUri(): Uri =
         Uri.parse("android.resource://$packageName/${R.raw.zhitu_alarm_fallback}")
+
+    private data class PlaybackStart(
+        val ringtone: Ringtone,
+        val usedFallback: Boolean,
+    )
 
     private fun markAudioFailureAndStop(snapshot: NextAlarmSnapshot) {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

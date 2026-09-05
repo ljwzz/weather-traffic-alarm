@@ -6,6 +6,9 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
@@ -28,6 +31,7 @@ class EvaluationWorker @AssistedInject constructor(
     private val scheduler: EvaluationWorkScheduler,
     private val decisions: DecisionRepository,
     private val clock: Clock,
+    private val diagnostics: RedactingEventLogger,
 ) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
         if (!applicationContext.getSystemService(UserManager::class.java).isUserUnlocked) return Result.retry()
@@ -77,6 +81,8 @@ class EvaluationWorker @AssistedInject constructor(
             failureReason = "EVALUATION_WINDOW_EXPIRED", attemptNumber = run.attempt,
             applicationOutcome = "STALE", defaultWakeAt = baseline,
         ))
+        diagnostics.record(DiagnosticEventType.EVALUATION, DiagnosticResultCode.STALE,
+            planId = plan.id, timestamp = clock.millis())
         decisions.deleteOlderThan(clock.instant().minus(Duration.ofDays(30)).toEpochMilli())
     }
 }

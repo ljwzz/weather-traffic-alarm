@@ -1,6 +1,9 @@
 package com.ljwzz.weathertrafficalarm.core.data.local
 
 import android.content.Context
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -87,9 +90,22 @@ class WorkdayCalendarRepository internal constructor(
     private val clock: HolidayCalendarClock,
     private val transport: HolidayCalendarTransport,
     private val scope: CoroutineScope,
+    private val diagnosticLogger: RedactingEventLogger? = null,
 ) {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(
+    constructor(
+        @ApplicationContext context: Context,
+        diagnosticLogger: RedactingEventLogger,
+    ) : this(
+        context = context,
+        clock = SystemHolidayCalendarClock,
+        transport = UrlHolidayCalendarTransport,
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        diagnosticLogger = diagnosticLogger,
+    )
+
+    /** Compatibility constructor for direct callers that do not create the Hilt graph. */
+    constructor(context: Context) : this(
         context = context,
         clock = SystemHolidayCalendarClock,
         transport = UrlHolidayCalendarTransport,
@@ -214,6 +230,12 @@ class WorkdayCalendarRepository internal constructor(
                         },
                         days = after,
                         diagnostics = history().diagnostics,
+                    )
+                    diagnosticLogger?.record(
+                        eventType = DiagnosticEventType.CALENDAR_REFRESH,
+                        resultCode = calendarDiagnosticResult(errors, cacheHitYears, refreshedYears),
+                        durationMs = elapsedSince(startedElapsed),
+                        timestamp = startedAt,
                     )
                     changed = after != before
                 }
@@ -347,6 +369,30 @@ class WorkdayCalendarRepository internal constructor(
         CalendarRefreshFailure.RATE_LIMITED -> "日历源已达当日失败限制，次日重试"
         CalendarRefreshFailure.CANCELLED -> "日历刷新已取消"
         CalendarRefreshFailure.UNKNOWN -> "日历刷新失败"
+    }
+
+    private fun calendarDiagnosticResult(
+        errors: List<Pair<Int?, CalendarRefreshFailure>>,
+        cacheHitYears: List<Int>,
+        refreshedYears: List<Int>,
+    ): DiagnosticResultCode {
+        if (errors.isEmpty()) {
+            return if (cacheHitYears.isNotEmpty() && refreshedYears.isEmpty()) {
+                DiagnosticResultCode.CACHE_HIT
+            } else {
+                DiagnosticResultCode.SUCCESS
+            }
+        }
+        return when (errors.first().second) {
+            CalendarRefreshFailure.NETWORK -> DiagnosticResultCode.NETWORK
+            CalendarRefreshFailure.TIMEOUT -> DiagnosticResultCode.TIMEOUT
+            CalendarRefreshFailure.HTTP -> DiagnosticResultCode.HTTP
+            CalendarRefreshFailure.VALIDATION -> DiagnosticResultCode.VALIDATION
+            CalendarRefreshFailure.STORAGE -> DiagnosticResultCode.STORAGE
+            CalendarRefreshFailure.RATE_LIMITED -> DiagnosticResultCode.RATE_LIMITED
+            CalendarRefreshFailure.CANCELLED -> DiagnosticResultCode.CANCELLED
+            CalendarRefreshFailure.UNKNOWN -> DiagnosticResultCode.UNKNOWN
+        }
     }
 
     private fun writeAtomically(destination: File, payload: String) {

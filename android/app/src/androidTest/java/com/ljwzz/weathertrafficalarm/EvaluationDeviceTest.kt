@@ -3,6 +3,9 @@ package com.ljwzz.weathertrafficalarm
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.WorkManager
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
@@ -20,6 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,6 +41,8 @@ class EvaluationDeviceTest {
         val deps = EntryPointAccessors.fromApplication(context, DeviceTestDependencies::class.java)
         val originalSettings = deps.settings().loadInitial()
         val planId = "evaluation-device-${UUID.randomUUID()}"
+        val diagnostics = RedactingEventLogger(context)
+        val startedAt = System.currentTimeMillis()
 
         try {
             deps.settings().update { originalSettings.copy(amapConsentGranted = false) }
@@ -65,6 +71,19 @@ class EvaluationDeviceTest {
             assertEquals(baseline.scheduledWakeAt, after.scheduledWakeAt)
             assertEquals(OccurrenceState.SCHEDULED, after.state)
             assertTrue(deps.decisions().getByPlanId(planId).any { it.evaluationOutcome == EvaluationOutcome.FAILED })
+            await {
+                diagnostics.recentEvents().any {
+                    it.timestamp >= startedAt && it.eventType == DiagnosticEventType.EVALUATION &&
+                        it.resultCode == DiagnosticResultCode.FAILED
+                }
+            }
+            val event = diagnostics.recentEvents().last {
+                it.timestamp >= startedAt && it.eventType == DiagnosticEventType.EVALUATION
+            }
+            assertTrue(event.planIdHash != null && event.planIdHash != planId)
+            assertTrue(requireNotNull(event.durationMs) >= 0)
+            assertFalse(event.toString().contains("测试起点"))
+            assertFalse(event.toString().contains("116.397"))
         } finally {
             runCatching {
                 WorkManager.getInstance(context)

@@ -1,11 +1,15 @@
 package com.ljwzz.weathertrafficalarm.core.alarm
 
 import android.content.Context
+import android.os.SystemClock
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmRegistrationResult
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmSchedulingGateway
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.RegistrationFailure
 import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
@@ -51,6 +55,7 @@ class LocalAlarmCoordinator @Inject constructor(
     private val calendarRepository: WorkdayCalendarRepository,
     private val scheduler: AlarmSchedulingGateway,
     private val snapshotStore: NextAlarmSnapshotStore,
+    private val diagnosticLogger: RedactingEventLogger? = null,
 ) {
     private val mutex = Mutex()
     val plans: Flow<List<AlarmPlan>> = planRepository.observeAll()
@@ -334,26 +339,43 @@ class LocalAlarmCoordinator @Inject constructor(
 
     /** Rehydrates DB state written in device-protected storage before unlock. */
     suspend fun recover() = mutex.withLock {
-        snapshotStore.migrateLegacyCredentialProtectedSnapshotsIfUnlocked()
-        val now = System.currentTimeMillis()
-        snapshotStore.observeAll().first().forEach { snapshot -> recoverSnapshot(snapshot, now) }
-        val snapshotsByOccurrence = snapshotStore.observeAll().first().associateBy { it.occurrenceId }
-        planRepository.observeAll().first()
-            .filter { it.enabled && it.schedule != null }
-            .forEach { plan ->
-                val active = occurrenceRepository.getByPlanId(plan.id)
-                    .filter { it.planRevision == plan.revision && it.state in ACTIVE_STATES }
-                active
-                    .filterNot { snapshotsByOccurrence.containsKey(it.occurrenceId) }
-                    .forEach { occurrence -> recoverMissingSnapshot(plan, occurrence, now) }
-                deduplicatePendingAdvances(plan)
-                val hasRegular = occurrenceRepository.getByPlanId(plan.id)
-                    .any {
-                        it.kind == OccurrenceKind.REGULAR && it.planRevision == plan.revision &&
-                            it.state in ACTIVE_STATES
+        val startedElapsed = SystemClock.elapsedRealtime()
+        val results = mutableListOf<RecoveryResult>()
+        try {
+            snapshotStore.migrateLegacyCredentialProtectedSnapshotsIfUnlocked()
+            val now = System.currentTimeMillis()
+            snapshotStore.observeAll().first().forEach { snapshot -> results += recoverSnapshot(snapshot, now) }
+            val snapshotsByOccurrence = snapshotStore.observeAll().first().associateBy { it.occurrenceId }
+            planRepository.observeAll().first()
+                .filter { it.enabled && it.schedule != null }
+                .forEach { plan ->
+                    val active = occurrenceRepository.getByPlanId(plan.id)
+                        .filter { it.planRevision == plan.revision && it.state in ACTIVE_STATES }
+                    active
+                        .filterNot { snapshotsByOccurrence.containsKey(it.occurrenceId) }
+                        .forEach { occurrence -> results += recoverMissingSnapshot(plan, occurrence, now) }
+                    deduplicatePendingAdvances(plan)
+                    val hasRegular = occurrenceRepository.getByPlanId(plan.id)
+                        .any {
+                            it.kind == OccurrenceKind.REGULAR && it.planRevision == plan.revision &&
+                                it.state in ACTIVE_STATES
+                        }
+                    if (!hasRegular) {
+                        results += when (armNext(plan.id, Instant.ofEpochMilli(now)).armedState) {
+                            AlarmArmedState.SCHEDULED -> RecoveryResult.RECOVERED
+                            AlarmArmedState.COMPLETED -> RecoveryResult.SKIPPED
+                            else -> RecoveryResult.FAILED
+                        }
                     }
-                if (!hasRegular) armNext(plan.id, Instant.ofEpochMilli(now))
-            }
+                }
+            recordRecovery(results, startedElapsed)
+        } catch (cancelled: CancellationException) {
+            recordRecovery(listOf(RecoveryResult.CANCELLED), startedElapsed)
+            throw cancelled
+        } catch (failure: Exception) {
+            recordRecovery(listOf(RecoveryResult.FAILED), startedElapsed)
+            throw failure
+        }
     }
 
     /**
@@ -466,39 +488,43 @@ class LocalAlarmCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun recoverSnapshot(snapshot: NextAlarmSnapshot, now: Long) {
+    private suspend fun recoverSnapshot(snapshot: NextAlarmSnapshot, now: Long): RecoveryResult {
         val plan = planRepository.getById(snapshot.planId) ?: run {
             scheduler.cancelOccurrence(snapshot.occurrenceId)
-            return
+            return RecoveryResult.RECOVERED
         }
         if (!plan.enabled || plan.revision != snapshot.planRevision || plan.armedState == AlarmArmedState.COMPLETED) {
             scheduler.cancelOccurrence(snapshot.occurrenceId)
             occurrenceRepository.getById(snapshot.occurrenceId)
                 ?.takeIf { it.state !in TERMINAL_STATES }
                 ?.let { occurrenceRepository.updateState(it.occurrenceId, OccurrenceState.CANCELLED.name, now) }
-            return
+            return RecoveryResult.RECOVERED
         }
         val occurrence = occurrenceRepository.getById(snapshot.occurrenceId) ?: createOccurrenceFromSnapshot(plan, snapshot)
         if (occurrence.state in TERMINAL_STATES) {
             snapshotStore.removeOccurrence(occurrence.occurrenceId)
-            return
+            return RecoveryResult.RECOVERED
         }
-        when (snapshot.occurrenceState) {
+        return when (snapshot.occurrenceState) {
             AlarmReceiver.STATE_SCHEDULED -> when {
                 snapshot.triggerAtMillis + AlarmReceiver.LATE_TRIGGER_WINDOW_MILLIS < now -> {
                     markMissed(plan, occurrence, now)
+                    RecoveryResult.RECOVERED
                 }
                 snapshot.triggerAtMillis <= now -> {
                     val firing = snapshot.copy(occurrenceState = AlarmReceiver.STATE_FIRING, firedAtMillis = now)
                     markFiring(plan, occurrence, firing, now)
+                    RecoveryResult.RECOVERED
                 }
                 else -> when (val result = scheduler.restore(snapshot, now)) {
-                    AlarmRegistrationResult.Registered -> occurrenceRepository.updateState(
-                        occurrence.occurrenceId,
-                        OccurrenceState.SCHEDULED.name,
-                        now,
-                    )
-                    is AlarmRegistrationResult.Rejected -> updateArmedState(plan, armedFailureState(result), registrationMessage(result))
+                    AlarmRegistrationResult.Registered -> {
+                        occurrenceRepository.updateState(occurrence.occurrenceId, OccurrenceState.SCHEDULED.name, now)
+                        RecoveryResult.RECOVERED
+                    }
+                    is AlarmRegistrationResult.Rejected -> {
+                        updateArmedState(plan, armedFailureState(result), registrationMessage(result))
+                        RecoveryResult.FAILED
+                    }
                 }
             }
             AlarmReceiver.STATE_FIRING -> {
@@ -508,16 +534,21 @@ class LocalAlarmCoordinator @Inject constructor(
                 } else {
                     markFiring(plan, occurrence, snapshot, now)
                 }
+                RecoveryResult.RECOVERED
             }
             AlarmReceiver.STATE_SNOOZED -> if (occurrence.state != OccurrenceState.SNOOZED) {
                 occurrenceRepository.updateState(occurrence.occurrenceId, OccurrenceState.SNOOZED.name, now)
-            }
+                RecoveryResult.RECOVERED
+            } else RecoveryResult.SKIPPED
             AlarmReceiver.STATE_DISMISSED -> {
                 markDismissed(plan, occurrence, "响铃已结束", now)
+                RecoveryResult.RECOVERED
             }
             AlarmReceiver.STATE_MISSED -> {
                 markMissed(plan, occurrence, now)
+                RecoveryResult.RECOVERED
             }
+            else -> RecoveryResult.SKIPPED
         }
     }
 
@@ -526,9 +557,9 @@ class LocalAlarmCoordinator @Inject constructor(
      * snapshot. Room is the post-unlock source of truth, so restore the same instance
      * rather than calculating a new occurrence ID.
      */
-    private suspend fun recoverMissingSnapshot(plan: AlarmPlan, occurrence: AlarmOccurrence, now: Long) {
-        if (!plan.enabled || occurrence.planRevision != plan.revision || occurrence.state !in ACTIVE_STATES) return
-        when (occurrence.state) {
+    private suspend fun recoverMissingSnapshot(plan: AlarmPlan, occurrence: AlarmOccurrence, now: Long): RecoveryResult {
+        if (!plan.enabled || occurrence.planRevision != plan.revision || occurrence.state !in ACTIVE_STATES) return RecoveryResult.SKIPPED
+        return when (occurrence.state) {
             OccurrenceState.REGISTERING,
             OccurrenceState.SCHEDULED,
             OccurrenceState.DEFAULT_REGISTERED,
@@ -542,24 +573,25 @@ class LocalAlarmCoordinator @Inject constructor(
                 )
                 when {
                     occurrence.scheduledWakeAt + AlarmReceiver.LATE_TRIGGER_WINDOW_MILLIS < now ->
-                        markMissed(plan, occurrence, now)
+                        markMissed(plan, occurrence, now).let { RecoveryResult.RECOVERED }
                     occurrence.scheduledWakeAt <= now ->
                         markFiring(
                             plan,
                             occurrence,
                             recovered.copy(occurrenceState = AlarmReceiver.STATE_FIRING, firedAtMillis = now),
                             now,
-                        )
+                        ).let { RecoveryResult.RECOVERED }
                     else -> {
                         snapshotStore.save(recovered)
                         when (val result = scheduler.restore(recovered, now)) {
-                            AlarmRegistrationResult.Registered -> occurrenceRepository.updateState(
-                                occurrence.occurrenceId,
-                                OccurrenceState.SCHEDULED.name,
-                                now,
-                            )
-                            is AlarmRegistrationResult.Rejected ->
+                            AlarmRegistrationResult.Registered -> {
+                                occurrenceRepository.updateState(occurrence.occurrenceId, OccurrenceState.SCHEDULED.name, now)
+                                RecoveryResult.RECOVERED
+                            }
+                            is AlarmRegistrationResult.Rejected -> {
                                 updateArmedState(plan, armedFailureState(result), registrationMessage(result))
+                                RecoveryResult.FAILED
+                            }
                         }
                     }
                 }
@@ -575,11 +607,13 @@ class LocalAlarmCoordinator @Inject constructor(
                     snapshotStore.save(firing)
                     AlarmReceiver.startRinging(context, firing)
                 }
+                RecoveryResult.RECOVERED
             }
-            OccurrenceState.SNOOZED -> snapshotStore.save(
-                snapshot(plan, occurrence).copy(occurrenceState = AlarmReceiver.STATE_SNOOZED),
-            )
-            else -> Unit
+            OccurrenceState.SNOOZED -> {
+                snapshotStore.save(snapshot(plan, occurrence).copy(occurrenceState = AlarmReceiver.STATE_SNOOZED))
+                RecoveryResult.RECOVERED
+            }
+            else -> RecoveryResult.SKIPPED
         }
     }
 
@@ -788,6 +822,20 @@ class LocalAlarmCoordinator @Inject constructor(
         scheduleAfterTerminalRegular(plan, occurrence)
     }
 
+    private fun recordRecovery(results: List<RecoveryResult>, startedElapsed: Long) {
+        val resultCode = when {
+            results.any { it == RecoveryResult.FAILED } -> DiagnosticResultCode.FAILED
+            results.any { it == RecoveryResult.CANCELLED } -> DiagnosticResultCode.CANCELLED
+            results.any { it == RecoveryResult.RECOVERED } -> DiagnosticResultCode.SUCCESS
+            else -> DiagnosticResultCode.SKIPPED
+        }
+        diagnosticLogger?.record(
+            eventType = DiagnosticEventType.ALARM_RECOVERY,
+            resultCode = resultCode,
+            durationMs = SystemClock.elapsedRealtime() - startedElapsed,
+        )
+    }
+
     private fun afterTerminalOrFiring(occurrence: AlarmOccurrence, now: Long): Instant =
         Instant.ofEpochMilli(maxOf(now, occurrence.scheduledWakeAt + 1))
 
@@ -841,6 +889,13 @@ class LocalAlarmCoordinator @Inject constructor(
     )
 
     private companion object {
+        enum class RecoveryResult {
+            RECOVERED,
+            SKIPPED,
+            FAILED,
+            CANCELLED,
+        }
+
         const val RECEIVER_EARLY_TOLERANCE_MILLIS = 60_000L
         const val RING_TIMEOUT_MILLIS = 10 * 60_000L
         val ARMABLE_STATES = setOf(

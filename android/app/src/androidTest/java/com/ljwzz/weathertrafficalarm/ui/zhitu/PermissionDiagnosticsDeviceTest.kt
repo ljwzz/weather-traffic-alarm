@@ -2,20 +2,26 @@ package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityCheck
+import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityResult
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEvent
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshFailure
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshOutcome
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceAttempt
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceOutcome
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.performScrollToNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -69,10 +75,65 @@ class PermissionDiagnosticsDeviceTest {
         )
 
         compose.onNodeWithTag("settings_full_screen").performClick()
-        compose.onNodeWithTag("permissions_return").performScrollTo().performClick()
+        compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasTestTag("permissions_return"))
+        compose.onNodeWithTag("permissions_return").performClick()
 
         assertEquals(PermissionSetting.FullScreenIntent, setting.value)
         assertEquals(1, returns.value)
+    }
+
+    @Test
+    fun diagnosticsTimelineAndRingtoneReadabilityRenderWithoutSensitiveIdentifiers() {
+        compose.setContent {
+            ZhituTheme {
+                PermissionDiagnosticsContent(
+                    snapshot = snapshot(isXiaomi = false),
+                    confirmations = emptySet(),
+                    appVersion = "0.1.0",
+                    sdkInt = 36,
+                    onSetting = {},
+                    onConfirm = {},
+                    onRefresh = {},
+                    onBack = {},
+                    onNotificationRequest = {},
+                    ringtoneReadability = RingtoneReadabilityCheck(
+                        result = RingtoneReadabilityResult.DEFAULT_FALLBACK,
+                        configuredSoundCount = 2,
+                        fallbackCount = 1,
+                    ),
+                    diagnosticEvents = listOf(
+                        DiagnosticEvent(
+                            eventType = DiagnosticEventType.CALENDAR_REFRESH,
+                            resultCode = DiagnosticResultCode.NETWORK,
+                            appVersion = "0.1.0",
+                            sdkInt = 36,
+                            planIdHash = "never-render-this",
+                            occurrenceIdHash = "never-render-this-either",
+                            durationMs = 1_230L,
+                            timestamp = 1L,
+                        ),
+                        DiagnosticEvent(
+                            eventType = DiagnosticEventType.RINGTONE_CHECK,
+                            resultCode = DiagnosticResultCode.DEFAULT_FALLBACK,
+                            appVersion = "0.1.0",
+                            sdkInt = 36,
+                            durationMs = 20L,
+                            timestamp = 2L,
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("最近本地记录").performScrollTo().assertExists()
+        compose.onNodeWithTag("ringtone_readability").assertExists()
+        compose.onNodeWithText("备用铃声可读取").assertExists()
+        compose.onNodeWithText("仅验证来源可读取，不播放铃声，也不改变闹钟。").assertExists()
+        compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasTestTag("diagnostic_event_2_RINGTONE_CHECK"))
+        compose.onNodeWithTag("diagnostic_event_2_RINGTONE_CHECK").assertExists()
+        compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasTestTag("diagnostic_event_1_CALENDAR_REFRESH"))
+        compose.onNodeWithTag("diagnostic_event_1_CALENDAR_REFRESH").assertExists()
+        compose.onNodeWithText("never-render-this", substring = true).assertDoesNotExist()
+        writeScreenshot("diagnostics-unified-records.png")
     }
 
     @Test

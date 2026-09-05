@@ -47,6 +47,8 @@ import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
+import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityCheck
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEvent
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -321,6 +323,8 @@ private fun CredentialField(
 fun AlarmDiagnosticsScreen(
     snapshot: PermissionSnapshot,
     confirmations: Set<XiaomiDisplayPermission>,
+    appVersion: String = "unknown",
+    sdkInt: Int = 0,
     onSetting: (PermissionSetting) -> Unit,
     onConfirm: (XiaomiDisplayPermission) -> Unit,
     onRefresh: () -> Unit,
@@ -329,6 +333,9 @@ fun AlarmDiagnosticsScreen(
     statusMessage: String? = null,
     returningToAlarm: Boolean = false,
     calendarDiagnostics: List<CalendarRefreshDiagnostic> = emptyList(),
+    diagnosticEvents: List<DiagnosticEvent> = emptyList(),
+    ringtoneReadability: RingtoneReadabilityCheck? = null,
+    checkingRingtone: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -339,17 +346,23 @@ fun AlarmDiagnosticsScreen(
     var volume by remember { mutableStateOf(readVolume()) }
     DisposableEffect(lifecycleOwner, audioManager) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) volume = readVolume()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                volume = readVolume()
+                onRefresh()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     PermissionDiagnosticsContent(
-        snapshot, confirmations, onSetting, onConfirm,
+        snapshot, confirmations, appVersion, sdkInt, onSetting, onConfirm,
         onRefresh = { volume = readVolume(); onRefresh() },
         onBack, onNotificationRequest, statusMessage, returningToAlarm,
         alarmVolume = volume,
         calendarDiagnostics = calendarDiagnostics,
+        diagnosticEvents = diagnosticEvents,
+        ringtoneReadability = ringtoneReadability,
+        checkingRingtone = checkingRingtone,
     )
 }
 

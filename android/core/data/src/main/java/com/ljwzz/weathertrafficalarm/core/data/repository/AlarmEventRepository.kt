@@ -1,6 +1,9 @@
 package com.ljwzz.weathertrafficalarm.core.data.repository
 
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmEventDao
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmEvent
@@ -14,6 +17,7 @@ import javax.inject.Singleton
 @Singleton
 class AlarmEventRepository @Inject constructor(
     private val eventDao: AlarmEventDao,
+    private val diagnosticLogger: RedactingEventLogger? = null,
 ) {
     suspend fun record(
         planId: String,
@@ -29,6 +33,12 @@ class AlarmEventRepository @Inject constructor(
             message = message,
         )
         eventDao.upsert(event.toEntity())
+        diagnosticLogger?.record(
+            eventType = type.diagnosticEventType(),
+            resultCode = type.diagnosticResultCode(),
+            planId = planId,
+            occurrenceId = occurrenceId,
+        )
         return event
     }
 
@@ -42,4 +52,21 @@ class AlarmEventRepository @Inject constructor(
     private companion object {
         const val THIRTY_DAYS_MILLIS = 30L * 24 * 60 * 60 * 1000
     }
+}
+
+private fun AlarmEventType.diagnosticEventType(): DiagnosticEventType = when (this) {
+    AlarmEventType.REGISTERED,
+    AlarmEventType.REGISTRATION_FAILED,
+    -> DiagnosticEventType.ALARM_REGISTRATION
+    AlarmEventType.TRIGGERED -> DiagnosticEventType.ALARM_TRIGGER
+    AlarmEventType.DISMISSED -> DiagnosticEventType.ALARM_DISMISS
+    AlarmEventType.SNOOZED -> DiagnosticEventType.ALARM_SNOOZE
+    AlarmEventType.MISSED -> DiagnosticEventType.ALARM_MISSED
+    AlarmEventType.CANCELLED -> DiagnosticEventType.ALARM_CANCEL
+}
+
+private fun AlarmEventType.diagnosticResultCode(): DiagnosticResultCode = when (this) {
+    AlarmEventType.REGISTRATION_FAILED -> DiagnosticResultCode.FAILED
+    AlarmEventType.MISSED -> DiagnosticResultCode.MISSED
+    else -> DiagnosticResultCode.SUCCESS
 }

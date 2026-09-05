@@ -34,6 +34,11 @@ import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshFailure
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshOutcome
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceOutcome
+import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityCheck
+import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityResult
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEvent
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -96,6 +101,8 @@ fun AlarmPermissionGuide(missing: List<String>, onCheck: () -> Unit, onContinue:
 fun PermissionDiagnosticsContent(
     snapshot: PermissionSnapshot,
     confirmations: Set<XiaomiDisplayPermission>,
+    appVersion: String = "unknown",
+    sdkInt: Int = 0,
     onSetting: (PermissionSetting) -> Unit,
     onConfirm: (XiaomiDisplayPermission) -> Unit,
     onRefresh: () -> Unit,
@@ -105,6 +112,9 @@ fun PermissionDiagnosticsContent(
     returningToAlarm: Boolean = false,
     alarmVolume: String? = null,
     calendarDiagnostics: List<CalendarRefreshDiagnostic> = emptyList(),
+    diagnosticEvents: List<DiagnosticEvent> = emptyList(),
+    ringtoneReadability: RingtoneReadabilityCheck? = null,
+    checkingRingtone: Boolean = false,
 ) {
     Scaffold(
         containerColor = ZhituColors.Background,
@@ -118,6 +128,12 @@ fun PermissionDiagnosticsContent(
                 PermissionCard(background = ZhituColors.Mint) {
                     Text(if (snapshot.isXiaomi) "小米 · 系统能力检查" else "通用 Android · 系统能力检查", color = ZhituColors.Brand, fontWeight = FontWeight.Medium)
                     Text("标准权限读取当前系统状态；计划是否注册成功，以闹钟列表结果为准。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            item {
+                PermissionCard {
+                    Text("应用与系统", color = ZhituColors.Ink, fontWeight = FontWeight.Bold)
+                    Text("应用 $appVersion · Android API $sdkInt", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
             statusMessage?.let { message -> item { PermissionCard(background = ZhituColors.AmberBackground) { Text(message, color = ZhituColors.Amber) } } }
@@ -155,6 +171,26 @@ fun PermissionDiagnosticsContent(
             alarmVolume?.let { volume -> item {
                 PermissionCard { PermissionItem("闹钟音量", "使用系统闹钟音量", volume, "alarm_volume", { onSetting(PermissionSetting.AlarmVolume) }) }
             } }
+            item {
+                RingtoneReadabilityCard(ringtoneReadability, checkingRingtone)
+            }
+            item {
+                Text("最近本地记录", color = ZhituColors.Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+            }
+            if (diagnosticEvents.isEmpty()) {
+                item {
+                    PermissionCard {
+                        Text("尚无本地诊断记录", color = ZhituColors.Ink, fontWeight = FontWeight.Medium)
+                        Text("重新检查后会显示本机能力和铃声检查结果。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            } else {
+                diagnosticEvents.sortedByDescending(DiagnosticEvent::timestamp).take(20).forEachIndexed { index, event ->
+                    item(key = "diagnostic_event_${event.timestamp}_${event.eventType}_$index") {
+                        DiagnosticEventCard(event)
+                    }
+                }
+            }
             if (calendarDiagnostics.isNotEmpty()) {
                 item {
                     Text("最近日历刷新", color = ZhituColors.Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
@@ -169,6 +205,83 @@ fun PermissionDiagnosticsContent(
             if (returningToAlarm) item { TonalButton("返回继续启用", onBack, Modifier.fillMaxWidth().testTag("permissions_return")) }
         }
     }
+}
+
+@Composable
+private fun RingtoneReadabilityCard(check: RingtoneReadabilityCheck?, checking: Boolean) = PermissionCard {
+    Text("铃声可读性", color = ZhituColors.Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+    val status = when {
+        checking -> "正在检查"
+        check == null -> "等待检查"
+        check.result == RingtoneReadabilityResult.READABLE -> "已选铃声可读取"
+        check.result == RingtoneReadabilityResult.DEFAULT_FALLBACK -> "备用铃声可读取"
+        check.result == RingtoneReadabilityResult.UNREADABLE -> "铃声不可读取"
+        check.result == RingtoneReadabilityResult.NOT_CONFIGURED -> "暂无计划铃声"
+        else -> "检查不可用"
+    }
+    Text(status, color = if (check?.result == RingtoneReadabilityResult.UNREADABLE) ZhituColors.Amber else ZhituColors.Brand, modifier = Modifier.testTag("ringtone_readability"))
+    val detail = when {
+        checking -> "正在读取已保存的计划铃声。"
+        check == null -> "打开页面或点按重新检查后读取已保存的计划铃声。"
+        check.configuredSoundCount == 0 -> "没有可检查的已保存计划铃声。"
+        check.result == RingtoneReadabilityResult.DEFAULT_FALLBACK -> "${check.configuredSoundCount} 个计划铃声中 ${check.fallbackCount} 个首选铃声无法读取，可尝试默认回退。"
+        check.result == RingtoneReadabilityResult.UNREADABLE -> "${check.configuredSoundCount} 个计划铃声中 ${check.unreadableCount} 个不可读取。"
+        else -> "已检查 ${check.configuredSoundCount} 个计划铃声。"
+    }
+    Text(detail, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+    Text("仅验证来源可读取，不播放铃声，也不改变闹钟。", color = ZhituColors.Muted, style = MaterialTheme.typography.labelSmall)
+}
+
+@Composable
+private fun DiagnosticEventCard(event: DiagnosticEvent) = PermissionCard(
+    modifier = Modifier.testTag("diagnostic_event_${event.timestamp}_${event.eventType}"),
+) {
+    Text(
+        "${formatCalendarDiagnosticTime(event.timestamp)} · ${event.eventType.displayName()}",
+        color = ZhituColors.Ink,
+        fontWeight = FontWeight.Medium,
+    )
+    val duration = event.durationMs?.let { " · ${formatCalendarDuration(it)}" }.orEmpty()
+    Text(
+        "${event.resultCode.displayName()}$duration",
+        color = if (event.resultCode == DiagnosticResultCode.SUCCESS) ZhituColors.Brand else ZhituColors.Amber,
+        style = MaterialTheme.typography.bodySmall,
+    )
+}
+
+private fun DiagnosticEventType.displayName(): String = when (this) {
+    DiagnosticEventType.CALENDAR_REFRESH -> "日历刷新"
+    DiagnosticEventType.EVALUATION -> "评估"
+    DiagnosticEventType.ALARM_REGISTRATION -> "闹钟注册"
+    DiagnosticEventType.ALARM_TRIGGER -> "闹钟响铃"
+    DiagnosticEventType.ALARM_DISMISS -> "停止响铃"
+    DiagnosticEventType.ALARM_SNOOZE -> "贪睡"
+    DiagnosticEventType.ALARM_MISSED -> "错过响铃"
+    DiagnosticEventType.ALARM_CANCEL -> "取消闹钟"
+    DiagnosticEventType.ALARM_RECOVERY -> "闹钟恢复"
+    DiagnosticEventType.ALARM_PLAYBACK -> "铃声播放"
+    DiagnosticEventType.RINGTONE_CHECK -> "铃声检查"
+}
+
+private fun DiagnosticResultCode.displayName(): String = when (this) {
+    DiagnosticResultCode.SUCCESS -> "成功"
+    DiagnosticResultCode.FAILED -> "失败"
+    DiagnosticResultCode.CANCELLED -> "已取消"
+    DiagnosticResultCode.SKIPPED -> "已跳过"
+    DiagnosticResultCode.CACHE_HIT -> "命中缓存"
+    DiagnosticResultCode.NETWORK -> "网络失败"
+    DiagnosticResultCode.TIMEOUT -> "超时"
+    DiagnosticResultCode.HTTP -> "服务响应失败"
+    DiagnosticResultCode.VALIDATION -> "校验失败"
+    DiagnosticResultCode.STORAGE -> "本地存储失败"
+    DiagnosticResultCode.RATE_LIMITED -> "请求受限"
+    DiagnosticResultCode.UNKNOWN -> "未知错误"
+    DiagnosticResultCode.STALE -> "数据过期"
+    DiagnosticResultCode.NEEDS_PERMISSION -> "需要权限"
+    DiagnosticResultCode.NOT_FOUND -> "未找到"
+    DiagnosticResultCode.UNREADABLE -> "不可读取"
+    DiagnosticResultCode.DEFAULT_FALLBACK -> "使用默认回退"
+    DiagnosticResultCode.MISSED -> "已错过"
 }
 
 @Composable
@@ -271,8 +384,12 @@ private fun PermissionItem(title: String, purpose: String, status: String, tag: 
 }
 
 @Composable
-private fun PermissionCard(background: Color = Color.White, content: @Composable ColumnScope.() -> Unit) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = background)) {
+private fun PermissionCard(
+    background: Color = Color.White,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(modifier = modifier, shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = background)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }

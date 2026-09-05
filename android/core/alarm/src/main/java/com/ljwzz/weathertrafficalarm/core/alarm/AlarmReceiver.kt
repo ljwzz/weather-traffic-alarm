@@ -11,6 +11,8 @@ import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFacto
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmRegistrationResult
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.ExactAlarmScheduler
 import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
+import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +30,10 @@ import java.util.UUID
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val occurrenceId = intent.getStringExtra(PendingIntentFactory.EXTRA_OCCURRENCE_ID) ?: return
+        val occurrenceId = intent.getStringExtra(PendingIntentFactory.EXTRA_OCCURRENCE_ID) ?: run {
+            recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER)
+            return
+        }
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
@@ -39,7 +44,15 @@ class AlarmReceiver : BroadcastReceiver() {
                     // Read under the same lock as state transition. Otherwise two
                     // rapid snooze broadcasts can both observe FIRING and create
                     // separate children before either writes SNOOZED.
-                    val snapshot = store.getByOccurrenceId(occurrenceId) ?: return@withLock
+                    val snapshot = store.getByOccurrenceId(occurrenceId) ?: run {
+                        recordDiagnostic(
+                            context,
+                            eventTypeFor(action),
+                            DiagnosticResultCode.NOT_FOUND,
+                            occurrenceId = occurrenceId,
+                        )
+                        return@withLock
+                    }
                     when (action) {
                     AlarmAction.ALARM.path -> {
                         when (triggerHandling(snapshot)) {
@@ -49,28 +62,34 @@ class AlarmReceiver : BroadcastReceiver() {
                                         store.getByOccurrenceId(snapshot.occurrenceId)?.let { firing ->
                                             startRinging(context, firing)
                                         }
+                                    } else {
+                                        recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
                                     }
                                 } else {
                                     handleLockedAlarm(context, store, snapshot)
                                 }
                             }
                             AlarmHandling.MISSED -> if (unlocked) coordinator(context).handleMissed(snapshot.occurrenceId)
-                            else store.save(snapshot.copy(occurrenceState = STATE_MISSED, firedAtMillis = System.currentTimeMillis()))
-                            AlarmHandling.IGNORED -> Unit
+                            else {
+                                store.save(snapshot.copy(occurrenceState = STATE_MISSED, firedAtMillis = System.currentTimeMillis()))
+                                recordDiagnostic(context, DiagnosticEventType.ALARM_MISSED, DiagnosticResultCode.MISSED, snapshot)
+                            }
+                            AlarmHandling.IGNORED -> recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
                         }
                     }
                     AlarmAction.DISMISS.path -> {
                         if (canApplyRingingAction(snapshot)) {
                             if (unlocked) coordinator(context).dismiss(snapshot.occurrenceId)
                             else handleDismiss(context, store, snapshot)
-                        }
+                        } else recordValidationFailure(context, DiagnosticEventType.ALARM_DISMISS, snapshot)
                     }
                     AlarmAction.SNOOZE.path -> {
                         if (canApplyRingingAction(snapshot)) {
                             if (unlocked) coordinator(context).snooze(snapshot.occurrenceId)
                             else handleSnooze(context, store, snapshot)
-                        }
+                        } else recordValidationFailure(context, DiagnosticEventType.ALARM_SNOOZE, snapshot)
                     }
+                    else -> recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
                     }
                 }
             } finally {
@@ -88,6 +107,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val now = System.currentTimeMillis()
         val firing = snapshot.copy(occurrenceState = STATE_FIRING, firedAtMillis = now)
         store.save(firing)
+        recordDiagnostic(context, DiagnosticEventType.ALARM_TRIGGER, DiagnosticResultCode.SUCCESS, firing)
         startRinging(context, firing)
     }
 
@@ -98,6 +118,7 @@ class AlarmReceiver : BroadcastReceiver() {
     ) {
         if (snapshot.occurrenceState != STATE_FIRING) return
         store.save(snapshot.withActionReceipt(STATE_DISMISSED))
+        recordDiagnostic(context, DiagnosticEventType.ALARM_DISMISS, DiagnosticResultCode.SUCCESS, snapshot)
         context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_DISMISS, snapshot))
     }
 
@@ -122,12 +143,14 @@ class AlarmReceiver : BroadcastReceiver() {
         when (scheduler.schedule(next)) {
             AlarmRegistrationResult.Registered -> {
                 store.save(snapshot.withActionReceipt(STATE_SNOOZED))
+                recordDiagnostic(context, DiagnosticEventType.ALARM_SNOOZE, DiagnosticResultCode.SUCCESS, snapshot)
                 context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_SNOOZE, snapshot))
             }
             is AlarmRegistrationResult.Rejected -> {
                 // Keep the original ringing when the child could not be armed.
                 store.removeOccurrence(next.occurrenceId)
                 store.save(snapshot.withActionReceipt(STATE_FIRING, SNOOZE_RETRY_MESSAGE))
+                recordDiagnostic(context, DiagnosticEventType.ALARM_SNOOZE, DiagnosticResultCode.FAILED, snapshot)
             }
         }
     }
@@ -156,6 +179,40 @@ class AlarmReceiver : BroadcastReceiver() {
         private const val EARLY_TRIGGER_TOLERANCE_MILLIS = 60_000L
         const val SNOOZE_RETRY_MESSAGE = "贪睡未能注册，请重试或停止闹钟"
         private val directBootMutex = Mutex()
+
+        private fun eventTypeFor(action: String?): DiagnosticEventType = when (action) {
+            AlarmAction.DISMISS.path -> DiagnosticEventType.ALARM_DISMISS
+            AlarmAction.SNOOZE.path -> DiagnosticEventType.ALARM_SNOOZE
+            else -> DiagnosticEventType.ALARM_TRIGGER
+        }
+
+        private fun recordValidationFailure(
+            context: Context,
+            eventType: DiagnosticEventType,
+            snapshot: NextAlarmSnapshot? = null,
+        ) = recordDiagnostic(context, eventType, DiagnosticResultCode.VALIDATION, snapshot)
+
+        internal fun recordDiagnostic(
+            context: Context,
+            eventType: DiagnosticEventType,
+            resultCode: DiagnosticResultCode,
+            snapshot: NextAlarmSnapshot? = null,
+            occurrenceId: String? = snapshot?.occurrenceId,
+            durationMs: Long? = null,
+        ) {
+            runCatching {
+                EntryPointAccessors
+                    .fromApplication(context.applicationContext, DiagnosticLoggerEntryPoint::class.java)
+                    .logger()
+                    .record(
+                        eventType = eventType,
+                        resultCode = resultCode,
+                        planId = snapshot?.planId,
+                        occurrenceId = occurrenceId,
+                        durationMs = durationMs,
+                    )
+            }
+        }
 
         fun startRinging(context: Context, snapshot: NextAlarmSnapshot) {
             ContextCompat.startForegroundService(
