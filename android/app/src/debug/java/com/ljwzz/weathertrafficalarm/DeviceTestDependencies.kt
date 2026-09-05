@@ -9,7 +9,11 @@ import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
+import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
+import com.ljwzz.weathertrafficalarm.core.map.AmapSdkController
 import com.ljwzz.weathertrafficalarm.core.model.WeatherProvider
+import com.ljwzz.weathertrafficalarm.core.network.amap.AmapWebProvider
 import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunWeatherProvider
 import com.ljwzz.weathertrafficalarm.evaluation.EvaluationWorkScheduler
 import dagger.hilt.EntryPoint
@@ -26,10 +30,14 @@ interface DeviceTestDependencies {
     fun events(): AlarmEventRepository
     fun decisions(): DecisionRepository
     fun commuteOverrides(): PlanCommuteOverrideRepository
+    fun effectiveCommutes(): EffectiveCommuteResolver
+    fun workdayOverrides(): WorkdayOverrideRepository
     fun evaluationScheduler(): EvaluationWorkScheduler
     fun credentials(): CredentialStore
     fun settings(): LocalSettingsStore
     fun calendar(): WorkdayCalendarRepository
     fun caiyunWeatherProvider(): CaiyunWeatherProvider
     fun weatherProvider(): WeatherProvider
+    fun amapSdk(): AmapSdkController
+    fun amapWebProvider(): AmapWebProvider
 }

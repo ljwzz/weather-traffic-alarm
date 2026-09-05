@@ -59,6 +59,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
 import java.time.ZoneId
@@ -141,6 +146,62 @@ class ZhituViewModel @Inject constructor(
     val planCommuteEditor: StateFlow<PlanCommuteEditorState> = _planCommuteEditor
     private val _weatherState = MutableStateFlow<WeatherUiState>(WeatherUiState.Idle)
     val weatherState: StateFlow<WeatherUiState> = _weatherState
+    private val _homeRefreshing = MutableStateFlow(false)
+    private var homeRefreshJob: Job? = null
+    private val homeRefreshGate = HomeRefreshGate()
+    private var routeRefreshJob: Job? = null
+    private var routeRefreshInputKey: String? = null
+    private var routeRefreshForce = false
+    private var weatherRefreshJob: Job? = null
+    private var weatherRefreshInputKey: String? = null
+    private var routeGeneration = 0L
+    private var weatherGeneration = 0L
+    private val homeInputClock = MutableStateFlow(Instant.now())
+    private val homeInputs = combine(settings, credentialStatus, homeInputClock) { currentSettings, currentCredentials, now ->
+        homePreviewInputs(currentSettings, currentCredentials, now)
+    }
+    private var observedHomeInputs: HomePreviewInputs? = null
+    private val homePreviewSnapshot = combine(
+        homeInputs,
+        credentialStatus,
+        settings,
+        weatherState,
+        routeState,
+    ) { inputs, currentCredentials, currentSettings, currentWeather, currentRoute ->
+        HomePreviewSnapshot(inputs, currentCredentials, currentSettings, currentWeather, currentRoute)
+    }
+    internal val homeUiState: StateFlow<HomeUiState> = combine(homePreviewSnapshot, _homeRefreshing) { snapshot, refreshing ->
+        HomeUiState(
+            weather = homeWeatherCard(snapshot.credentials, snapshot.inputs, snapshot.weather),
+            route = homeRouteCard(snapshot.credentials, snapshot.settings, snapshot.inputs, snapshot.route),
+            isRefreshing = refreshing,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+    init {
+        viewModelScope.launch {
+            homeInputs.collect { next ->
+                val previous = observedHomeInputs
+                observedHomeInputs = next
+                if (previous == null) return@collect
+                if (previous.routeKey != next.routeKey && _routeState.value.inputKey != next.routeKey) {
+                    ++routeGeneration
+                    routeRefreshJob?.cancel()
+                    _routeState.value = RouteUiState(inputKey = next.routeKey)
+                }
+                val weatherInputKey = when (val state = _weatherState.value) {
+                    is WeatherUiState.Loading -> state.inputKey
+                    is WeatherUiState.Success -> state.inputKey
+                    is WeatherUiState.Error -> state.inputKey
+                    WeatherUiState.Idle -> null
+                }
+                if (previous.weatherKey != next.weatherKey && weatherInputKey != next.weatherKey) {
+                    ++weatherGeneration
+                    weatherRefreshJob?.cancel()
+                    _weatherState.value = WeatherUiState.Idle
+                }
+            }
+        }
+    }
     val planCommuteOverrides: StateFlow<Map<String, PlanCommuteOverride>> = plans.flatMapLatest { current ->
         if (current.isEmpty()) flowOf(emptyMap()) else combine(current.map { plan ->
             planCommuteOverrideRepository.observeByPlanId(plan.id).map { plan.id to it }
@@ -242,30 +303,74 @@ class ZhituViewModel @Inject constructor(
     }
 
     /** Refreshes the global route, or the persisted effective commute for [planId]. */
-    fun refreshRoute(planId: String? = null) = viewModelScope.launch {
+    fun refreshRoute(planId: String? = null, forceRefresh: Boolean = false) {
+        startRouteRefresh(planId, forceRefresh)
+    }
+
+    private fun startRouteRefresh(planId: String? = null, forceRefresh: Boolean = false): Job {
+        val inputs = homePreviewInputs(settings.value, credentialStatus.value)
+        val inputKey = if (planId == null) inputs.routeKey else null
+        val requestKey = planId?.let { "plan:$it" } ?: inputKey
+        val active = routeRefreshJob
+        if (active?.isActive == true && routeRefreshInputKey == requestKey && (!forceRefresh || routeRefreshForce)) return active
+        active?.cancel()
+        val generation = ++routeGeneration
+        routeRefreshInputKey = requestKey
+        routeRefreshForce = forceRefresh
+        return viewModelScope.launch { refreshRouteInternal(planId, forceRefresh, inputKey, generation) }
+            .also { routeRefreshJob = it }
+    }
+
+    private suspend fun refreshRouteInternal(
+        planId: String?,
+        forceRefresh: Boolean,
+        inputKey: String?,
+        generation: Long,
+    ) {
         val current = settings.value
         if (!current.amapConsentGranted) {
-            _routeState.value = RouteUiState(message = "请先完成高德地图专项授权")
-            return@launch
+            _routeState.value = RouteUiState(message = "请先完成高德地图专项授权", inputKey = inputKey)
+            return
+        }
+        if (!credentialStatus.value.hasAmapWebKey) {
+            _routeState.value = RouteUiState(message = "请先配置高德 Web Key", inputKey = inputKey)
+            return
         }
         val commute = if (planId == null) effectiveCommuteResolver.resolveGlobal(current)
         else effectiveCommuteResolver.resolveForPlan(planId, current)
         if (commute == null) {
-            _routeState.value = RouteUiState(message = "请选择带坐标的起点和终点")
-            return@launch
+            _routeState.value = RouteUiState(message = "请选择带坐标的起点和终点", inputKey = inputKey)
+            return
         }
-        _routeState.update { it.copy(loading = true, message = null) }
-        estimateRoute(commute.origin, commute.destination, commute.commuteMode).onSuccess { estimate ->
+        _routeState.update { state ->
+            if (state.inputKey == inputKey) state.copy(loading = true, message = null, refreshError = null)
+            else RouteUiState(loading = true, inputKey = inputKey)
+        }
+        estimateRoute(commute.origin, commute.destination, commute.commuteMode, forceRefresh).onSuccess { estimate ->
+            if (generation != routeGeneration || (planId == null && inputKey != homePreviewInputs(settings.value, credentialStatus.value).routeKey)) return@onSuccess
             _routeState.value = RouteUiState(
                 alternatives = estimate.alternatives.take(3),
                 selectedRouteId = estimate.alternatives.firstOrNull()?.id,
+                inputKey = inputKey,
+                fetchedAtEpochMillis = estimate.fetchedAtEpochMillis,
+                source = estimate.source,
+                noRoute = estimate.alternatives.isEmpty(),
             )
         }.onFailure { failure ->
-            _routeState.value = RouteUiState(message = providerMessage(failure))
+            if (failure is CancellationException) throw failure
+            if (generation != routeGeneration || (planId == null && inputKey != homePreviewInputs(settings.value, credentialStatus.value).routeKey)) return@onFailure
+            val previous = _routeState.value
+            val now = System.currentTimeMillis()
+            _routeState.value = if (
+                previous.inputKey == inputKey &&
+                previous.alternatives.isNotEmpty() &&
+                HomePreviewPolicy.isFresh(previous.fetchedAtEpochMillis, HomePreviewPolicy.ROUTE_TTL_MILLIS, now)
+            ) previous.copy(loading = false, refreshError = providerMessage(failure))
+            else RouteUiState(message = providerMessage(failure), inputKey = inputKey)
         }
     }
 
-    private suspend fun estimateRoute(origin: PlaceRef, destination: PlaceRef, mode: CommuteMode) = runCatching {
+    private suspend fun estimateRoute(origin: PlaceRef, destination: PlaceRef, mode: CommuteMode, forceRefresh: Boolean = false) = runCatching {
         val (routeOrigin, routeDestination) = resolveRoutePlaces(origin, destination, mode)
         amapProvider.estimate(
             RouteRequest(
@@ -275,6 +380,7 @@ class ZhituViewModel @Inject constructor(
                 originCity = routeOrigin.citycode.takeIf(String::isNotBlank),
                 destinationCity = routeDestination.citycode.takeIf(String::isNotBlank),
                 departureAt = java.time.LocalDateTime.now(),
+                forceRefresh = forceRefresh,
             ),
         )
     }
@@ -464,35 +570,58 @@ class ZhituViewModel @Inject constructor(
     }
 
     /** Manual preview reads configured places and settings only; it does not evaluate or schedule alarms. */
-    fun refreshWeather() = viewModelScope.launch {
+    fun refreshWeather() {
+        startWeatherRefresh()
+    }
+
+    private fun startWeatherRefresh(): Job {
+        homeInputClock.value = Instant.now()
+        val inputs = homePreviewInputs(settings.value, credentialStatus.value)
+        val inputKey = inputs.weatherKey
+        val active = weatherRefreshJob
+        if (active?.isActive == true && weatherRefreshInputKey == inputKey) return active
+        active?.cancel()
+        val generation = ++weatherGeneration
+        weatherRefreshInputKey = inputKey
+        return viewModelScope.launch { refreshWeatherInternal(inputKey, generation) }
+            .also { weatherRefreshJob = it }
+    }
+
+    private suspend fun refreshWeatherInternal(inputKey: String?, generation: Long) {
         val locations = weatherLocations()
         if (locations.size != 2) {
-            _weatherState.value = WeatherUiState.Error("请先配置带坐标的起点和终点")
-            return@launch
+            _weatherState.value = WeatherUiState.Error("请先配置带坐标的起点和终点", inputKey = inputKey)
+            return
         }
         if (locations[0].point == locations[1].point) {
-            _weatherState.value = WeatherUiState.Error("起点和终点不能使用相同坐标")
-            return@launch
+            _weatherState.value = WeatherUiState.Error("起点和终点不能使用相同坐标", locations[0].name, locations[1].name, inputKey)
+            return
+        }
+        if (!credentialStatus.value.hasCaiyunAppKey || !credentialStatus.value.hasCaiyunSecret) {
+            _weatherState.value = WeatherUiState.Error("请先配置彩云 App Key 和 Secret", locations[0].name, locations[1].name, inputKey)
+            return
         }
         if (credentialStatus.value.caiyunTestResult != CaiyunConnectionTestResult.PASSED) {
-            _weatherState.value = WeatherUiState.Error("请先完成彩云凭据连接测试")
-            return@launch
+            _weatherState.value = WeatherUiState.Error("请先完成彩云凭据连接测试", locations[0].name, locations[1].name, inputKey)
+            return
         }
         val currentSettings = settings.value
         val requestedAt = Instant.now()
-        val start = requestedAt.atZone(ZoneId.systemDefault()).truncatedTo(ChronoUnit.HOURS)
-        _weatherState.value = WeatherUiState.Loading(locations[0].name, locations[1].name)
+        val (start, end) = weatherWindow(requestedAt)
+        val previousWeather = _weatherState.value
+        _weatherState.value = WeatherUiState.Loading(locations[0].name, locations[1].name, inputKey)
         runCatching {
             weatherProvider.evaluate(
                 WeatherRequest(
                     home = WeatherLocation(WeatherLocationRole.HOME, locations[0].point),
                     work = WeatherLocation(WeatherLocationRole.WORK, locations[1].point),
-                    window = WeatherTimeWindow(start, start.plusHours(23)),
+                    window = WeatherTimeWindow(start, end),
                     weatherBufferProfile = currentSettings.workdayWeatherBuffers.toWeatherBufferProfile(),
                     requestedAt = requestedAt,
                 ),
             )
         }.onSuccess { evaluation ->
+            if (generation != weatherGeneration || inputKey != homePreviewInputs(settings.value, credentialStatus.value).weatherKey) return@onSuccess
             val reportTime = evaluation.providerReportTime
             val source = evaluation.source
             if (!evaluation.isUsableForScheduling || reportTime == null || source == null) {
@@ -500,6 +629,7 @@ class ZhituViewModel @Inject constructor(
                     weatherUnavailableMessage(evaluation.fallbackReason),
                     locations[0].name,
                     locations[1].name,
+                    inputKey,
                 )
             } else {
                 _weatherState.value = WeatherUiState.Success(
@@ -508,12 +638,64 @@ class ZhituViewModel @Inject constructor(
                     severity = evaluation.severity,
                     reportTime = reportTime,
                     source = source,
+                    inputKey = inputKey,
+                    fetchedAtEpochMillis = minOf(System.currentTimeMillis(), reportTime.toEpochMilli()),
+                    windowEnd = end,
                 )
             }
         }.onFailure { failure ->
-            _weatherState.value = WeatherUiState.Error(weatherProviderMessage(failure), locations[0].name, locations[1].name)
+            if (failure is CancellationException) throw failure
+            if (generation != weatherGeneration || inputKey != homePreviewInputs(settings.value, credentialStatus.value).weatherKey) return@onFailure
+            val previous = previousWeather
+            val now = System.currentTimeMillis()
+            _weatherState.value = if (
+                previous is WeatherUiState.Success &&
+                previous.inputKey == inputKey &&
+                HomePreviewPolicy.isFresh(previous.fetchedAtEpochMillis, HomePreviewPolicy.WEATHER_TTL_MILLIS, now) &&
+                previous.windowEnd.isAfter(Instant.now().atZone(ZoneId.systemDefault()))
+            ) previous.copy(refreshError = weatherProviderMessage(failure))
+            else WeatherUiState.Error(weatherProviderMessage(failure), locations[0].name, locations[1].name, inputKey)
         }
     }
+
+    /**
+     * The home refresh is intentionally isolated from alarm evaluation: it only updates
+     * the two preview providers. An active gesture shares this job rather than creating
+     * duplicate provider work.
+     */
+    fun refreshHomePreviews(forceRefresh: Boolean = false) {
+        homeInputClock.value = Instant.now()
+        val requestedInputs = homePreviewInputs(settings.value, credentialStatus.value)
+        val start = homeRefreshGate.begin(requestedInputs, forceRefresh)
+        if (!start.accepted) return
+        if (start.cancelCurrent) homeRefreshJob?.cancel()
+        homeRefreshJob = viewModelScope.launch {
+            _homeRefreshing.value = true
+            try {
+                val inputs = homePreviewInputs(settings.value, credentialStatus.value)
+                val now = System.currentTimeMillis()
+                val routeIsFresh = routeState.value.inputKey == inputs.routeKey &&
+                    HomePreviewPolicy.isFresh(routeState.value.fetchedAtEpochMillis, HomePreviewPolicy.ROUTE_TTL_MILLIS, now)
+                val weather = weatherState.value
+                val weatherIsFresh = weather is WeatherUiState.Success &&
+                    weather.inputKey == inputs.weatherKey &&
+                    HomePreviewPolicy.isFresh(weather.fetchedAtEpochMillis, HomePreviewPolicy.WEATHER_TTL_MILLIS, now) &&
+                    weather.windowEnd.isAfter(Instant.now().atZone(ZoneId.systemDefault()))
+                coroutineScope {
+                    listOfNotNull(
+                        (if (forceRefresh || !routeIsFresh) startRouteRefresh(forceRefresh = forceRefresh) else null),
+                        (if (forceRefresh || !weatherIsFresh) startWeatherRefresh() else null),
+                    ).map { job -> async { job.join() } }.awaitAll()
+                }
+            } finally {
+                if (homeRefreshGate.finish(start.token)) {
+                    _homeRefreshing.value = false
+                }
+            }
+        }
+    }
+
+    fun refreshHomePreviewsOnForeground() = refreshHomePreviews()
 
     fun clearError() { _error.value = null }
     fun showError(message: String) { _error.value = message }
@@ -638,6 +820,11 @@ data class RouteUiState(
     val trafficEnabled: Boolean = false,
     val loading: Boolean = false,
     val message: String? = null,
+    val inputKey: String? = null,
+    val fetchedAtEpochMillis: Long? = null,
+    val source: com.ljwzz.weathertrafficalarm.core.model.RouteDataSource? = null,
+    val noRoute: Boolean = false,
+    val refreshError: String? = null,
 )
 
 private data class WeatherConfiguredLocation(
@@ -648,18 +835,27 @@ private data class WeatherConfiguredLocation(
 
 sealed interface WeatherUiState {
     data object Idle : WeatherUiState
-    data class Loading(val homeName: String? = null, val workName: String? = null) : WeatherUiState
+    data class Loading(
+        val homeName: String? = null,
+        val workName: String? = null,
+        val inputKey: String? = null,
+    ) : WeatherUiState
     data class Success(
         val homeName: String,
         val workName: String,
         val severity: WeatherSeverity,
         val reportTime: Instant,
         val source: WeatherDataSource,
+        val inputKey: String? = null,
+        val fetchedAtEpochMillis: Long = System.currentTimeMillis(),
+        val windowEnd: java.time.ZonedDateTime = Instant.now().atZone(ZoneId.systemDefault()).plusHours(23),
+        val refreshError: String? = null,
     ) : WeatherUiState
     data class Error(
         val message: String,
         val homeName: String? = null,
         val workName: String? = null,
+        val inputKey: String? = null,
     ) : WeatherUiState
 }
 

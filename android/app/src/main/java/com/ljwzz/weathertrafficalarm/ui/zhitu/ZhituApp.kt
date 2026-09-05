@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -43,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -102,6 +104,7 @@ fun ZhituApp(
     val mapStatus by viewModel.mapStatus.collectAsStateWithLifecycle()
     val planCommuteEditor by viewModel.planCommuteEditor.collectAsStateWithLifecycle()
     val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
+    val homeUiState by viewModel.homeUiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     if (!permissionViewModel.navigationInitialized || permissionViewModel.entryOccurrenceId != ringingOccurrenceId || permissionViewModel.entryDestination != initialDestination) {
         permissionViewModel.destination = if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING
@@ -111,6 +114,7 @@ fun ZhituApp(
         permissionViewModel.cancel()
     }
     var destination by permissionViewModel::destination
+    val currentDestination by rememberUpdatedState(destination)
     var initialized by permissionViewModel::initialized
     var editorDraft by permissionViewModel::editorDraft
     val permissionAccess = remember(context) { PermissionAccess(context) }
@@ -146,7 +150,12 @@ fun ZhituApp(
         } else destination = ZhituDestination.SETTINGS
     }
     DisposableEffect(lifecycleOwner, permissionAccess) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refreshPermissions() }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshPermissions()
+                if (currentDestination == ZhituDestination.HOME) viewModel.refreshHomePreviewsOnForeground()
+            }
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -173,8 +182,25 @@ fun ZhituApp(
         }
     }
     LaunchedEffect(error) { if (error != null) { delay(4_000); viewModel.clearError() } }
-    LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey) { viewModel.initializeAmap(context) }
-    LaunchedEffect(localSettings.originId, localSettings.destinationId, localSettings.commuteMode, localSettings.amapConsentGranted) { viewModel.refreshRoute() }
+    LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey, credentialStatus.amapSdkVersion) { viewModel.initializeAmap(context) }
+    LaunchedEffect(
+        destination,
+        localSettings.originId,
+        localSettings.destinationId,
+        localSettings.favorites,
+        localSettings.commuteMode,
+        localSettings.amapConsentGranted,
+        credentialStatus.loaded,
+        credentialStatus.storageError,
+        credentialStatus.hasAmapWebKey,
+        credentialStatus.hasCaiyunAppKey,
+        credentialStatus.hasCaiyunSecret,
+        credentialStatus.amapWebVersion,
+        credentialStatus.caiyunVersion,
+        credentialStatus.caiyunTestResult,
+    ) {
+        if (destination == ZhituDestination.HOME) viewModel.refreshHomePreviews()
+    }
     BackHandler(enabled = destination != ZhituDestination.HOME && destination != ZhituDestination.RINGING) {
         if (destination == ZhituDestination.DIAGNOSTICS) returnFromDiagnostics()
         else {
@@ -193,11 +219,16 @@ fun ZhituApp(
                     evaluationTaskStates = evaluationTaskStates,
                     evaluablePlanIds = evaluablePlanIds,
                     schedulingError = evaluationSchedulingError,
+                    homeUiState = homeUiState,
+                    mapStatus = mapStatus,
                     onPlans = { destination = ZhituDestination.PLANS },
                     onAdd = openEditor,
                     onEvaluate = viewModel::evaluateNow,
                     onRoute = { destination = ZhituDestination.ROUTE },
                     onWeather = { destination = ZhituDestination.WEATHER },
+                    onCredentials = { destination = ZhituDestination.CREDENTIALS },
+                    onAmapConsent = { destination = ZhituDestination.ONBOARDING },
+                    onRefreshPreviews = { viewModel.refreshHomePreviews(forceRefresh = true) },
                     onSettings = { destination = ZhituDestination.SETTINGS },
                 )
                 ZhituDestination.PLANS -> PlansScreen(plans, openEditor, { destination = ZhituDestination.HOME }, { planId, enabled ->
@@ -364,31 +395,56 @@ internal fun AlarmPlan.toEditorDraft() = EditorDraft(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreen(
+internal fun HomeScreen(
     plans: List<UpcomingPlan>,
     decisions: List<AlarmDecision>,
     evaluationTaskStates: Map<String, EvaluationTaskState>,
     evaluablePlanIds: Set<String>,
     schedulingError: String?,
+    homeUiState: HomeUiState,
+    mapStatus: MapStatus,
     onPlans: () -> Unit,
     onAdd: (AlarmPlan?) -> Unit,
     onEvaluate: (String) -> Unit,
     onRoute: () -> Unit,
     onWeather: () -> Unit,
+    onCredentials: () -> Unit,
+    onAmapConsent: () -> Unit,
+    onRefreshPreviews: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Scaffold(
         containerColor = ZhituColors.Background,
         topBar = { ZhituTopBar(title = "知途", subtitle = "本地闹钟与出行准备") },
         bottomBar = { ZhituNav(selected = ZhituDestination.HOME, onNavigate = { target -> when (target) { ZhituDestination.PLANS -> onPlans(); ZhituDestination.ROUTE -> onRoute(); ZhituDestination.SETTINGS -> onSettings(); else -> Unit } }) },
-        floatingActionButton = { FloatingActionButton(containerColor = ZhituColors.Brand, onClick = { onAdd(null) }) { Text("＋", color = androidx.compose.ui.graphics.Color.White) } },
+        floatingActionButton = { FloatingActionButton(modifier = Modifier.testTag("home_add_alarm"), containerColor = ZhituColors.Brand, onClick = { onAdd(null) }) { Text("＋", color = androidx.compose.ui.graphics.Color.White) } },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        PullToRefreshBox(
+            isRefreshing = homeUiState.isRefreshing,
+            onRefresh = onRefreshPreviews,
+            modifier = Modifier.fillMaxSize().padding(padding).testTag("home_pull_refresh"),
         ) {
-            item { EmptyProviderCard("彩云天气", "手动刷新通勤天气预览，不会启动自动评估或修改闹钟。", onClick = onWeather) }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().testTag("home_content"),
+                contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 104.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onRefreshPreviews, enabled = !homeUiState.isRefreshing, modifier = Modifier.testTag("home_refresh")) {
+                        Text(if (homeUiState.isRefreshing) "正在刷新通勤预览" else "刷新通勤预览")
+                    }
+                }
+            }
+            item {
+                HomeWeatherCard(
+                    state = homeUiState.weather,
+                    onDetail = onWeather,
+                    onCredentials = onCredentials,
+                    onRoute = onRoute,
+                    onRetry = onRefreshPreviews,
+                )
+            }
             item { HomeLatestEvaluationCard(decisions.maxByOrNull { it.generatedAt.homeInstant()?.toEpochMilli() ?: Long.MIN_VALUE }, schedulingError) }
             item { SectionTitle("最近的有效闹钟", action = "全部闹钟", onAction = onPlans) }
             if (plans.isEmpty()) item { HomeAlarmHero(onAdd) }
@@ -403,8 +459,18 @@ private fun HomeScreen(
                 )
             }
             item { SectionTitle("通勤信息") }
-            item { EmptyProviderCard(title = "通勤路线", description = "配置起终点、出行方式与高德地图路线。", onClick = onRoute) }
+            item {
+                HomeRouteCard(
+                    state = homeUiState.route,
+                    mapStatus = mapStatus,
+                    onDetail = onRoute,
+                    onCredentials = onCredentials,
+                    onConsent = onAmapConsent,
+                    onRetry = onRefreshPreviews,
+                )
+            }
             item { SafetyNotice("闹钟由本机注册；是否已注册以计划状态为准。") }
+            }
         }
     }
 }

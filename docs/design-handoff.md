@@ -8,6 +8,15 @@
 - 原型路由以 `prototype/app.js` 的 `ROUTES` 为准：主页是 `home`，地点选择是 `place-search`，基础／提前响铃离线演示分别为 `ringing-basic`／`ringing`。Web 响铃交互见 [`原型验收`](../prototype/qa/ringing-2026-09-02/README.md)，Android 真实响铃与动作确认见 [`原生验收`](../android/qa/native-ringing-2026-09-02/README.md)；两类结果不互相替代。
 - Figma 根节点不定义导航；下表的进入、返回和状态更新是实现契约，不从组件悬停或变体推断。
 
+### 2026-09-05 首页天气与路线状态
+
+首页主节点为 [`57:480`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=57-480)，最新状态组为 [`195:2153`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=195-2153)。该组覆盖主首页原有占位展示；节点、连接和截图见 [Figma 台账](../prototype/qa/home-preview-2026-09-05/figma-state.json) 与 [主首页截图](../prototype/qa/home-preview-2026-09-05/figma-home-success.png)。
+
+- 页面顺序为天气、最近自动评估、最近有效闹钟、通勤路线。天气显示等级、地点、数据时间和来源，路线显示方式、距离和耗时；来源以实际网络／缓存结果为准。
+- 配置读取、凭据缺失／存储错误、彩云待测试／测试失败、高德未授权、地点缺失、加载、成功、缓存、空路线、失败及有效旧结果保留分别呈现。配置、地点、授权、重试入口按当前原因显示。
+- 首页进入／返回／前台恢复及输入变化时检查有效期；下拉刷新当前天气和路线。刷新动作进入加载态并返回结果，详情入口与刷新入口分别连接；Android 预览与后台评估使用独立操作。
+- Figma 和 Web 原型使用标记为离线 fixture 的示例数据；Android 状态、并发、下拉和数据隔离验收见 [设备验收](../android/qa/home-preview-2026-09-05/README.md)。
+
 ### 2026-08-31 本地闹钟实施状态
 
 > 2026-09-01 高德已接入：Android 已实现授权、加密运行时 Key、地图、单次定位、POI／输入提示、五种路线、最多三条备选、路况和计划覆盖；待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。`prototype/` 使用确定性离线 fixture 验收页面状态。彩云天气 Android 实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](../android/qa/caiyun-device-2026-09-02.md)；自动评估 fixture 与决策记录见下方状态组。
@@ -16,9 +25,9 @@
 
 | 功能 | Figma 节点 | 原型路由 | 当前交互契约 |
 |---|---|---|---|
-| 首页空态 | `57:480` | `home` | 天气按原型离线 fixture 展示状态；路线区域按高德 fixture 显示授权／Key／加载／结果状态。 |
-| 天气 | `57:635` | `weather` | 原型按离线 fixture 展示加载、成功、缓存或错误，不发送请求；Android 彩云验证结果见 `android/qa/caiyun-device-2026-09-02.md`。 |
-| 路线与地点 | `57:833` | `route` | 全局通勤、计划覆盖、地图、五种路线和最多三条备选由高德 fixture 演示；当前路况仅为 fixture。 |
+| 首页与状态 | `57:480`、`195:2153` | `home` | 按 2026-09-05 状态契约展示配置、凭据、请求与结果；支持自动检查和下拉刷新。 |
+| 天气 | `207:2389` | `weather` | 详情与首页共享天气摘要及状态；Figma 与原型使用离线 fixture。 |
+| 路线与地点 | `207:2598` | `route` | 详情与首页共享路线摘要；全局通勤、计划覆盖、地图、五种路线和最多三条备选由高德 fixture 演示。 |
 | 闹钟空列表 | `57:1000` | `plans` | 首次安装无预置项；显示添加入口与实际注册状态说明。 |
 | 添加／编辑 | `57:1083` | `plan-edit` | 名称、日期、时间、指定日期／每周／工作日、铃声、振动、贪睡、保存并注册、删除。新建默认单次 06:00；当天已过默认次日。 |
 | 高德运行时凭据 | `57:1187` | `credentials` | Web Service Key／Android SDK Key仅当前页面会话；选择 fixture 状态，不发送请求。 |

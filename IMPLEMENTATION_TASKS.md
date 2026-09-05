@@ -4,8 +4,8 @@
 - 起点：仓库已删除后端、contract、calendar-data、infra 与旧草稿；保留 `android/` 工程（app、core/{model,data,network,alarm,map}、feature/*）
 - 目标：从纯 Android 本地优先架构推进到可公开发布的 Android 应用
 - Android 包名：`com.ljwzz.weathertrafficalarm`
-- 当前天气 Provider：Android 的彩云天气实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动提前计算仍为后续能力。高德 Android SDK、Web API、加密运行时 Key、专项授权、地图／定位／POI、五种路线、三条候选、路况和计划覆盖已实现。待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。
-- 后续规划：自动提前计算；高德 Web 服务 API 与 Android SDK 的设备实网验收。
+- 当前天气 Provider：Android 的彩云天气实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动提前计算已接入 P9 统一评估。高德 Android SDK、Web API、加密运行时 Key、专项授权、地图／定位／POI、五种路线、三条候选、路况和计划覆盖已实现。待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。
+- 后续验收：高德 Web 服务 API 与 Android SDK 的设备实网验收。
 - 工作日数据源：holiday-cn 年度 JSON（App 抓取缓存）
 - 页面与原型交接：见 [`docs/design-handoff.md`](./docs/design-handoff.md)；Figma 的 21 个页面是视觉素材基线，当前 Android 范围为 12 个主页面及路线／日历功能整合。
 
@@ -1428,13 +1428,23 @@ cd android && ./gradlew :app:assembleDebug
 实施：
 
 1. 对应页面 01：下一次基础本地闹钟的实际注册状态；已注册提前实例与实际提前分钟数。
-2. 天气区域按 Provider 的实际连接与数据状态展示；凭证缺失横幅；权限异常横幅。不得将离线 fixture 标为实网结果。
+2. 天气与路线区域按全局通勤的实际配置、凭据、加载和数据结果展示；凭据缺失和权限异常使用对应恢复入口。不得将离线 fixture 标为实网结果。
+3. 首次进入、返回和恢复首页，以及相关输入变化时，按路线 5 分钟／天气 15 分钟和预报覆盖窗口检查刷新；下拉强制同时刷新两项，独立反馈结果，重复操作合并。
+4. 首页与详情共享预览；同 ID 地点改坐标、同掩码凭据替换、清除和旧请求晚返回均不得残留旧成功状态。凭据按服务提供变更版本，Provider 缓存按版本隔离。
+5. 首页刷新不创建评估任务、不写入决策、不改变闹钟实例；成功结果包含实际数据来源与原始更新时间。
+6. 同步 Figma 首页状态组、原型交互和规格 8.2；用状态、缓存边界、并发与 Compose 下拉测试验收。
 
 验收：
 
 ```bash
-cd android && ./gradlew :app:assembleDebug
+cd android && ./gradlew :app:testDebugUnitTest :core:data:testDebugUnitTest :core:network:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --offline --console=plain
 ```
+
+### [x] T112A 首页天气与路线状态整合
+
+2026-09-05：首页与详情共享天气／路线预览，已接入配置前置状态、自动刷新、下拉强刷、凭据版本和缓存隔离，以及旧请求与旧任务清理保护。Figma 状态组 `195:2153`、原型和规格 8.2 已同步。
+
+验收覆盖真实 ViewModel 延迟响应、重复下拉和 Room／WorkManager 隔离。完整工作树与独立提交快照的结果分别记录，日志与截图见 [首页状态验收](android/qa/home-preview-2026-09-05/README.md)。原型测试与浏览器交互见 [原型验收](prototype/qa/home-preview-2026-09-05/README.md)。
 
 ### [x] T113 实现计划列表和编辑
 
