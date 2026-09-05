@@ -7,16 +7,24 @@ import {
   CAIYUN_FIXTURE_STATES,
   caiyunFixtureState,
   EVALUATION_FIXTURE_STATES,
+  HOME_PREVIEW_STATES,
+  applyHomePreviewResponse,
+  createHomePreviewState,
   createEvaluationFixture,
   evaluationFixtureHistory,
+  homePreviewInputSignature,
+  homePreviewIsFresh,
+  homePreviewPrerequisite,
   nextAlarmOccurrence,
   normalizeAlarmPlan,
   persistentSettingsSnapshot,
   REPEAT_KINDS,
   repeatLabel,
   resolveCommute,
+  routePreviewResult,
   todayIso,
   validateAlarmPlan,
+  weatherPreviewResult,
 } from '../state.mjs';
 
 const at = value => new Date(value);
@@ -167,4 +175,41 @@ test('plan commute override replaces only that plan effective commute', () => {
   assert.equal(resolveCommute(global).origin, '全局起点');
   const commute = resolveCommute(global, { commuteOverride: { enabled:true, origin:'计划起点', destination:'计划终点', selectedTransport:'walking' } });
   assert.deepEqual(commute, { enabled:true, origin:'计划起点', originAddress:'', destination:'计划终点', destinationAddress:'', selectedTransport:'walking' });
+});
+
+test('home preview prerequisites separately expose weather credentials, connection and route authorization', () => {
+  const configured = { amapConsent:'approved', origin:'家', destination:'公司' };
+  assert.equal(homePreviewPrerequisite('weather', configured, {}), HOME_PREVIEW_STATES.CREDENTIAL_MISSING);
+  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'pending' }), HOME_PREVIEW_STATES.CONNECTION_PENDING);
+  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'failed' }), HOME_PREVIEW_STATES.CONNECTION_FAILED);
+  assert.equal(homePreviewPrerequisite('weather', configured, { homeConfigurationState:'error' }), HOME_PREVIEW_STATES.CONFIG_ERROR);
+  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'passed' }), null);
+  assert.equal(homePreviewPrerequisite('route', { ...configured, amapConsent:'pending' }, { credentials:{ amapWebKey:'fixture' } }), HOME_PREVIEW_STATES.AUTHORIZATION_MISSING);
+  assert.equal(homePreviewPrerequisite('route', configured, { credentials:{} }), HOME_PREVIEW_STATES.WEB_KEY_MISSING);
+  assert.equal(homePreviewPrerequisite('route', { ...configured, destination:'' }, { credentials:{ amapWebKey:'fixture' } }), HOME_PREVIEW_STATES.LOCATION_MISSING);
+});
+
+test('home preview input changes for same place text after a commute or credential replacement', () => {
+  const config = { amapConsent:'approved', origin:'家', destination:'公司', selectedTransport:'driving', commuteRevision:1 };
+  const runtime = { credentials:{ amapWebKey:'fixture' }, amapCredentialRevision:1, weatherCredentialConfigured:true, weatherCredentialRevision:1, caiyunConnectionState:'passed' };
+  const initial = homePreviewInputSignature(config, runtime);
+  assert.notEqual(homePreviewInputSignature({ ...config, commuteRevision:2 }, runtime), initial);
+  assert.notEqual(homePreviewInputSignature(config, { ...runtime, amapCredentialRevision:2 }), initial);
+  assert.notEqual(homePreviewInputSignature(config, { ...runtime, weatherCredentialRevision:2 }), initial);
+});
+
+test('home preview response rejects stale generations and keeps an error fallback result', () => {
+  const preview = { ...createHomePreviewState().weather, generation:3, inputSignature:'new', result:{ severity:'晴好天气' }, updatedAt:10, refreshing:true };
+  assert.equal(applyHomePreviewResponse(preview, { generation:2, inputSignature:'new', state:'success', result:{ severity:'旧数据' } }), preview);
+  const failure = applyHomePreviewResponse(preview, { generation:3, inputSignature:'new', state:'error', updatedAt:20 });
+  assert.equal(failure.state, HOME_PREVIEW_STATES.ERROR);
+  assert.deepEqual(failure.result, { severity:'晴好天气' });
+  assert.equal(homePreviewIsFresh({ state:'success', result:{}, inputSignature:'new', updatedAt:100 }, 'new', 100, 199), true);
+  assert.equal(homePreviewIsFresh({ state:'success', result:{ sourceTimestampMs:100, forecastWindowEndsAtMs:150, forecastWindowValid:true }, inputSignature:'new', updatedAt:100 }, 'new', 100, 151), false);
+});
+
+test('home preview summaries use deterministic shared weather and selected route fields', () => {
+  const config = { origin:'家', destination:'公司', selectedTransport:'driving' };
+  assert.deepEqual(weatherPreviewResult(config, { fixtureNow:100 }), { severity:'晴好天气', endpoints:'家 → 公司', observedAt:'09-05 07:00', source:'数据来自彩云天气', sourceTimestampMs:100, forecastWindowEndsAtMs:900100, forecastWindowValid:true });
+  assert.deepEqual(routePreviewResult(config, { selectedRouteIndex:0 }), { transport:'驾车', distance:'12.4 km', duration:'18 分钟', endpoints:'家 → 公司', observedAt:'09-05 07:00', source:'数据来自高德路线服务' });
 });

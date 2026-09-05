@@ -1,5 +1,5 @@
 /* Local interaction prototype. Android owns alarm registration, ringing and permissions. */
-import { AMAP_DEMO_TIPS, EVALUATION_FIXTURE_STATES, createDefaultState, createEvaluationFixture, defaultAlarmDraft, evaluationFixtureHistory, loadSettings, nextAlarmOccurrence, normalizeAlarmPlan, persistSettings, REPEAT_KINDS, todayIso, validateAlarmPlan } from './state.mjs';
+import { AMAP_DEMO_TIPS, CAIYUN_FIXTURE_STATES, EVALUATION_FIXTURE_STATES, HOME_PREVIEW_REFRESH_WINDOWS, HOME_PREVIEW_STATES, applyHomePreviewResponse, createDefaultState, createEvaluationFixture, createHomePreviewState, defaultAlarmDraft, evaluationFixtureHistory, homePreviewInputSignature, homePreviewIsFresh, homePreviewPrerequisite, loadSettings, nextAlarmOccurrence, persistSettings, REPEAT_KINDS, routePreviewResult, todayIso, validateAlarmPlan, weatherPreviewResult } from './state.mjs';
 import { createTravelScreens } from './screens-travel.mjs';
 import { createAlarmScreens } from './screens-alarm.mjs';
 import { createSettingsScreens } from './screens-settings.mjs';
@@ -27,7 +27,7 @@ function defaults() {
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
 function createRuntime() {
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -56,6 +56,67 @@ function evaluationRun(fixture = runtime.evaluationFixture) {
     transport:config.selectedTransport,
     selectedRouteIndex:runtime.selectedRouteIndex,
   });
+}
+function invalidateHomePreviews() {
+  for (const kind of ['weather', 'route']) {
+    const preview = runtime.homePreview[kind];
+    runtime.homePreview[kind] = { ...preview, generation:preview.generation + 1, inputSignature:'', result:null, state:HOME_PREVIEW_STATES.CONFIG_LOADING, refreshing:false };
+  }
+}
+function syncHomePreviewPrerequisites(kind) {
+  const current = runtime.homePreview[kind];
+  const prerequisite = homePreviewPrerequisite(kind, config, runtime);
+  if (!prerequisite) return;
+  runtime.homePreview[kind] = {
+    ...current,
+    generation:current.generation + 1,
+    inputSignature:homePreviewInputSignature(config, runtime),
+    result:null,
+    state:prerequisite,
+    refreshing:false,
+  };
+}
+function homeResponseState(kind, fixture) {
+  if (kind === 'weather') {
+    if (runtime.weatherForecastWindowValid === false) return HOME_PREVIEW_STATES.EMPTY;
+    if (fixture === CAIYUN_FIXTURE_STATES.CACHED) return HOME_PREVIEW_STATES.CACHED;
+    if (fixture === CAIYUN_FIXTURE_STATES.ERROR) return HOME_PREVIEW_STATES.ERROR;
+    if (fixture === CAIYUN_FIXTURE_STATES.LOADING) return HOME_PREVIEW_STATES.LOADING;
+    return HOME_PREVIEW_STATES.SUCCESS;
+  }
+  if (fixture === 'empty') return HOME_PREVIEW_STATES.EMPTY;
+  if (fixture === 'error') return HOME_PREVIEW_STATES.ERROR;
+  if (fixture === 'loading') return HOME_PREVIEW_STATES.LOADING;
+  return HOME_PREVIEW_STATES.SUCCESS;
+}
+function refreshHomePreview({ force = false, kind = null } = {}) {
+  const kinds = kind ? [kind] : ['weather', 'route'];
+  const signature = homePreviewInputSignature(config, runtime);
+  for (const name of kinds) {
+    const current = runtime.homePreview[name];
+    if (current.refreshing) continue;
+    const prerequisite = homePreviewPrerequisite(name, config, runtime);
+    if (prerequisite) {
+      runtime.homePreview[name] = { ...current, generation:current.generation + 1, inputSignature:signature, result:null, state:prerequisite, refreshing:false };
+      continue;
+    }
+    const windowMs = name === 'weather' ? HOME_PREVIEW_REFRESH_WINDOWS.weatherMs : HOME_PREVIEW_REFRESH_WINDOWS.routeMs;
+    const now = runtime.fixtureNow || Date.now();
+    if (!force && homePreviewIsFresh(current, signature, windowMs, now)) continue;
+    const generation = current.generation + 1;
+    const previous = homePreviewIsFresh(current, signature, windowMs, now) ? current.result : null;
+    runtime.homePreview[name] = { ...current, generation, inputSignature:signature, result:previous, state:HOME_PREVIEW_STATES.LOADING, refreshing:true };
+    const fixture = name === 'weather' ? runtime.caiyunFixture : runtime.routeFixture;
+    setTimeout(() => {
+      const responseState = homeResponseState(name, fixture);
+      if (responseState === HOME_PREVIEW_STATES.LOADING) return;
+      const result = responseState === HOME_PREVIEW_STATES.SUCCESS || responseState === HOME_PREVIEW_STATES.CACHED
+        ? (name === 'weather' ? weatherPreviewResult(config, runtime) : routePreviewResult(config, runtime))
+        : null;
+      runtime.homePreview[name] = applyHomePreviewResponse(runtime.homePreview[name], { generation, inputSignature:signature, state:responseState, result, updatedAt:now });
+      render();
+    }, 160);
+  }
 }
 function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; const evaluationPlan = selectedEvaluationPlan(); return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null, evaluationPlan:clone(evaluationPlan), evaluationPlans:clone(evaluationPlans()), evaluationRun:runtime.evaluationRun ? clone(runtime.evaluationRun) : null, evaluationHistory:evaluationFixtureHistory(evaluationPlan) }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
 const travel = createTravelScreens({ action, overlayAction, asset, state });
@@ -87,6 +148,9 @@ function navigate(route, { replace = false, fromHistory = false } = {}) {
   runtime.route = route; closeOverlay();
   if (resumesPermissionFlow) runtime.overlay = 'permission-guide';
   if (route === 'calendar') runtime.calendarMonth = runtime.selectedDate.slice(0, 7);
+  if (route === 'home') refreshHomePreview();
+  if (route === 'weather') syncHomePreviewPrerequisites('weather');
+  if (route === 'route') syncHomePreviewPrerequisites('route');
   if (!fromHistory) history[replace ? 'replaceState' : 'pushState'](null, '', `#/${route}`);
   render();
 }
@@ -236,9 +300,9 @@ function handleClick(event) {
       runtime.evaluationRun = item;
       return navigate('why');
     }
-    if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); runtime.routeDraft = null; persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
+    if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); config.commuteRevision = (config.commuteRevision || 0) + 1; runtime.routeDraft = null; invalidateHomePreviews(); persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
     if (op === 'mode') { activeCommute().selectedTransport = value; runtime.selectedRouteIndex = 0; render(); return; }
-    if (op === 'select-route') { const index = Number(value); if (!Number.isInteger(index) || index < 0 || index > 2) throw Error('路线选择无效。'); runtime.selectedRouteIndex = index; render(); return; }
+    if (op === 'select-route') { const index = Number(value); if (!Number.isInteger(index) || index < 0 || index > 2) throw Error('路线选择无效。'); runtime.selectedRouteIndex = index; invalidateHomePreviews(); refreshHomePreview({ force:true, kind:'route' }); render(); return; }
     if (op === 'open-place') { runtime.placeTarget = value; runtime.selectedPlace = null; return navigate('place-search'); }
     if (op === 'choose-place') { runtime.selectedPlace = [...AMAP_DEMO_TIPS, ...(currentConfig().favorites || [])].find(place => place.id === value) || null; render(); return; }
     if (op === 'use-place') { const place = runtime.selectedPlace; if (!place) throw Error('请先选择一个地点。'); const c = activeCommute(); c[runtime.placeTarget] = place.name; c[`${runtime.placeTarget}Address`] = place.address; return navigate('route-edit', { replace:true }); }
@@ -249,11 +313,12 @@ function handleClick(event) {
     if (op === 'use-global-commute') { alarmDraft().commuteOverride = { enabled:false }; render(); return; }
     if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
     if (op === 'locate-once') return requestCurrentLocation();
-    if (op === 'save-credentials') { runtime.credentialStatus = '模拟配置已更新；原型未保存真实凭证'; render(); return; }
+    if (op === 'refresh-home-preview') { refreshHomePreview({ force:true, kind:value || null }); render(); return; }
+    if (op === 'save-credentials') { runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); runtime.credentialStatus = '模拟配置已更新；原型未保存真实凭证'; render(); return; }
     if (op === 'test-credentials') { runtime.credentialStatus = '高德离线 fixture 已验证；未发送网络请求'; render(); return; }
-    if (op === 'test-caiyun-credentials') { runtime.credentialStatus = '彩云天气模拟凭证测试完成；未发送网络请求'; render(); return; }
+    if (op === 'test-caiyun-credentials') { runtime.caiyunConnectionState = runtime.weatherCredentialConfigured ? 'passed' : 'pending'; invalidateHomePreviews(); runtime.credentialStatus = runtime.weatherCredentialConfigured ? '彩云天气 fixture 连接测试通过；未发送网络请求' : '请先启用天气凭据 fixture，再测试连接'; render(); return; }
     if (op === 'clear-credentials') return openOverlay('clear-credentials');
-    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.credentialStatus = '当前会话模拟状态已清空'; closeOverlay(); render(); return; }
+    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.weatherCredentialConfigured = false; runtime.caiyunConnectionState = 'pending'; runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); runtime.credentialStatus = '当前会话模拟状态已清空'; closeOverlay(); render(); return; }
     if (op === 'preview-sound') { notice('浏览器原型不播放声音；Android 应用可试听。'); return; }
     if (op === 'open-permission-diagnostics') return navigate('diagnostics');
     if (op === 'return-permission-flow') {
@@ -327,7 +392,11 @@ function handleChange(event) {
   if (target.dataset.action === 'toggle-alarm') return requestToggleAlarm(target.dataset.value, target.checked);
   if (target.dataset.setting) { config[target.dataset.setting] = target.checked; persist(); render(); }
   if (target.dataset.amapFixture) { runtime.amapFixture = target.value; render(); }
-  if (target.dataset.caiyunFixture) { runtime.caiyunFixture = target.value; render(); }
+  if (target.dataset.caiyunFixture) { runtime.caiyunFixture = target.value; invalidateHomePreviews(); render(); }
+  if (target.dataset.routeFixture) { runtime.routeFixture = target.value; invalidateHomePreviews(); render(); }
+  if (target.dataset.homeConfigurationState) { runtime.homeConfigurationState = target.value; invalidateHomePreviews(); render(); }
+  if (target.dataset.weatherCredentialConfigured) { runtime.weatherCredentialConfigured = target.checked; runtime.caiyunConnectionState = target.checked ? 'pending' : 'pending'; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); render(); }
+  if (target.dataset.caiyunConnectionState) { runtime.caiyunConnectionState = target.value; invalidateHomePreviews(); render(); }
   if (target.dataset.overlayField === 'vibration') handleInput(event);
 }
 function reset() { config = defaults(); persist(); runtime = createRuntime(); runtime.route = 'onboarding'; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }
@@ -341,13 +410,42 @@ document.addEventListener('keydown', event => {
   closeOverlay();
   render();
 });
+let homePullStart = null;
+document.addEventListener('pointerdown', event => {
+  const scroll = document.querySelector('.prototype-scroll');
+  homePullStart = runtime.route === 'home' && event.target?.closest?.('.prototype-scroll') === scroll && scroll?.scrollTop === 0 ? event.clientY : null;
+});
+document.addEventListener('pointerup', event => {
+  if (homePullStart !== null && event.clientY - homePullStart >= 72) {
+    homePullStart = null;
+    refreshHomePreview({ force:true });
+    render();
+    return;
+  }
+  homePullStart = null;
+});
+document.addEventListener('pointercancel', () => { homePullStart = null; });
 document.getElementById('scenario-select').addEventListener('change', event => navigate(event.target.value));
 document.getElementById('permission-device-select')?.addEventListener?.('change', event => { runtime.permissionState.device = event.target.value; render(); });
 document.getElementById('permission-entry-select')?.addEventListener?.('change', event => { runtime.permissionState.settingsEntry = event.target.value; render(); });
 document.getElementById('scenario-reset').addEventListener('click', reset);
 window.addEventListener('popstate', () => navigate(location.hash.replace(/^#\/?/, ''), { replace:true, fromHistory:true }));
+window.addEventListener('focus', () => { if (runtime.route === 'home') { refreshHomePreview(); render(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && runtime.route === 'home') { refreshHomePreview(); render(); } });
 function fitPhone() { document.documentElement.style.setProperty('--phone-scale', String(Math.min(1, (window.innerWidth - 24) / 412))); }
 window.addEventListener('resize', fitPhone); fitPhone();
-window.ZhituPrototype = { ROUTES, navigate, reset };
+function setHomePreviewFixture(fixture = {}) {
+  if (fixture.config) config = { ...config, ...fixture.config };
+  if (fixture.credentials) runtime.credentials = { ...runtime.credentials, ...fixture.credentials };
+  for (const key of ['homeConfigurationState', 'weatherCredentialConfigured', 'caiyunConnectionState', 'caiyunFixture', 'routeFixture', 'selectedRouteIndex', 'fixtureNow', 'weatherObservedAt', 'weatherForecastWindowValid']) {
+    if (key in fixture) runtime[key] = fixture[key];
+  }
+  runtime.amapCredentialRevision += 1;
+  runtime.weatherCredentialRevision += 1;
+  invalidateHomePreviews();
+  if (runtime.route === 'home') refreshHomePreview({ force:true });
+  render();
+}
+window.ZhituPrototype = { ROUTES, navigate, reset, refreshHomePreview:() => { refreshHomePreview({ force:true }); render(); }, setHomePreviewFixture, homePreview:() => clone(runtime.homePreview) };
 navigate(config.onboardingDone && ROUTES.includes(location.hash.replace(/^#\/?/, '')) ? location.hash.replace(/^#\/?/, '') : (config.onboardingDone ? 'home' : 'onboarding'), { replace:true });
 document.fonts.ready.then(() => { document.getElementById('render-status').textContent = '412 × 892 · 本地设计字体已加载'; });

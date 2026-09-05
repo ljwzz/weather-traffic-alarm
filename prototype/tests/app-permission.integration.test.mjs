@@ -85,6 +85,57 @@ test('permission guide preserves an alarm draft and only continues the save once
   });
 });
 
+test('home preview refresh is coalesced and never persists an evaluation or alarm mutation', async () => {
+  await withBrowserStub(async ({ app, listeners, saved, window }, initial) => {
+    window.ZhituPrototype.navigate('home');
+    assert.match(app.innerHTML, /尚未配置彩云凭据/);
+    assert.match(app.innerHTML, /等待高德地图专项授权/);
+    assert.match(app.innerHTML, /自动评估/);
+
+    const queuedTimer = globalThis.setTimeout;
+    globalThis.setTimeout = callback => { callback(); return 0; };
+    window.ZhituPrototype.setHomePreviewFixture({
+      config:{ amapConsent:'approved', origin:'家', destination:'公司', selectedTransport:'driving' },
+      credentials:{ amapWebKey:'fixture-only' },
+      weatherCredentialConfigured:true,
+      caiyunConnectionState:'passed',
+    });
+    const before = window.ZhituPrototype.homePreview();
+    assert.equal(before.weather.state, 'success');
+    assert.equal(before.route.state, 'success');
+    assert.match(app.innerHTML, /驾车 · 12.4 km · 18 分钟/);
+    const click = listeners.get('click');
+    click({ target:control('select-route', '1') });
+    assert.equal(window.ZhituPrototype.homePreview().route.result.duration, '21 分钟');
+    assert.match(app.innerHTML, /驾车 · 13.1 km · 21 分钟/);
+    window.ZhituPrototype.navigate('route');
+    assert.match(app.innerHTML, /首页预览：驾车 · 13.1 km · 21 分钟/);
+    window.ZhituPrototype.navigate('home');
+    window.ZhituPrototype.refreshHomePreview();
+    const after = window.ZhituPrototype.homePreview();
+    assert.ok(after.weather.generation > before.weather.generation);
+    assert.ok(after.route.generation > before.route.generation);
+    assert.match(app.innerHTML, /刷新通勤预览/);
+    assert.equal(saved.get(STORAGE_KEY), initial);
+    click({ target:control('refresh-home-preview') });
+    assert.equal(saved.get(STORAGE_KEY), initial);
+    globalThis.setTimeout = queuedTimer;
+  });
+});
+
+test('direct weather and route entries resolve missing prerequisites without a home refresh', async () => {
+  await withBrowserStub(async ({ app, window }) => {
+    window.ZhituPrototype.setHomePreviewFixture({ config:{ onboardingDone:true } });
+    window.ZhituPrototype.navigate('weather');
+    assert.match(app.innerHTML, /尚未配置彩云凭据/);
+    assert.doesNotMatch(app.innerHTML, /正在读取天气配置/);
+
+    window.ZhituPrototype.navigate('route');
+    assert.match(app.innerHTML, /等待高德地图专项授权/);
+    assert.doesNotMatch(app.innerHTML, /正在读取路线配置/);
+  });
+});
+
 test('permission guide cancellation writes nothing and does not consume a later explicit confirmation', async () => {
   await withBrowserStub(async ({ app, listeners, saved, window }, initial) => {
     const click = listeners.get('click');

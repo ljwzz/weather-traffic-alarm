@@ -29,6 +29,118 @@ export const CAIYUN_FIXTURE_STATES = Object.freeze({
 });
 
 /**
+ * Home preview states are intentionally provider-neutral. They model the
+ * visible prerequisite and response state without collecting Caiyun secrets
+ * or contacting either provider.
+ */
+export const HOME_PREVIEW_STATES = Object.freeze({
+  CONFIG_LOADING: 'config-loading',
+  CONFIG_ERROR: 'config-error',
+  CREDENTIAL_MISSING: 'credential-missing',
+  CONNECTION_PENDING: 'connection-pending',
+  CONNECTION_FAILED: 'connection-failed',
+  AUTHORIZATION_MISSING: 'authorization-missing',
+  WEB_KEY_MISSING: 'web-key-missing',
+  LOCATION_MISSING: 'location-missing',
+  LOADING: 'loading',
+  SUCCESS: 'success',
+  CACHED: 'cached',
+  EMPTY: 'empty',
+  ERROR: 'error',
+});
+
+export const HOME_PREVIEW_REFRESH_WINDOWS = Object.freeze({
+  weatherMs: 15 * 60 * 1000,
+  routeMs: 5 * 60 * 1000,
+});
+
+const TRANSPORT_SUMMARIES = Object.freeze({
+  driving: Object.freeze({ label: '驾车', distances: ['12.4 km', '13.1 km', '14.0 km'], durations: ['18 分钟', '21 分钟', '24 分钟'] }),
+  transit: Object.freeze({ label: '公交', distances: ['14.2 km', '15.0 km', '15.6 km'], durations: ['31 分钟', '36 分钟', '39 分钟'] }),
+  bicycling: Object.freeze({ label: '骑行', distances: ['11.8 km', '12.2 km', '12.9 km'], durations: ['26 分钟', '29 分钟', '32 分钟'] }),
+  'electric-bicycle': Object.freeze({ label: '电动车', distances: ['11.8 km', '12.2 km', '12.9 km'], durations: ['20 分钟', '23 分钟', '25 分钟'] }),
+  walking: Object.freeze({ label: '步行', distances: ['11.3 km', '11.8 km', '12.4 km'], durations: ['48 分钟', '52 分钟', '56 分钟'] }),
+});
+
+function previewIndex(value) {
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 && index < 3 ? index : 0;
+}
+
+/** Non-secret fingerprint; place text and revision invalidate prior previews. */
+export function homePreviewInputSignature(config = {}, runtime = {}) {
+  return JSON.stringify({
+    amapConsent: config.amapConsent || 'pending',
+    amapWebConfigured: Boolean(runtime.credentials?.amapWebKey),
+    amapCredentialRevision: runtime.amapCredentialRevision || 0,
+    weatherConfigured: Boolean(runtime.weatherCredentialConfigured),
+    weatherCredentialRevision: runtime.weatherCredentialRevision || 0,
+    weatherConnection: runtime.caiyunConnectionState || 'pending',
+    weatherFixtureClock: runtime.fixtureNow || 0,
+    weatherForecastWindowValid: runtime.weatherForecastWindowValid !== false,
+    origin: config.origin || '',
+    originAddress: config.originAddress || '',
+    destination: config.destination || '',
+    destinationAddress: config.destinationAddress || '',
+    placeRevision: config.commuteRevision || 0,
+    transport: config.selectedTransport || 'driving',
+    routeIndex: previewIndex(runtime.selectedRouteIndex),
+  });
+}
+
+export function createHomePreviewState() {
+  return {
+    weather: { state: HOME_PREVIEW_STATES.CONFIG_LOADING, generation: 0, inputSignature: '', result: null, updatedAt: 0, refreshing: false },
+    route: { state: HOME_PREVIEW_STATES.CONFIG_LOADING, generation: 0, inputSignature: '', result: null, updatedAt: 0, refreshing: false },
+  };
+}
+
+export function weatherPreviewResult(config = {}, runtime = {}) {
+  const fixtureClockMs = runtime.fixtureNow || Date.now();
+  return Object.freeze({ severity: '晴好天气', endpoints: `${config.origin || '起点'} → ${config.destination || '终点'}`, observedAt: runtime.weatherObservedAt || '09-05 07:00', source: '数据来自彩云天气', sourceTimestampMs:fixtureClockMs, forecastWindowEndsAtMs:fixtureClockMs + HOME_PREVIEW_REFRESH_WINDOWS.weatherMs, forecastWindowValid:runtime.weatherForecastWindowValid !== false });
+}
+
+export function routePreviewResult(config = {}, runtime = {}) {
+  const summary = TRANSPORT_SUMMARIES[config.selectedTransport] || TRANSPORT_SUMMARIES.driving;
+  const index = previewIndex(runtime.selectedRouteIndex);
+  return Object.freeze({ transport: summary.label, distance: summary.distances[index], duration: summary.durations[index], endpoints: `${config.origin || '起点'} → ${config.destination || '终点'}`, observedAt: '09-05 07:00', source: '数据来自高德路线服务' });
+}
+
+/**
+ * Resolves prerequisite states before a simulated request begins. The result
+ * is used by the app and tests to keep cards, details and recovery links in
+ * sync without affecting the evaluation fixture.
+ */
+export function homePreviewPrerequisite(kind, config = {}, runtime = {}) {
+  if (runtime.homeConfigurationState === 'loading') return HOME_PREVIEW_STATES.CONFIG_LOADING;
+  if (runtime.homeConfigurationState === 'error') return HOME_PREVIEW_STATES.CONFIG_ERROR;
+  const placesReady = Boolean(config.origin && config.destination);
+  if (kind === 'weather') {
+    if (!runtime.weatherCredentialConfigured) return HOME_PREVIEW_STATES.CREDENTIAL_MISSING;
+    if (runtime.caiyunConnectionState === 'pending') return HOME_PREVIEW_STATES.CONNECTION_PENDING;
+    if (runtime.caiyunConnectionState === 'failed') return HOME_PREVIEW_STATES.CONNECTION_FAILED;
+    return placesReady ? null : HOME_PREVIEW_STATES.LOCATION_MISSING;
+  }
+  if (config.amapConsent !== 'approved') return HOME_PREVIEW_STATES.AUTHORIZATION_MISSING;
+  if (!runtime.credentials?.amapWebKey) return HOME_PREVIEW_STATES.WEB_KEY_MISSING;
+  return placesReady ? null : HOME_PREVIEW_STATES.LOCATION_MISSING;
+}
+
+export function homePreviewIsFresh(preview, signature, maxAgeMs, now = Date.now()) {
+  const result = preview?.result;
+  const sourceTime = Number.isFinite(result?.sourceTimestampMs) ? result.sourceTimestampMs : preview?.updatedAt;
+  const windowValid = result?.forecastWindowValid !== false && (!Number.isFinite(result?.forecastWindowEndsAtMs) || now <= result.forecastWindowEndsAtMs);
+  return Boolean(result && [HOME_PREVIEW_STATES.SUCCESS, HOME_PREVIEW_STATES.CACHED].includes(preview.state) && preview.inputSignature === signature && windowValid && now - sourceTime < maxAgeMs);
+}
+
+/** Applies one response only when it still belongs to the active input and generation. */
+export function applyHomePreviewResponse(preview, { generation, inputSignature, state, result = null, updatedAt = Date.now() }) {
+  if (preview.generation !== generation || preview.inputSignature !== inputSignature) return preview;
+  const keepResult = state === HOME_PREVIEW_STATES.ERROR && preview.result ? preview.result : result;
+  return { ...preview, state, result: keepResult, updatedAt: state === HOME_PREVIEW_STATES.ERROR ? preview.updatedAt : (keepResult ? updatedAt : preview.updatedAt), refreshing: false };
+}
+
+/**
  * Session-only outcomes for the automatic-evaluation prototype. They model
  * the handoff states without registering an Android alarm or calling either
  * provider.

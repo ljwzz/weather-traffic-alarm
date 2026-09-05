@@ -1,5 +1,5 @@
-/* Figma-layout travel pages. Provider-dependent areas deliberately remain empty. */
-import { AMAP_FIXTURE_STATES, CAIYUN_FIXTURE_STATES, EVALUATION_FIXTURE_STATES, amapFixtureState, caiyunFixtureState, createEvaluationFixture, resolveCommute } from './state.mjs';
+/* Travel pages share the current home preview states and results. */
+import { AMAP_FIXTURE_STATES, EVALUATION_FIXTURE_STATES, amapFixtureState, createEvaluationFixture, resolveCommute } from './state.mjs';
 
 const esc = value => String(value ?? '').replace(/[&>'"]/g, c => ({ '&':'&amp;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]));
 const routeFixtures = Object.freeze({
@@ -16,7 +16,6 @@ export function createTravelScreens({ action, overlayAction, asset, state }) {
   const event = (label, name, value = '') => overlayAction(label, name, value);
   const image = (file, alt, className = '') => asset(file, alt, className);
   const fixture = () => { const s = read(); return amapFixtureState(s.runtime?.credentials, s.runtime?.amapFixture || AMAP_FIXTURE_STATES.SUCCESS); };
-  const weatherFixture = () => caiyunFixtureState(read().runtime?.caiyunFixture || CAIYUN_FIXTURE_STATES.SUCCESS);
   const evaluation = () => {
     const runtime = read().runtime || {};
     return runtime.evaluationRun || createEvaluationFixture({
@@ -63,10 +62,67 @@ export function createTravelScreens({ action, overlayAction, asset, state }) {
     const selectedIndex = selectedRouteIndex(options.length);
     return `${map('travel-route-map', options, selectedIndex)}<section class="amap-route-options"><h2>路线方案 <small>最多 3 条 · 当前路况 fixture</small></h2>${options.map(([name, duration, traffic], index) => `<button type="button" class="${index === selectedIndex ? 'is-selected' : ''}" data-action="select-route" data-value="${index}" aria-pressed="${index === selectedIndex}"><b>${esc(name)}</b><strong>${esc(duration)}</strong><span>${esc(traffic)}</span></button>`).join('')}</section>`;
   };
+  const preview = kind => read().runtime?.homePreview?.[kind] || { state:'config-loading', result:null, refreshing:false };
+  const previewAction = (kind, state) => {
+    if (kind === 'weather') {
+      if (['config-error', 'credential-missing', 'connection-pending', 'connection-failed'].includes(state)) return link('配置凭据', 'credentials');
+      if (state === 'location-missing') return link('完善地点', 'route-edit');
+    } else {
+      if (state === 'authorization-missing') return link('完成授权', 'onboarding');
+      if (['config-error', 'web-key-missing'].includes(state)) return link('配置凭据', 'credentials');
+      if (state === 'location-missing') return link('完善地点', 'route-edit');
+    }
+    return event('重试', 'refresh-home-preview', kind);
+  };
+  const previewStatus = (kind, card) => {
+    const labels = kind === 'weather'
+      ? {
+        'config-loading':'正在读取天气配置', 'config-error':'无法读取凭据配置', 'credential-missing':'尚未配置彩云凭据', 'connection-pending':'彩云凭据等待连接测试', 'connection-failed':'彩云凭据连接测试失败', 'location-missing':'尚未配置通勤地点', loading:'正在获取天气', cached:'晴好天气', empty:'没有可用天气', error:'无法获取天气', success:'晴好天气',
+      }
+      : {
+        'config-loading':'正在读取路线配置', 'config-error':'无法读取凭据配置', 'authorization-missing':'等待高德地图专项授权', 'web-key-missing':'尚未配置高德 Web Key', 'location-missing':'尚未配置通勤地点', loading:'正在查询驾车路线', cached:'展示缓存路线', empty:'未找到可用驾车路线', error:'无法获取路线', success:'路线已更新',
+      };
+    const result = card.result;
+    const detail = result
+      ? kind === 'weather'
+        ? result.severity
+        : `${result.transport} · ${result.distance} · ${result.duration}`
+      : labels[card.state] || '等待更新';
+    const mapSdkStatus = (() => {
+      if (kind !== 'route') return '';
+      const r = read().runtime || {};
+      if (!r.credentials?.amapSdkKey) return ' · 地图：需要配置 Android Key';
+      if (r.amapFixture === 'loading') return ' · 地图：正在加载';
+      if (r.amapFixture === 'denied') return ' · 地图：定位未授权';
+      if (r.amapFixture === 'error') return ' · 地图：暂不可用';
+      return ' · 地图：可用';
+    })();
+    const meta = result
+      ? kind === 'weather'
+        ? `${result.endpoints} · 数据时间：${result.observedAt} · ${card.state === 'cached' ? '数据来自本地缓存' : result.source}${card.state === 'error' ? ' · 更新失败，保留上次结果' : ''}`
+        : `${result.endpoints} · 数据时间：${result.observedAt} · ${card.state === 'cached' ? '数据来自本地缓存' : result.source}${card.state === 'error' ? ' · 更新失败，保留上次结果' : ''}${mapSdkStatus}`
+      : card.state === 'loading' && card.result ? '保留上次结果，正在更新' : '离线 fixture；不请求真实 API。';
+    return { label:labels[card.state] || '等待更新', detail, meta };
+  };
+  const previewCard = kind => {
+    const card = preview(kind); const content = previewStatus(kind, card); const title = kind === 'weather' ? '彩云天气' : '通勤路线'; const route = kind === 'weather' ? 'weather' : 'route';
+    const canOpen = card.result || ['success', 'cached', 'empty', 'error', 'loading'].includes(card.state);
+    return `<section class="home-preview-card is-${esc(card.state)}" data-preview-kind="${kind}"><button type="button" class="home-preview-open" data-route="${route}" ${canOpen ? '' : 'aria-disabled="true"'}><header><span>${title}</span><small>${esc(content.label)}</small></header><strong>${esc(content.detail)}</strong><p>${esc(content.meta)}</p></button>${!['success', 'cached'].includes(card.state) ? `<footer>${previewAction(kind, card.state)}</footer>` : ''}</section>`;
+  };
   return {
-    home() { const c = read().config || {}; const r = read().runtime || {}; const plans = c.alarmPlans || []; const first = plans.find(plan => plan.enabled); const evaluationPlans = r.evaluationPlans || []; const status = weatherFixture(); const label = ({ loading:'加载中', success:'模拟成功', cached:'模拟缓存', error:'模拟错误' })[status]; return `<div class="travel-home"><button type="button" class="travel-home-weather provider-placeholder provider-home" data-route="weather"><span>⌁</span><strong>彩云天气 · ${label}</strong><p>本地 fixture；不请求真实 API。</p></button><button type="button" class="travel-alarm" data-route="plans"><div class="travel-alarm-top">本地闹钟 <em>${first ? '已创建' : '空列表'}</em></div><div class="travel-alarm-time">${first ? esc(first.time) : '—'} <span>${first ? esc(first.name) : '添加第一个闹钟'}<small>${first ? '由 Android 注册与响铃' : '支持单次、每周和工作日'}</small></span></div><div class="travel-alarm-result"><div>已启用<b>${plans.filter(plan => plan.enabled).length} 个</b></div><div>下一步<b>${first ? '查看闹钟' : '立即添加'}</b></div></button><section class="home-evaluation-actions"><header><h2>可评估计划</h2>${link('选择计划', 'weather')}</header>${evaluationPlans.map(plan => `<div><span>${esc(plan.name)} · ${esc(plan.time)}</span><button type="button" data-action="evaluate-plan" data-value="${esc(plan.id)}">立即评估</button></div>`).join('')}</section>${evaluationPanel()}<section class="travel-title"><h2>今天的通勤</h2>${link('查看路线', 'route')}</section>${map('travel-commute')}<p class="travel-assurance">高德地图仅在用户同意后初始化。</p></div>`; },
-    weather() { const status = weatherFixture(); const panel = evaluationPanel({ detailed:true }); if (status === CAIYUN_FIXTURE_STATES.LOADING) return `<div class="travel-weather">${blank('彩云天气加载中', '本地 fixture 正在模拟加载；未发送网络请求。', 'travel-weather-map')}<section class="travel-forecast"><header><h2>天气预报</h2><span>彩云天气 · 模拟</span></header><p>正在等待模拟结果。</p></section>${panel}</div>`; if (status === CAIYUN_FIXTURE_STATES.ERROR) return `<div class="travel-weather">${blank('彩云天气暂不可用', '本地 fixture 模拟服务错误；未发送网络请求。', 'travel-weather-map')}<section class="travel-forecast"><header><h2>天气预报</h2><span>彩云天气 · 模拟错误</span></header><p>手动预览错误不会自动改变已记录的评估结果。</p></section>${panel}</div>`; const cached = status === CAIYUN_FIXTURE_STATES.CACHED; return `<div class="travel-weather"><section class="caiyun-weather-fixture travel-weather-map" aria-label="彩云天气本地 fixture"><div><span>${cached ? '缓存数据' : '模拟成功'}</span><strong>22°</strong><b>小雨</b><p>降水概率 60% · 体感 21°</p></div><small>彩云天气 · ${cached ? '本地缓存 fixture' : '本地 fixture'}</small></section><section class="travel-forecast"><header><h2>天气预报</h2><span>彩云天气</span></header><p>${cached ? '正在展示缓存的模拟天气数据。' : '正在展示确定性的模拟天气数据。'}</p><div class="travel-hours"><button class="is-selected"><small>现在</small><b>22°</b><em>小雨</em></button><button><small>08:00</small><b>23°</b><em>小雨</em></button><button><small>09:00</small><b>24°</b><em>阴</em></button><button><small>10:00</small><b>25°</b><em>阴</em></button><button><small>11:00</small><b>26°</b><em>多云</em></button></div><footer>手动天气预览与自动评估 fixture 相互独立。</footer></section>${panel}</div>`; },
-    route() { const s = read(); const c = s.config || {}; const commute = resolveCommute(c); return `<div class="travel-route"><section class="travel-route-card"><header><span>${image('8e03947a-17d1-409a-bc9e-57f20be3f0a9.svg', '', 'travel-sun-icon')}</span><b>全局通勤</b>${link('编辑地点', 'route-edit')}</header><div class="travel-endpoints"><b>${esc(commute.origin || '未设置起点')}</b><i>→</i><b>${esc(commute.destination || '未设置终点')}</b><span>${esc(commute.selectedTransport)} · 计划可单独覆盖</span></div>${routeResult(commute)}</section><section class="travel-date-usage"><h2>常用地点</h2><p>地点搜索、输入提示、地图选点和单次定位使用高德接入契约。</p><div>${link('搜索地点', 'place-search')}<span>运行时 Key ›</span></div></section><p class="travel-source">高德地图与路线为离线 fixture；不会发送网络请求或暴露 Key。</p></div>`; },
+    home() { const c = read().config || {}; const r = read().runtime || {}; const plans = c.alarmPlans || []; const first = plans.find(plan => plan.enabled); const evaluationPlans = r.evaluationPlans || []; return `<div class="travel-home" data-refreshing="${Boolean(preview('weather').refreshing || preview('route').refreshing)}"><section class="home-preview-heading"><h2>今日数据</h2><button type="button" data-action="refresh-home-preview" aria-label="刷新通勤预览">${preview('weather').refreshing || preview('route').refreshing ? '刷新中…' : '刷新通勤预览'}</button></section>${previewCard('weather')}<section class="home-evaluation-actions"><header><h2>可评估计划</h2>${link('选择计划', 'weather')}</header>${evaluationPlans.map(plan => `<div><span>${esc(plan.name)} · ${esc(plan.time)}</span><button type="button" data-action="evaluate-plan" data-value="${esc(plan.id)}">立即评估</button></div>`).join('')}</section>${evaluationPanel()}<button type="button" class="travel-alarm" data-route="plans"><div class="travel-alarm-top">本地闹钟 <em>${first ? '已创建' : '空列表'}</em></div><div class="travel-alarm-time">${first ? esc(first.time) : '—'} <span>${first ? esc(first.name) : '添加第一个闹钟'}<small>${first ? '由 Android 注册与响铃' : '支持单次、每周和工作日'}</small></span></div><div class="travel-alarm-result"><div>已启用<b>${plans.filter(plan => plan.enabled).length} 个</b></div><div>下一步<b>${first ? '查看闹钟' : '立即添加'}</b></div></button>${previewCard('route')}<p class="travel-assurance">下拉或点按“刷新通勤预览”只更新天气与路线预览，不创建评估或闹钟。</p></div>`; },
+    weather() {
+      const home = preview('weather'); const panel = evaluationPanel({ detailed:true });
+      if (!home.result || !['success', 'cached'].includes(home.state)) return `<div class="travel-weather">${previewCard('weather')}${panel}</div>`;
+      const cached = home.state === 'cached'; const result = home.result;
+      return `<div class="travel-weather"><p class="home-preview-detail">首页预览：${esc(result.severity)} · ${esc(result.endpoints)} · 数据时间：${esc(result.observedAt)} · ${esc(cached ? '数据来自本地缓存' : result.source)}</p><section class="caiyun-weather-fixture travel-weather-map" aria-label="彩云天气本地 fixture"><div><span>${cached ? '缓存数据' : '模拟成功'}</span><strong class="home-weather-grade">${esc(result.severity)}</strong><p>${esc(result.endpoints)} · 数据时间：${esc(result.observedAt)}</p></div><small>${esc(cached ? '数据来自本地缓存' : result.source)}</small></section><section class="travel-forecast"><header><h2>天气预报</h2><span>彩云天气</span></header><p>正在展示与首页相同的确定性模拟天气数据。</p></section>${panel}</div>`;
+    },
+    route() {
+      const home = preview('route'); const s = read(); const c = s.config || {}; const commute = resolveCommute(c);
+      if (!home.result || !['success', 'cached'].includes(home.state)) return `<div class="travel-route">${previewCard('route')}<section class="travel-date-usage"><h2>常用地点</h2><p>路线详情会在首页预览可用后显示地图与方案 fixture。</p><div>${link('编辑地点', 'route-edit')}<span>运行时 Key ›</span></div></section></div>`;
+      const result = home.result; const cached = home.state === 'cached';
+      return `<div class="travel-route"><p class="home-preview-detail">首页预览：${esc(result.transport)} · ${esc(result.distance)} · ${esc(result.duration)} · ${esc(result.endpoints)} · 数据时间：${esc(result.observedAt)} · ${esc(cached ? '数据来自本地缓存' : result.source)}</p><section class="travel-route-card"><header><span>${image('8e03947a-17d1-409a-bc9e-57f20be3f0a9.svg', '', 'travel-sun-icon')}</span><b>全局通勤</b>${link('编辑地点', 'route-edit')}</header><div class="travel-endpoints"><b>${esc(commute.origin || '未设置起点')}</b><i>→</i><b>${esc(commute.destination || '未设置终点')}</b><span>${esc(result.transport)} · ${esc(result.distance)} · ${esc(result.duration)}</span></div>${routeResult(commute)}</section><section class="travel-date-usage"><h2>常用地点</h2><p>地点搜索、输入提示、地图选点和单次定位使用高德接入契约。</p><div>${link('搜索地点', 'place-search')}<span>运行时 Key ›</span></div></section></div>`;
+    },
     'route-edit'() { const s = read(); const c = s.config || {}; const r = s.runtime || {}; const commute = resolveCommute(c, r.routeScope === 'plan' ? r.alarmDraft : null); const modes = [['driving','驾车'],['transit','公交'],['bicycling','骑行'],['electric-bicycle','电动车'],['walking','步行']]; return `<div class="travel-editor"><p class="amap-scope-note">${r.routeScope === 'plan' ? '正在编辑：本计划通勤覆盖' : '正在编辑：全局通勤'}</p><section class="travel-place-inputs"><div><small>起点</small><b>${esc(commute.origin || '未设置')} · ${esc(commute.originAddress || '未选择')}</b>${event('⌕', 'open-place', 'origin')}</div><div><small>终点</small><b>${esc(commute.destination || '未设置')} · ${esc(commute.destinationAddress || '未选择')}</b>${event('⌕', 'open-place', 'destination')}</div></section><div class="travel-mode-row">${modes.map(([id, label]) => `<button type="button" data-action="mode" data-value="${id}" class="${commute.selectedTransport === id ? 'is-selected' : ''}"><span>⌁</span><span>${label}</span></button>`).join('')}</div>${map('travel-editor-map')}<div class="amap-map-actions">${event('地图选点', 'pick-map')}${event('使用当前位置', 'locate-once')}</div><section class="travel-arrival"><p>地图、定位和路线均为确定性视觉 fixture。定位只响应这一次点击，不持续跟踪。</p></section><footer class="screen-footer">${event(r.routeScope === 'plan' ? '保存本计划覆盖' : '保存全局通勤', 'save-route')}</footer></div>`; },
   };
 }
