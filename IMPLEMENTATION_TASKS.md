@@ -985,7 +985,7 @@ fixture：真实 2025/2026 数据子集 + 构造的脏数据（错年份、坏�
 
 1. 源顺序：`https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{y}.json` → `https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{y}.json` → `https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{y}.json`。
 2. 连接/读超时固定；前一源失败（网络/超时/HTTP/校验）自动切换下一源。
-3. 单日同源连续失败 ≥3 次后当天不再尝试（次日恢复），写入诊断。
+3. 单日同源失败超过 3 次后当天不再尝试（次日恢复），连续失败次数写入诊断。
 
 验收：
 

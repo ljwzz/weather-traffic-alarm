@@ -793,7 +793,8 @@ ProviderError(
 ### 8.8 通知摘要与可靠性诊断（页面 08、21）
 
 - 通知、精确闹钟、全屏 Intent 状态；通知渠道状态；闹钟音量与铃声可读性。
-- 显示通知、精确闹钟、全屏提醒、闹钟音量和铃声可读性，以及最近本地注册、响铃、停止、贪睡、恢复和日历刷新结果。
+- 显示应用版本、SDK API、通知、精确闹钟、全屏提醒、闹钟音量和铃声可读性。铃声检查只验证所选铃声是否可读取，不播放；首选铃声不可读取时显示“备用铃声可读取”及“可尝试默认回退”，不表示已改配置或播放。
+- 最近记录汇总自动评估、注册、响铃、停止、贪睡、恢复、日历刷新和铃声检查，按 `timestamp` 从新到旧显示；每项只显示本地化事件名、固定结果码对应结果名、时间和可选耗时。记录为空时显示“尚无本地诊断记录”。
 - 凭证配置状态只显示已配置／未配置；服务未接入时不显示测试成功。
 - 强制停止不可自动恢复本 App 本地闹钟的限制必须明示。
 - “重新检查”只刷新能力、配置状态与本机诊断展示；不创建或改变闹钟。异常页可进入诊断，诊断页返回设置。
@@ -804,7 +805,7 @@ ProviderError(
 - 本地优先：所有数据（计划、决策、日历缓存）只存本机，无任何网络上传路径。
 - 凭证：Android Keystore 不可导出密钥加密，密文存应用私有目录，备份排除（FR-013）；手机端明文只存在于使用凭据所需的短生命周期内存。开发机 `.env` 文件与 debug 导入边界见 FR-012。
 - 防泄露四原则（日志脱敏、截图禁止、崩溃信息隔离、导出排除）见 FR-013。
-- 日志：本地环形诊断记录最多 200 条，字段限定为事件类型/结果码/版本/哈希 ID/耗时/时间戳；禁止写入地址、POI、坐标、凭证、铃声 URI 或请求/响应 body。
+- 日志：本地环形诊断记录最多 200 条，字段固定为 `eventType,resultCode,appVersion,sdkInt,planIdHash,occurrenceIdHash,durationMs,timestamp`；`resultCode` 只能为 `SUCCESS,FAILED,CANCELLED,SKIPPED,CACHE_HIT,NETWORK,TIMEOUT,HTTP,VALIDATION,STORAGE,RATE_LIMITED,UNKNOWN,STALE,NEEDS_PERMISSION,NOT_FOUND,UNREADABLE,DEFAULT_FALLBACK,MISSED`，不得附带异常文本或自由消息。禁止写入地址、POI、坐标、URI、凭证或请求/响应 body。
 - 高德 SDK 隐私合规：同意前不初始化；隐私政策列出高德 SDK 与彩云数据来源。
 - Provider 接入前不展示天气数据来源；后续实际接入时才显示对应数据来源。
 - 发布渠道使用 Android vitals 查看崩溃与 ANR；不接入第三方采集 SDK。

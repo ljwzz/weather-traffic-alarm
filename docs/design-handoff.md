@@ -8,6 +8,15 @@
 - 原型路由以 `prototype/app.js` 的 `ROUTES` 为准：主页是 `home`，地点选择是 `place-search`，基础／提前响铃离线演示分别为 `ringing-basic`／`ringing`。Web 响铃交互见 [`原型验收`](../prototype/qa/ringing-2026-09-02/README.md)，Android 真实响铃与动作确认见 [`原生验收`](../android/qa/native-ringing-2026-09-02/README.md)；两类结果不互相替代。
 - Figma 根节点不定义导航；下表的进入、返回和状态更新是实现契约，不从组件悬停或变体推断。
 
+### 2026-09-05 统一诊断记录
+
+诊断主页面为 [`57:1226`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=57-1226)，沿用既有权限、音量、日历刷新与返回设置导航，在原有布局中补充“应用与系统”“铃声可读性”和“最近本地记录”。通用 Android 权限状态继续以 [`133:634`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=133-634) 为准；小米手工确认继续以 [`136:668`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=136-668) 为准。
+
+- 应用与系统显示应用版本和 SDK API；铃声仅检查已选铃声是否可读取，不播放。首选铃声无法读取时显示“备用铃声可读取”及“可尝试默认回退”，不表示已改配置或播放。
+- 最近记录由自动评估、注册、响铃、停止、贪睡、恢复、日历刷新和铃声检查汇总，按时间从新到旧显示。本页只显示事件中文名、结果中文名、跨日日期时间和可选耗时；空态固定为“尚无本地诊断记录”。
+- 原型使用 `records` 与 `empty` 离线 fixture；可调用 `window.ZhituPrototype.setDiagnosticFixture('records' | 'empty')` 验收，不读取设备状态、不播放铃声，也不创建或改变闹钟。
+- 本机环形记录最多 200 条，字段固定为 `eventType,resultCode,appVersion,sdkInt,planIdHash,occurrenceIdHash,durationMs,timestamp`。结果码为固定枚举，不附带自由文本；地址、坐标、URI、凭证和异常文本不进入记录或页面。
+
 ### 2026-09-05 首页天气与路线状态
 
 首页主节点为 [`57:480`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=57-480)，最新状态组为 [`195:2153`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=195-2153)。该组覆盖主首页原有占位展示；节点、连接和截图见 [Figma 台账](../prototype/qa/home-preview-2026-09-05/figma-state.json) 与 [主首页截图](../prototype/qa/home-preview-2026-09-05/figma-home-success.png)。
