@@ -324,6 +324,26 @@ test('diagnostics keeps unrequested location informational until current-locatio
   });
 });
 
+test('diagnostics fixture summarizes ringtone readability and unified newest-first records', async () => {
+  await withBrowserStub(async ({ app, window }) => {
+    window.ZhituPrototype.navigate('diagnostics');
+    assert.match(app.innerHTML, /应用与系统/);
+    assert.match(app.innerHTML, /铃声可读性/);
+    assert.match(app.innerHTML, /只检查是否可读取，不播放/);
+    assert.match(app.innerHTML, /备用铃声可读取/);
+    assert.match(app.innerHTML, /首选铃声无法读取，可尝试默认回退/);
+    assert.match(app.innerHTML, /09-05 07:38 · 恢复/);
+    assert.match(app.innerHTML, /09-05 07:30 · 响铃/);
+    assert.match(app.innerHTML, /09-04 21:02 · 自动评估/);
+    assert.match(app.innerHTML, /自动评估/);
+    assert.match(app.innerHTML, /日历刷新/);
+    assert.match(app.innerHTML, /从新到旧/);
+
+    window.ZhituPrototype.setDiagnosticFixture('empty');
+    assert.match(app.innerHTML, /尚无本地诊断记录/);
+  });
+});
+
 test('scenario toolbar can simulate an unavailable settings entry without confirming Xiaomi settings', async () => {
   await withBrowserStub(async ({ app, listeners, permissionEntry, window }, _initial) => {
     const click = listeners.get('click');

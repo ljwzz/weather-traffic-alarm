@@ -27,7 +27,7 @@ function defaults() {
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
 function createRuntime() {
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -446,6 +446,11 @@ function setHomePreviewFixture(fixture = {}) {
   if (runtime.route === 'home') refreshHomePreview({ force:true });
   render();
 }
-window.ZhituPrototype = { ROUTES, navigate, reset, refreshHomePreview:() => { refreshHomePreview({ force:true }); render(); }, setHomePreviewFixture, homePreview:() => clone(runtime.homePreview) };
+function setDiagnosticFixture(fixture = 'records') {
+  if (!['records','empty'].includes(fixture)) throw new RangeError('诊断 fixture 无效。');
+  runtime.diagnosticFixture = fixture;
+  if (runtime.route === 'diagnostics') render();
+}
+window.ZhituPrototype = { ROUTES, navigate, reset, refreshHomePreview:() => { refreshHomePreview({ force:true }); render(); }, setHomePreviewFixture, setDiagnosticFixture, homePreview:() => clone(runtime.homePreview) };
 navigate(config.onboardingDone && ROUTES.includes(location.hash.replace(/^#\/?/, '')) ? location.hash.replace(/^#\/?/, '') : (config.onboardingDone ? 'home' : 'onboarding'), { replace:true });
 document.fonts.ready.then(() => { document.getElementById('render-status').textContent = '412 × 892 · 本地设计字体已加载'; });
