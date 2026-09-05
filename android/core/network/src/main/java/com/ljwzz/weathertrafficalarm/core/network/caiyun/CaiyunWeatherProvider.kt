@@ -47,12 +47,32 @@ class CaiyunWeatherProvider internal constructor(
     override suspend fun evaluate(request: WeatherRequest): WeatherEvaluation {
         val hourlySteps = request.window.hourlyStepsFor(request.requestedAt)
             ?: return WeatherRules.horizonUnavailable(request.window, request.weatherRuleVersion)
-        val credentials = credentialsProvider.currentCredentials()
+        val credentialSnapshot = credentialsProvider.currentCredentials()
             ?: throw ProviderError(ProviderError.Category.MISSING_KEY, message = "Caiyun credentials are not configured")
         return try {
             coroutineScope {
-                val home = async { evaluateLocation(request.home, request.window, request.requestedAt, hourlySteps, credentials, allowCache = true) }
-                val work = async { evaluateLocation(request.work, request.window, request.requestedAt, hourlySteps, credentials, allowCache = true) }
+                val home = async {
+                    evaluateLocation(
+                        request.home,
+                        request.window,
+                        request.requestedAt,
+                        hourlySteps,
+                        credentialSnapshot.credentials,
+                        credentialSnapshot.version,
+                        allowCache = true,
+                    )
+                }
+                val work = async {
+                    evaluateLocation(
+                        request.work,
+                        request.window,
+                        request.requestedAt,
+                        hourlySteps,
+                        credentialSnapshot.credentials,
+                        credentialSnapshot.version,
+                        allowCache = true,
+                    )
+                }
                 WeatherRules.combine(
                     home = home.await(),
                     work = work.await(),
@@ -71,7 +91,7 @@ class CaiyunWeatherProvider internal constructor(
 
     /** Uses saved credentials and always performs a network request. */
     suspend fun testConnection(location: WeatherLocation, requestedAt: Instant = clock.instant()): WeatherLocationEvaluation {
-        val credentials = credentialsProvider.currentCredentials()
+        val credentials = credentialsProvider.currentCredentials()?.credentials
             ?: throw ProviderError(ProviderError.Category.MISSING_KEY, message = "Caiyun credentials are not configured")
         return testConnection(credentials, location, requestedAt)
     }
@@ -89,6 +109,7 @@ class CaiyunWeatherProvider internal constructor(
             requestedAt = requestedAt,
             hourlySteps = MIN_HOURLY_STEPS,
             credentials = credentials,
+            credentialVersion = null,
             allowCache = false,
         )
     }
@@ -99,14 +120,17 @@ class CaiyunWeatherProvider internal constructor(
         requestedAt: Instant,
         hourlySteps: Int,
         credentials: CaiyunCredentials,
+        credentialVersion: Long?,
         allowCache: Boolean,
     ): WeatherLocationEvaluation {
-        val cacheKey = CaiyunCacheKey(location.point.longitudeGcj02, location.point.latitudeGcj02, hourlySteps)
+        val cacheKey = CaiyunCacheKey(location.point.longitudeGcj02, location.point.latitudeGcj02, hourlySteps, credentialVersion)
         return try {
             val response = requestWeather(location, hourlySteps, credentials, requestedAt)
             val parsed = validate(response, location, requestedAt)
             parsed.requireCoverage(window)
-            if (allowCache) cache[cacheKey] = CacheEntry(requestedAt, parsed)
+            if (allowCache && credentialsProvider.currentCredentials()?.version == credentialVersion) {
+                cache[cacheKey] = CacheEntry(requestedAt, parsed)
+            }
             parsed.toEvaluation(location, window, WeatherDataSource.NETWORK)
         } catch (error: ProviderError) {
             if (allowCache && error.canUseCacheFallback()) {
@@ -258,7 +282,12 @@ class CaiyunWeatherProvider internal constructor(
         category == ProviderError.Category.RATE_LIMITED ||
         (providerCode?.startsWith("HTTP_5") == true)
 
-    private data class CaiyunCacheKey(val longitude: Double, val latitude: Double, val hourlySteps: Int)
+    private data class CaiyunCacheKey(
+        val longitude: Double,
+        val latitude: Double,
+        val hourlySteps: Int,
+        val credentialVersion: Long?,
+    )
     private data class CacheEntry(val createdAt: Instant, val weather: ValidatedWeather)
 
     private data class ValidatedWeather(

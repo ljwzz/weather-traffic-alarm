@@ -45,6 +45,8 @@ data class RouteRequest(
     val originCity: String? = null,
     val destinationCity: String? = null,
     val departureAt: LocalDateTime? = null,
+    /** A user-initiated refresh bypasses a cached route read but still replaces the cached value. */
+    val forceRefresh: Boolean = false,
 ) {
     init {
         require(waypoints.size <= 16) { "at most 16 waypoints are supported" }
@@ -53,7 +55,15 @@ data class RouteRequest(
 
 data class RouteEstimate(
     val alternatives: List<RouteAlternative>,
+    /** When the provider originally fetched this estimate, retained on cache reuse. */
+    val fetchedAtEpochMillis: Long = 0L,
+    val source: RouteDataSource = RouteDataSource.NETWORK,
 )
+
+enum class RouteDataSource {
+    NETWORK,
+    CACHE,
+}
 
 data class RouteAlternative(
     val id: String,

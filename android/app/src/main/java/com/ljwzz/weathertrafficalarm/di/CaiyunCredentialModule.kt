@@ -2,6 +2,7 @@ package com.ljwzz.weathertrafficalarm.di
 
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStore
 import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunCredentials
+import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunCredentialSnapshot
 import com.ljwzz.weathertrafficalarm.core.network.caiyun.CaiyunCredentialsProvider
 import dagger.Module
 import dagger.Provides
@@ -21,6 +22,7 @@ object CaiyunCredentialModule {
             val stored = credentials.credentialsForServiceUse() ?: return@CaiyunCredentialsProvider null
             val appKey = stored.caiyunAppKey?.trim().orEmpty()
             val appSecret = stored.caiyunSecret?.trim().orEmpty()
-            if (appKey.isEmpty() || appSecret.isEmpty()) null else CaiyunCredentials(appKey, appSecret)
+            if (appKey.isEmpty() || appSecret.isEmpty()) null
+            else CaiyunCredentialSnapshot(CaiyunCredentials(appKey, appSecret), stored.caiyunVersion)
         }
 }

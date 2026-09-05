@@ -69,6 +69,10 @@ data class CredentialStatus(
     val caiyunSecretMask: String? = null,
     val caiyunLastTestedAtEpochMillis: Long? = null,
     val caiyunTestResult: CaiyunConnectionTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
+    /** Monotonic non-secret revisions used to invalidate provider-local caches. */
+    val amapWebVersion: Long = 0L,
+    val amapSdkVersion: Long = 0L,
+    val caiyunVersion: Long = 0L,
     val loaded: Boolean = false,
     val storageError: Boolean = false,
 ) {
@@ -84,6 +88,9 @@ class ServiceCredentials internal constructor(
     val amapSdkKey: String?,
     val caiyunAppKey: String?,
     val caiyunSecret: String?,
+    val amapWebVersion: Long,
+    val amapSdkVersion: Long,
+    val caiyunVersion: Long,
 )
 
 @Serializable
@@ -95,6 +102,9 @@ private data class StoredCredentials(
     val caiyunSecret: String? = null,
     val caiyunLastTestedAtEpochMillis: Long? = null,
     val caiyunTestResult: CaiyunConnectionTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
+    val amapWebVersion: Long = 0L,
+    val amapSdkVersion: Long = 0L,
+    val caiyunVersion: Long = 0L,
 )
 
 @Serializable
@@ -120,6 +130,7 @@ class CredentialStore internal constructor(
     private val mutex = Mutex()
     private val _state = MutableStateFlow(CredentialStatus())
     val state: StateFlow<CredentialStatus> = _state.asStateFlow()
+    private var publishedVersions = CredentialVersions()
 
     init {
         scope.launch { withContext(Dispatchers.IO) { mutex.withLock { reloadLocked() } } }
@@ -133,10 +144,9 @@ class CredentialStore internal constructor(
     suspend fun save(input: CredentialInput) {
         withContext(Dispatchers.IO) {
             mutex.withLock {
-                val normalized = input.merge(readStored() ?: StoredCredentials())
-                val plaintext = json.encodeToString(normalized).toByteArray(StandardCharsets.UTF_8)
-                storage.writeAtomically(json.encodeToString(cipher.encrypt(plaintext)))
-                publish(normalized, storageError = false)
+                val previous = readStored()
+                val normalized = input.merge(previous ?: StoredCredentials())
+                writeStored(normalized.withVersionsAfter(previous))
             }
         }
     }
@@ -149,12 +159,19 @@ class CredentialStore internal constructor(
     suspend fun replace(input: CredentialInput) {
         withContext(Dispatchers.IO) {
             mutex.withLock {
+                val read = runCatching { readStored() }
+                val previous = read.getOrNull()
+                val storageWasUnreadable = read.isFailure
                 val replacement = input.replacement()
                 if (replacement.hasNoCredentials()) {
                     storage.clear()
-                    publish(null, storageError = false)
+                    publish(
+                        null,
+                        storageError = false,
+                        versions = credentialVersionsAfter(previous, null, invalidateAll = storageWasUnreadable),
+                    )
                 } else {
-                    writeStored(replacement)
+                    writeStored(replacement.withVersionsAfter(previous, invalidateAll = storageWasUnreadable))
                 }
             }
         }
@@ -174,7 +191,7 @@ class CredentialStore internal constructor(
                     caiyunLastTestedAtEpochMillis = testedAtEpochMillis,
                     caiyunTestResult = CaiyunConnectionTestResult.PASSED,
                 )
-                writeStored(updated)
+                writeStored(updated.withVersionsAfter(previous))
             }
         }
     }
@@ -192,7 +209,7 @@ class CredentialStore internal constructor(
                     previous.copy(
                         caiyunLastTestedAtEpochMillis = testedAtEpochMillis,
                         caiyunTestResult = CaiyunConnectionTestResult.PASSED,
-                    ),
+                    ).withVersionsAfter(previous),
                 )
             }
         }
@@ -207,7 +224,7 @@ class CredentialStore internal constructor(
                     previous.copy(
                         caiyunLastTestedAtEpochMillis = testedAtEpochMillis,
                         caiyunTestResult = CaiyunConnectionTestResult.FAILED,
-                    ),
+                    ).withVersionsAfter(previous),
                 )
             }
         }
@@ -225,7 +242,10 @@ class CredentialStore internal constructor(
                     caiyunTestResult = CaiyunConnectionTestResult.NEVER_TESTED,
                 )
                 if (updated.amapWebKey == null && updated.amapSdkKey == null) storage.clear()
-                else writeStored(updated)
+                else writeStored(updated.withVersionsAfter(previous))
+                if (updated.amapWebKey == null && updated.amapSdkKey == null) {
+                    publish(null, storageError = false, versions = credentialVersionsAfter(previous, null))
+                }
             }
         }
     }
@@ -234,8 +254,14 @@ class CredentialStore internal constructor(
     suspend fun clear() {
         withContext(Dispatchers.IO) {
             mutex.withLock {
+                val read = runCatching { readStored() }
+                val previous = read.getOrNull()
                 storage.clear()
-                _state.value = CredentialStatus(loaded = true)
+                publish(
+                    null,
+                    storageError = false,
+                    versions = credentialVersionsAfter(previous, null, invalidateAll = read.isFailure),
+                )
             }
         }
     }
@@ -254,7 +280,15 @@ class CredentialStore internal constructor(
     suspend fun credentialsForServiceUse(): ServiceCredentials? = withContext(Dispatchers.IO) {
         mutex.withLock {
             readStored()?.let { stored ->
-                ServiceCredentials(stored.amapWebKey, stored.amapSdkKey, stored.caiyunAppKey, stored.caiyunSecret)
+                ServiceCredentials(
+                    amapWebKey = stored.amapWebKey,
+                    amapSdkKey = stored.amapSdkKey,
+                    caiyunAppKey = stored.caiyunAppKey,
+                    caiyunSecret = stored.caiyunSecret,
+                    amapWebVersion = stored.amapWebVersion,
+                    amapSdkVersion = stored.amapSdkVersion,
+                    caiyunVersion = stored.caiyunVersion,
+                )
             }
         }
     }
@@ -280,7 +314,12 @@ class CredentialStore internal constructor(
         publish(stored, storageError = false)
     }
 
-    private fun publish(stored: StoredCredentials?, storageError: Boolean) {
+    private fun publish(
+        stored: StoredCredentials?,
+        storageError: Boolean,
+        versions: CredentialVersions = stored?.versions() ?: publishedVersions,
+    ) {
+        publishedVersions = versions
         _state.value = CredentialStatus(
             amapWebKeyMask = CredentialMasker.mask(stored?.amapWebKey),
             amapSdkKeyMask = CredentialMasker.mask(stored?.amapSdkKey),
@@ -288,6 +327,9 @@ class CredentialStore internal constructor(
             caiyunSecretMask = CredentialMasker.mask(stored?.caiyunSecret),
             caiyunLastTestedAtEpochMillis = stored?.caiyunLastTestedAtEpochMillis,
             caiyunTestResult = stored?.caiyunTestResult ?: CaiyunConnectionTestResult.NEVER_TESTED,
+            amapWebVersion = versions.amapWeb,
+            amapSdkVersion = versions.amapSdk,
+            caiyunVersion = versions.caiyun,
             loaded = true,
             storageError = storageError,
         )
@@ -318,6 +360,52 @@ class CredentialStore internal constructor(
 
     private fun StoredCredentials.hasNoCredentials(): Boolean =
         amapWebKey == null && amapSdkKey == null && caiyunAppKey == null && caiyunSecret == null
+
+    private fun StoredCredentials.versions() = CredentialVersions(amapWebVersion, amapSdkVersion, caiyunVersion)
+
+    private fun StoredCredentials.withVersionsAfter(
+        previous: StoredCredentials?,
+        invalidateAll: Boolean = false,
+    ): StoredCredentials {
+        val versions = credentialVersionsAfter(previous, this, invalidateAll)
+        return copy(
+            amapWebVersion = versions.amapWeb,
+            amapSdkVersion = versions.amapSdk,
+            caiyunVersion = versions.caiyun,
+        )
+    }
+
+    private fun credentialVersionsAfter(
+        previous: StoredCredentials?,
+        updated: StoredCredentials?,
+        invalidateAll: Boolean = false,
+    ): CredentialVersions {
+        val persisted = previous?.versions() ?: CredentialVersions()
+        val baseline = CredentialVersions(
+            amapWeb = maxOf(persisted.amapWeb, publishedVersions.amapWeb),
+            amapSdk = maxOf(persisted.amapSdk, publishedVersions.amapSdk),
+            caiyun = maxOf(persisted.caiyun, publishedVersions.caiyun),
+        )
+        val before = if (invalidateAll) {
+            CredentialVersions(baseline.amapWeb + 1, baseline.amapSdk + 1, baseline.caiyun + 1)
+        } else {
+            baseline
+        }
+        return CredentialVersions(
+            amapWeb = before.amapWeb + if (previous?.amapWebKey != updated?.amapWebKey) 1 else 0,
+            amapSdk = before.amapSdk + if (previous?.amapSdkKey != updated?.amapSdkKey) 1 else 0,
+            caiyun = before.caiyun + if (
+                previous?.caiyunAppKey != updated?.caiyunAppKey ||
+                previous?.caiyunSecret != updated?.caiyunSecret
+            ) 1 else 0,
+        )
+    }
+
+    private data class CredentialVersions(
+        val amapWeb: Long = 0L,
+        val amapSdk: Long = 0L,
+        val caiyun: Long = 0L,
+    )
 
     private companion object {
         val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }

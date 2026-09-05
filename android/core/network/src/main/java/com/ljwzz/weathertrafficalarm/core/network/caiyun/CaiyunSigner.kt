@@ -21,7 +21,15 @@ class CaiyunCredentials(
 
 /** Keeps the network module independent of the credential-storage implementation. */
 fun interface CaiyunCredentialsProvider {
-    suspend fun currentCredentials(): CaiyunCredentials?
+    suspend fun currentCredentials(): CaiyunCredentialSnapshot?
+}
+
+/** Couples credentials to a non-secret revision so stale requests cannot populate a new cache. */
+class CaiyunCredentialSnapshot(
+    val credentials: CaiyunCredentials,
+    val version: Long,
+) {
+    override fun toString(): String = "CaiyunCredentialSnapshot(redacted, version=$version)"
 }
 
 fun interface CaiyunNonceGenerator {

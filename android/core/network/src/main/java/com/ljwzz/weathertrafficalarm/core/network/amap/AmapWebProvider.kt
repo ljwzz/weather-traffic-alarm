@@ -24,7 +24,15 @@ import retrofit2.Response
 
 /** Supplies the current encrypted credential without exposing storage to this module. */
 fun interface AmapWebKeyProvider {
-    suspend fun currentKey(): String?
+    suspend fun currentKey(): AmapWebKey?
+}
+
+/** A non-secret credential revision isolates in-memory provider cache entries after replacement. */
+data class AmapWebKey(
+    val value: String,
+    val version: Long,
+) {
+    override fun toString(): String = "AmapWebKey(redacted, version=$version)"
 }
 
 /** Authorizes provider use before credentials are read or a network request can be made. */
@@ -44,7 +52,7 @@ class AmapWebProvider(
     override suspend fun inputTips(keywords: String, city: String?, location: GeoPoint?): List<PlaceRef> {
         requireConsent()
         requireKeywords(keywords)
-        val response = call { api.inputTips(key(), keywords, city, location?.asAmapParameter()) }
+        val response = call { api.inputTips(key().value, keywords, city, location?.asAmapParameter()) }
         return response.bodyOrError().tips.mapNotNull(::toPlaceRef)
     }
 
@@ -53,13 +61,13 @@ class AmapWebProvider(
         requireKeywords(keywords)
         if (page < 1) throw ProviderError(ProviderError.Category.INVALID_REQUEST, message = "page must be positive")
         if (pageSize !in 1..25) throw ProviderError(ProviderError.Category.INVALID_REQUEST, message = "pageSize must be in 1..25")
-        val response = call { api.textSearch(key(), keywords, region, page, pageSize) }
+        val response = call { api.textSearch(key().value, keywords, region, page, pageSize) }
         return response.bodyOrError().pois.mapNotNull(::toPlaceRef)
     }
 
     override suspend fun reverseGeocode(location: GeoPoint): PlaceRef {
         requireConsent()
-        val response = call { api.reverseGeocode(key(), location.asAmapParameter()) }
+        val response = call { api.reverseGeocode(key().value, location.asAmapParameter()) }
         val result = response.bodyOrError().regeocode
             ?: throw ProviderError(ProviderError.Category.MALFORMED_RESPONSE, message = "Missing regeo result")
         return toReverseGeocodePlace(result, location)
@@ -75,25 +83,25 @@ class AmapWebProvider(
                 message = "Transit routes require originCity and destinationCity",
             )
         }
-        return cached("route|$request") {
-            val key = key()
+        val credential = key()
+        return cachedRoute("route|${request.cacheIdentity()}|${credential.version}", request.forceRefresh, credential.version) {
             val origin = request.origin.asAmapParameter()
             val destination = request.destination.asAmapParameter()
             val response = call {
                 when (request.mode) {
                     CommuteMode.DRIVING -> api.driving(
-                        key,
+                        credential.value,
                         origin,
                         destination,
                         request.waypoints.parameterOrNull(),
                         request.policy.drivingStrategy(),
                         MAX_ROUTE_ALTERNATIVES,
                     )
-                    CommuteMode.WALKING -> api.walking(key, origin, destination, MAX_ROUTE_ALTERNATIVES)
-                    CommuteMode.BICYCLING -> api.bicycling(key, origin, destination)
-                    CommuteMode.ELECTRIC_BICYCLE -> api.electricBicycle(key, origin, destination)
+                    CommuteMode.WALKING -> api.walking(credential.value, origin, destination, MAX_ROUTE_ALTERNATIVES)
+                    CommuteMode.BICYCLING -> api.bicycling(credential.value, origin, destination)
+                    CommuteMode.ELECTRIC_BICYCLE -> api.electricBicycle(credential.value, origin, destination)
                     CommuteMode.TRANSIT -> api.transit(
-                        key = key,
+                        key = credential.value,
                         origin = origin,
                         destination = destination,
                         originCity = request.originCity,
@@ -105,7 +113,7 @@ class AmapWebProvider(
                     )
                 }
             }
-            toRouteEstimate(response.bodyOrError().route, request.mode)
+            toRouteEstimate(response.bodyOrError().route, request.mode, nowMillis())
         }
     }
 
@@ -115,8 +123,12 @@ class AmapWebProvider(
         }
     }
 
-    private suspend fun key(): String = keyProvider.currentKey()?.trim()?.takeIf(String::isNotEmpty)
-        ?: throw ProviderError(ProviderError.Category.MISSING_KEY, message = "Amap Web key is not configured")
+    private suspend fun key(): AmapWebKey {
+        val credential = keyProvider.currentKey()
+        val value = credential?.value?.trim()?.takeIf(String::isNotEmpty)
+            ?: throw ProviderError(ProviderError.Category.MISSING_KEY, message = "Amap Web key is not configured")
+        return credential.copy(value = value)
+    }
 
     private suspend fun <T> call(block: suspend () -> Response<T>): Response<T> = try {
         block()
@@ -179,14 +191,14 @@ class AmapWebProvider(
         )
     }
 
-    private fun toRouteEstimate(route: JsonObject?, mode: CommuteMode): RouteEstimate {
+    private fun toRouteEstimate(route: JsonObject?, mode: CommuteMode, fetchedAtEpochMillis: Long): RouteEstimate {
         val result = route ?: throw ProviderError(ProviderError.Category.MALFORMED_RESPONSE, message = "Missing route result")
         val alternatives = (result["paths"] as? JsonArray ?: result["transits"] as? JsonArray)
             ?.take(MAX_ROUTE_ALTERNATIVES)
             ?.mapIndexedNotNull { index, item -> toRouteAlternative(item, "${mode.name}:$index") }
             .orEmpty()
         if (alternatives.isEmpty()) throw ProviderError(ProviderError.Category.ROUTE_NOT_FOUND, message = "Amap returned no route alternatives")
-        return RouteEstimate(alternatives)
+        return RouteEstimate(alternatives, fetchedAtEpochMillis = fetchedAtEpochMillis)
     }
 
     private fun toRouteAlternative(item: JsonElement, id: String): RouteAlternative? {
@@ -215,25 +227,44 @@ class AmapWebProvider(
         if (keywords.isBlank()) throw ProviderError(ProviderError.Category.INVALID_REQUEST, message = "keywords must not be blank")
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private suspend fun <T : Any> cached(cacheKey: String, block: suspend () -> T): T {
+    private suspend fun cachedRoute(
+        cacheKey: String,
+        forceRefresh: Boolean,
+        credentialVersion: Long,
+        block: suspend () -> RouteEstimate,
+    ): RouteEstimate {
         val now = nowMillis()
         cache.entries.forEach { entry ->
             if (now - entry.value.createdAtMillis >= CACHE_TTL_MILLIS) cache.remove(entry.key, entry.value)
         }
-        cache[cacheKey]?.takeIf { now - it.createdAtMillis < CACHE_TTL_MILLIS }?.let { return it.value as T }
+        if (!forceRefresh) {
+            cache[cacheKey]?.takeIf { now - it.createdAtMillis < CACHE_TTL_MILLIS }?.let {
+                return it.value.copy(source = com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.CACHE)
+            }
+        }
         val value = block()
-        cache[cacheKey] = CacheEntry(now, value)
+        if (keyProvider.currentKey()?.version == credentialVersion) {
+            cache[cacheKey] = CacheEntry(now, value)
+        }
         return value
     }
 
-    private data class CacheEntry(val createdAtMillis: Long, val value: Any)
+    private data class CacheEntry(val createdAtMillis: Long, val value: RouteEstimate)
 
     private companion object {
         const val CACHE_TTL_MILLIS = 5 * 60 * 1000L
         const val MAX_ROUTE_ALTERNATIVES = 3
     }
 }
+
+/** Matches the fields actually sent to AMap so local-only timestamp precision cannot fragment cache entries. */
+private fun RouteRequest.cacheIdentity(): RouteRequest = copy(
+    departureAt = departureAt
+        ?.takeIf { mode == CommuteMode.TRANSIT }
+        ?.withSecond(0)
+        ?.withNano(0),
+    forceRefresh = false,
+)
 
 private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.contentOrNull
 

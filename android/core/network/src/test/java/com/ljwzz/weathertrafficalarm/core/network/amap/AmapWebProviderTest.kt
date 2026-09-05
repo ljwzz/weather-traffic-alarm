@@ -6,6 +6,9 @@ import com.ljwzz.weathertrafficalarm.core.model.ProviderError
 import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
 import com.ljwzz.weathertrafficalarm.core.network.di.NetworkModule
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,6 +29,7 @@ class AmapWebProviderTest {
     private lateinit var server: MockWebServer
     private lateinit var provider: AmapWebProvider
     private var clock = 0L
+    private var currentKey = AmapWebKey("test-key", 1L)
 
     @Before
     fun setUp() {
@@ -38,7 +42,7 @@ class AmapWebProviderTest {
             .create(AmapWebApi::class.java)
         provider = AmapWebProvider(
             api = api,
-            keyProvider = AmapWebKeyProvider { "test-key" },
+            keyProvider = AmapWebKeyProvider { currentKey },
             consentProvider = AmapConsentProvider { true },
             nowMillis = { clock },
         )
@@ -209,6 +213,107 @@ class AmapWebProviderTest {
     }
 
     @Test
+    fun nonTransitDepartureSecondAndNanoDoNotFragmentRouteCache() = runTest {
+        server.enqueue(success(routeBody(paths = 1)))
+        val firstRequest = RouteRequest(
+            point(),
+            GeoPoint(116.407428, 39.91923),
+            CommuteMode.DRIVING,
+            departureAt = LocalDateTime.of(2026, 9, 2, 9, 54, 1, 123_000_000),
+        )
+        val secondRequest = firstRequest.copy(departureAt = LocalDateTime.of(2026, 9, 2, 9, 54, 59, 987_000_000))
+
+        val first = provider.estimate(firstRequest)
+        clock = 1_000L
+        val cached = provider.estimate(secondRequest)
+
+        assertEquals(1, server.requestCount)
+        assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.CACHE, cached.source)
+        assertEquals(first.fetchedAtEpochMillis, cached.fetchedAtEpochMillis)
+    }
+
+    @Test
+    fun transitDepartureAcrossMinutesDoesNotMergeRouteCacheEntries() = runTest {
+        server.enqueue(success(transitBody(transits = 1)))
+        server.enqueue(success(legacyRouteBody()))
+        val firstRequest = RouteRequest(
+            origin = point(),
+            destination = GeoPoint(116.407428, 39.91923),
+            mode = CommuteMode.TRANSIT,
+            originCity = "010",
+            destinationCity = "010",
+            departureAt = LocalDateTime.of(2026, 9, 2, 9, 54, 59, 123_000_000),
+        )
+        val secondRequest = firstRequest.copy(departureAt = LocalDateTime.of(2026, 9, 2, 9, 55, 0, 456_000_000))
+
+        provider.estimate(firstRequest)
+        provider.estimate(secondRequest)
+
+        assertEquals(2, server.requestCount)
+        assertEquals("9-54", server.takeRequest().requestUrl!!.queryParameter("time"))
+        assertEquals("9-55", server.takeRequest().requestUrl!!.queryParameter("time"))
+    }
+
+    @Test
+    fun forceRefreshBypassesRouteCacheAndCacheHitsKeepOriginalFetchTime() = runTest {
+        server.enqueue(success(routeBody(paths = 1)))
+        server.enqueue(success(legacyRouteBody()))
+        val request = RouteRequest(point(), GeoPoint(116.407428, 39.91923), CommuteMode.DRIVING)
+
+        val initial = provider.estimate(request)
+        clock = 1_000L
+        val refreshed = provider.estimate(request.copy(forceRefresh = true))
+        clock = 2_000L
+        val cached = provider.estimate(request)
+
+        assertEquals(2, server.requestCount)
+        assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.NETWORK, initial.source)
+        assertEquals(0L, initial.fetchedAtEpochMillis)
+        assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.NETWORK, refreshed.source)
+        assertEquals(1_000L, refreshed.fetchedAtEpochMillis)
+        assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.CACHE, cached.source)
+        assertEquals(refreshed.fetchedAtEpochMillis, cached.fetchedAtEpochMillis)
+        assertEquals(refreshed.alternatives, cached.alternatives)
+    }
+
+    @Test
+    fun routeCacheIsolatedByCredentialVersion() = runTest {
+        server.enqueue(success(routeBody(paths = 1)))
+        server.enqueue(success(legacyRouteBody()))
+        val request = RouteRequest(point(), GeoPoint(116.407428, 39.91923), CommuteMode.DRIVING)
+
+        val oldCredentialRoute = provider.estimate(request)
+        currentKey = AmapWebKey("replacement-key", 2L)
+        val newCredentialRoute = provider.estimate(request)
+        val cachedNewCredentialRoute = provider.estimate(request)
+
+        assertEquals(2, server.requestCount)
+        assertEquals(100L, oldCredentialRoute.alternatives.single().durationSeconds)
+        assertEquals(600L, newCredentialRoute.alternatives.single().durationSeconds)
+        assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.CACHE, cachedNewCredentialRoute.source)
+        assertEquals(newCredentialRoute.alternatives, cachedNewCredentialRoute.alternatives)
+    }
+
+    @Test
+    fun oldInFlightRouteCannotReplaceCacheForNewCredentialVersion() = runTest {
+        server.enqueue(success(routeBody(paths = 1)).setBodyDelay(200, TimeUnit.MILLISECONDS))
+        val request = RouteRequest(point(), GeoPoint(116.407428, 39.91923), CommuteMode.DRIVING)
+        val oldRequest = async(Dispatchers.IO) { provider.estimate(request) }
+        server.takeRequest()
+
+        currentKey = AmapWebKey("replacement-key", 2L)
+        server.enqueue(success(legacyRouteBody()))
+        val newRequest = provider.estimate(request)
+        oldRequest.await()
+        val cached = provider.estimate(request)
+
+        assertEquals(2, server.requestCount)
+        assertEquals(600L, newRequest.alternatives.single().durationSeconds)
+        assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.CACHE, cached.source)
+        assertEquals(newRequest.alternatives, cached.alternatives)
+    }
+
+    @Test
     fun amapInfoCodeIsClassifiedWithoutExposingKey() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"0","info":"CUQPS has exceeded the limit","infocode":"10019"}"""))
 
@@ -217,6 +322,16 @@ class AmapWebProviderTest {
         assertEquals(ProviderError.Category.RATE_LIMITED, error.category)
         assertEquals("10019", error.providerCode)
         assertFalse(error.message!!.contains("test-key"))
+    }
+
+    @Test
+    fun credentialSnapshotToStringNeverRevealsKey() {
+        val key = "test-key"
+
+        val text = AmapWebKey(key, 7L).toString()
+
+        assertFalse(text.contains(key))
+        assertTrue(text.contains("version=7"))
     }
 
     @Test

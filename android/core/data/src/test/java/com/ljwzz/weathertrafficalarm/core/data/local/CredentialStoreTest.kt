@@ -289,6 +289,85 @@ class CredentialStoreTest {
         }
     }
 
+    @Test
+    fun credentialVersionsAdvanceForReplacementsIncludingEqualMasksAndClears() = runTest {
+        val store = CredentialStore(MemoryStorage(), PlaintextCipher, backgroundScope)
+        store.save(
+            CredentialInput(
+                amapWebKey = "ab111cd",
+                amapSdkKey = "sd111ky",
+                caiyunAppKey = "cy111key",
+                caiyunSecret = "cy111secret",
+            ),
+        )
+        val initial = store.state.value
+        assertEquals(1L, initial.amapWebVersion)
+        assertEquals(1L, initial.amapSdkVersion)
+        assertEquals(1L, initial.caiyunVersion)
+
+        store.save(CredentialInput(amapWebKey = "ab222cd"))
+        val replacedWithSameMask = store.state.value
+        assertEquals(initial.amapWebKeyMask, replacedWithSameMask.amapWebKeyMask)
+        assertEquals(2L, replacedWithSameMask.amapWebVersion)
+        assertEquals(1L, replacedWithSameMask.amapSdkVersion)
+        assertEquals(1L, replacedWithSameMask.caiyunVersion)
+
+        store.replace(
+            CredentialInput(
+                amapWebKey = "ab333cd",
+                amapSdkKey = "sd222ky",
+                caiyunAppKey = "cy222key",
+                caiyunSecret = "cy222secret",
+            ),
+        )
+        val replacement = store.state.value
+        assertEquals(3L, replacement.amapWebVersion)
+        assertEquals(2L, replacement.amapSdkVersion)
+        assertEquals(2L, replacement.caiyunVersion)
+
+        store.maskedValues()
+        assertEquals(replacement.amapWebVersion, store.state.value.amapWebVersion)
+        assertEquals(replacement.amapSdkVersion, store.state.value.amapSdkVersion)
+        assertEquals(replacement.caiyunVersion, store.state.value.caiyunVersion)
+
+        store.clear()
+        assertEquals(4L, store.state.value.amapWebVersion)
+        assertEquals(3L, store.state.value.amapSdkVersion)
+        assertEquals(3L, store.state.value.caiyunVersion)
+
+        store.save(CredentialInput(amapWebKey = "ab444cd"))
+        assertEquals(5L, store.state.value.amapWebVersion)
+        assertEquals(3L, store.state.value.amapSdkVersion)
+        assertEquals(3L, store.state.value.caiyunVersion)
+    }
+
+    @Test
+    fun clearAndReplaceRecoverFromUnreadableCiphertextAndAdvanceVersions() = runTest {
+        val storage = MemoryStorage().apply { value = "not encrypted credentials" }
+        val clearStore = CredentialStore(storage, PlaintextCipher, backgroundScope)
+
+        assertTrue(clearStore.maskedValues().storageError)
+        clearStore.clear()
+
+        assertNull(storage.value)
+        assertFalse(clearStore.state.value.storageError)
+        assertTrue(clearStore.state.value.amapWebVersion > 0L)
+        assertTrue(clearStore.state.value.amapSdkVersion > 0L)
+        assertTrue(clearStore.state.value.caiyunVersion > 0L)
+
+        val afterClear = clearStore.state.value
+        storage.value = "not encrypted credentials"
+        assertTrue(clearStore.maskedValues().storageError)
+
+        clearStore.replace(CredentialInput(amapWebKey = "replacement-key"))
+
+        assertEquals("replacement-key", clearStore.credentialsForServiceUse()?.amapWebKey)
+        assertFalse(clearStore.state.value.storageError)
+        assertTrue(clearStore.state.value.amapWebVersion > afterClear.amapWebVersion)
+        assertTrue(clearStore.state.value.amapSdkVersion > afterClear.amapSdkVersion)
+        assertTrue(clearStore.state.value.caiyunVersion > afterClear.caiyunVersion)
+    }
+
     private class MemoryStorage : CredentialStorage {
         var value: String? = null
         var failWrites = false

@@ -32,6 +32,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 class CaiyunWeatherProviderTest {
     private lateinit var server: MockWebServer
     private lateinit var provider: CaiyunWeatherProvider
+    private var currentCredentials = CaiyunCredentialSnapshot(credentials, 1L)
 
     @Before
     fun setUp() {
@@ -44,7 +45,7 @@ class CaiyunWeatherProviderTest {
             .create(CaiyunWeatherApi::class.java)
         provider = CaiyunWeatherProvider(
             api = api,
-            credentialsProvider = CaiyunCredentialsProvider { credentials },
+            credentialsProvider = CaiyunCredentialsProvider { currentCredentials },
             nonceGenerator = CaiyunNonceGenerator { nonce },
             clock = Clock.fixed(now, ZoneOffset.UTC),
         )
@@ -140,6 +141,21 @@ class CaiyunWeatherProviderTest {
     }
 
     @Test
+    fun weatherCacheIsolatedByCredentialVersion() = runTest {
+        server.dispatcher = weatherDispatcher()
+        provider.evaluate(request())
+        currentCredentials = CaiyunCredentialSnapshot(credentials, 2L)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = MockResponse().setResponseCode(503)
+        }
+
+        val error = runCatching { provider.evaluate(request()) }.exceptionOrNull() as ProviderError
+
+        assertEquals(ProviderError.Category.NETWORK, error.category)
+        assertTrue(server.requestCount >= 3)
+    }
+
+    @Test
     fun unknownSkyconStaysExplicitlyUnavailableForScheduling() = runTest {
         server.dispatcher = weatherDispatcher(homeSkycon = "MYSTERY", workSkycon = "CLEAR_DAY")
 
@@ -205,7 +221,7 @@ class CaiyunWeatherProviderTest {
                 .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
                 .build()
                 .create(CaiyunWeatherApi::class.java),
-            credentialsProvider = CaiyunCredentialsProvider { credentials },
+            credentialsProvider = CaiyunCredentialsProvider { CaiyunCredentialSnapshot(credentials, 1L) },
             nonceGenerator = CaiyunNonceGenerator { nonce },
         )
         val timeout = runCatching { timeoutProvider.testConnection(home, now) }.exceptionOrNull() as ProviderError
@@ -238,6 +254,15 @@ class CaiyunWeatherProviderTest {
             assertEquals("HTTP_$status", error.providerCode)
             assertEquals(status == 500, error.retryable)
         }
+    }
+
+    @Test
+    fun credentialSnapshotToStringNeverRevealsCredentials() {
+        val text = CaiyunCredentialSnapshot(credentials, 7L).toString()
+
+        assertFalse(text.contains(credentials.appKey))
+        assertFalse(text.contains(credentials.appSecret))
+        assertTrue(text.contains("version=7"))
     }
 
     private fun weatherDispatcher(
