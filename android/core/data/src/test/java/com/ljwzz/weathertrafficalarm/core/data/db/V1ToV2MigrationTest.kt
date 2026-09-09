@@ -33,6 +33,8 @@ class V1ToV2MigrationTest {
             .addMigrations(AppDatabaseMigrations.V1_TO_V2)
             .addMigrations(AppDatabaseMigrations.V2_TO_V3)
             .addMigrations(AppDatabaseMigrations.V3_TO_V4)
+            .addMigrations(AppDatabaseMigrations.V4_TO_V5)
+            .addMigrations(AppDatabaseMigrations.V5_TO_V6)
             .build()
     }
 

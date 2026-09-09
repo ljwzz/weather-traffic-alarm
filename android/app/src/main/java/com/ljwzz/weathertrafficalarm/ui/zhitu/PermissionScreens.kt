@@ -60,6 +60,13 @@ fun LocationPermissionSnapshot.statusLabel(): String = when {
     else -> "未获得位置权限"
 }
 
+fun PermissionSnapshot.notificationStatusLabel(): String = when {
+    !notificationRuntimeGranted -> "未补齐（通知运行时权限）"
+    !notificationsAvailable -> "未补齐（应用通知）"
+    !alarmChannelAvailable -> "未补齐（闹钟通知渠道）"
+    else -> "已开启"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmPermissionGuide(missing: List<String>, onCheck: () -> Unit, onContinue: () -> Unit, onCancel: () -> Unit) {
@@ -140,7 +147,7 @@ fun PermissionDiagnosticsContent(
             item {
                 PermissionCard {
                     Text("通用 Android", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                    PermissionItem("通知权限", "响铃通知与操作入口", if (snapshot.notificationsAvailable && snapshot.alarmChannelAvailable) "已开启" else "未补齐（应用通知或闹钟通知渠道）", "notifications", onNotificationRequest)
+                    PermissionItem("通知权限", "响铃通知与操作入口", snapshot.notificationStatusLabel(), "notifications", onNotificationRequest)
                     PermissionItem("精确闹钟", "按设定时间触发本地闹钟", if (snapshot.exactAlarmAvailable) "已开启" else "未补齐", "exact_alarm", { onSetting(PermissionSetting.ExactAlarm) })
                     PermissionItem("全屏提醒", "锁屏与后台响铃页面", if (snapshot.fullScreenIntentAvailable) "已开启" else "未补齐", "full_screen", { onSetting(PermissionSetting.FullScreenIntent) })
                     PermissionItem("位置权限", "仅在点击“使用当前位置”时请求", snapshot.location.statusLabel(), "location", { onSetting(PermissionSetting.ApplicationDetails) })
@@ -363,11 +370,16 @@ private fun CalendarRefreshFailure?.calendarFailureLabel(): String = when (this)
 
 @Composable
 fun PermissionSummaryCard(snapshot: PermissionSnapshot, confirmations: Set<XiaomiDisplayPermission>, onDiagnostics: () -> Unit) {
-    val missing = snapshot.signature(confirmations).missing
-    PermissionCard(background = ZhituColors.Mint) {
-        Text(if (missing.isEmpty()) "响铃显示检查已完成" else "显示设置待补齐", color = ZhituColors.Ink, fontWeight = FontWeight.Bold)
-        Text(if (missing.isEmpty()) "以系统实际授权与注册结果为准。" else "${missing.size} 项设置待补齐；启用时会提示，仍可继续。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = onDiagnostics, modifier = Modifier.testTag("open_permissions")) { Text("检查系统权限") }
+    val summary = snapshot.alarmReliabilitySummary(confirmations)
+    PermissionCard(background = ZhituColors.Mint, modifier = Modifier.testTag("setting-reliability-summary")) {
+        Text("闹钟可靠性", color = ZhituColors.Ink, fontWeight = FontWeight.Bold)
+        Text(summary.label, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+        Text(
+            "系统能力与人工确认会在诊断中分别显示。",
+            color = ZhituColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        TextButton(onClick = onDiagnostics, modifier = Modifier.testTag("setting-open-diagnostics")) { Text("查看并检查") }
     }
 }
 

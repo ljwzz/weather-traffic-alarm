@@ -2,7 +2,6 @@ package com.ljwzz.weathertrafficalarm.core.data.db.entity
 
 import androidx.room3.ColumnInfo
 import androidx.room3.Entity
-import androidx.room3.ForeignKey
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
@@ -11,14 +10,6 @@ import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 
 @Entity(
     tableName = "alarm_decisions",
-    foreignKeys = [
-        ForeignKey(
-            entity = AlarmPlanEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["plan_id"],
-            onDelete = ForeignKey.CASCADE,
-        ),
-    ],
     indices = [
         Index("plan_id"),
         Index("target_date"),
@@ -54,4 +45,6 @@ data class AlarmDecisionEntity(
     @ColumnInfo(name = "actual_wake_at") val actualWakeAt: String? = null,
     @ColumnInfo(name = "calendar_source") val calendarSource: String? = null,
     @ColumnInfo(name = "weather_data_source") val weatherDataSource: String? = null,
+    @ColumnInfo(name = "plan_name") val planName: String? = null,
+    @ColumnInfo(name = "zone_id") val zoneId: String? = null,
 )

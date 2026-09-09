@@ -21,6 +21,7 @@ import com.ljwzz.weathertrafficalarm.core.alarm.AlarmRingingService
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.AlarmAction
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory
 import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
+import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 
@@ -111,6 +112,7 @@ class AlarmRingingActivity : ComponentActivity() {
                     onSnooze = { requestAction(dismiss = false) },
                     onOpenPlans = ::openPlans,
                     onClose = ::finish,
+                    onOpenAdvanceDetail = { openAdvanceDetail(id, snapshot) },
                 )
             }
         }
@@ -144,6 +146,42 @@ class AlarmRingingActivity : ComponentActivity() {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         })
         finish()
+    }
+
+    /**
+     * The ringing surface stays Direct-Boot safe: it validates only its active
+     * snapshot, asks the system to unlock, then gives the normal application
+     * the immutable occurrence ID to resolve from credential-protected data.
+     */
+    private fun openAdvanceDetail(id: String?, snapshot: NextAlarmSnapshot?) {
+        if (id == null || snapshot?.occurrenceId != id || snapshot.occurrenceKind != "ADVANCE" ||
+            snapshot.decisionId.isNullOrBlank()
+        ) {
+            navigationError = "本次提前原因不可用。"
+            return
+        }
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (keyguard.isKeyguardLocked) {
+            keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() = openUnlockedDecisionDetail(id)
+                override fun onDismissCancelled() { navigationError = "解锁后可查看提前原因。" }
+                override fun onDismissError() { navigationError = "请解锁后查看提前原因。" }
+            })
+        } else {
+            openUnlockedDecisionDetail(id)
+        }
+    }
+
+    private fun openUnlockedDecisionDetail(id: String) {
+        if (!getSystemService(UserManager::class.java).isUserUnlocked) {
+            navigationError = "解锁后可查看提前原因。"
+            return
+        }
+        startActivity(Intent(this, MainActivity::class.java)
+            .openDecisionDetailForOccurrence(id)
+            // Keep this ringing Activity in the task: the detail's Back action
+            // returns to the active alarm without changing its service state.
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP))
     }
 
     private fun readOccurrence(intent: Intent): String? {

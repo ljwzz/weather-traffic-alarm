@@ -81,10 +81,20 @@ import java.util.UUID
 fun ZhituApp(
     initialDestination: ZhituDestination = ZhituDestination.HOME,
     ringingOccurrenceId: String? = null,
+    initialDecisionId: String? = null,
+    initialDecisionOccurrenceId: String? = null,
+    onDecisionDetailVisibilityChanged: (Boolean) -> Unit = {},
+    onExternalDecisionBack: () -> Unit = {},
     viewModel: ZhituViewModel = hiltViewModel(),
     diagnosticsViewModel: DiagnosticsViewModel = hiltViewModel(),
+    detailViewModel: DecisionDetailViewModel = hiltViewModel(),
     permissionViewModel: AlarmPermissionViewModel = viewModel(),
 ) {
+    val detailLookup by detailViewModel.lookup.collectAsStateWithLifecycle()
+    val detailReadError by detailViewModel.readError.collectAsStateWithLifecycle()
+    val detailTaskRuns by detailViewModel.taskRuns.collectAsStateWithLifecycle()
+    val evaluatingPlanIds by viewModel.evaluatingPlanIds.collectAsStateWithLifecycle()
+    var reevaluateFeedback by rememberSaveable { mutableStateOf<String?>(null) }
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val upcomingPlans by viewModel.upcomingPlans.collectAsStateWithLifecycle()
     val calendarState by viewModel.calendarState.collectAsStateWithLifecycle()
@@ -104,21 +114,82 @@ fun ZhituApp(
     val placePickerState by viewModel.placePickerState.collectAsStateWithLifecycle()
     val mapStatus by viewModel.mapStatus.collectAsStateWithLifecycle()
     val planCommuteEditor by viewModel.planCommuteEditor.collectAsStateWithLifecycle()
+    val planCommuteOverrides by viewModel.planCommuteOverrides.collectAsStateWithLifecycle()
     val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
     val homeUiState by viewModel.homeUiState.collectAsStateWithLifecycle()
     val diagnosticEvents by diagnosticsViewModel.events.collectAsStateWithLifecycle()
     val ringtoneReadability by diagnosticsViewModel.ringtoneReadability.collectAsStateWithLifecycle()
     val checkingRingtone by diagnosticsViewModel.checkingRingtone.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var detailDecisionId by rememberSaveable { mutableStateOf(initialDecisionId) }
+    var detailOccurrenceId by rememberSaveable { mutableStateOf(initialDecisionOccurrenceId) }
+    var detailReturn by rememberSaveable { mutableStateOf(ZhituDestination.HOME) }
+    var detailExternal by rememberSaveable { mutableStateOf(initialDestination == ZhituDestination.DECISION_DETAIL || initialDecisionId != null || initialDecisionOccurrenceId != null) }
+    var detailRecoveryReturn by rememberSaveable { mutableStateOf(false) }
+    var suppressHomePreviewRefresh by rememberSaveable { mutableStateOf(detailExternal) }
     if (!permissionViewModel.navigationInitialized || permissionViewModel.entryOccurrenceId != ringingOccurrenceId || permissionViewModel.entryDestination != initialDestination) {
-        permissionViewModel.destination = if (ringingOccurrenceId == null) initialDestination else ZhituDestination.RINGING
+        permissionViewModel.destination = when {
+            initialDecisionId != null || initialDecisionOccurrenceId != null -> ZhituDestination.DECISION_DETAIL
+            ringingOccurrenceId != null -> ZhituDestination.RINGING
+            else -> initialDestination
+        }
         permissionViewModel.navigationInitialized = true
         permissionViewModel.entryOccurrenceId = ringingOccurrenceId
         permissionViewModel.entryDestination = initialDestination
         permissionViewModel.cancel()
     }
     var destination by permissionViewModel::destination
+    val externalDetailKey = initialDecisionId?.let { "decision:$it" } ?: initialDecisionOccurrenceId?.let { "occurrence:$it" }
+        ?: if (initialDestination == ZhituDestination.DECISION_DETAIL) "invalid-detail" else null
+    var consumedDetailKey by rememberSaveable { mutableStateOf(externalDetailKey) }
+    if (externalDetailKey != null && consumedDetailKey != externalDetailKey) {
+        consumedDetailKey = externalDetailKey
+        detailDecisionId = initialDecisionId
+        detailOccurrenceId = initialDecisionOccurrenceId
+        detailExternal = true
+        detailRecoveryReturn = false
+        suppressHomePreviewRefresh = true
+        reevaluateFeedback = null
+        destination = ZhituDestination.DECISION_DETAIL
+    }
     val currentDestination by rememberUpdatedState(destination)
+    val currentSuppressHomeRefresh by rememberUpdatedState(suppressHomePreviewRefresh)
+    androidx.compose.runtime.SideEffect {
+        onDecisionDetailVisibilityChanged(destination == ZhituDestination.DECISION_DETAIL || detailRecoveryReturn)
+    }
+    fun openDecision(id: String) {
+        detailReturn = destination
+        reevaluateFeedback = null
+        detailDecisionId = id
+        detailOccurrenceId = null
+        detailExternal = false
+        detailRecoveryReturn = false
+        suppressHomePreviewRefresh = true
+        destination = ZhituDestination.DECISION_DETAIL
+    }
+    fun returnFromDecision() {
+        if (detailExternal) onExternalDecisionBack() else destination = detailReturn
+    }
+    fun returnFromRecovery(fallback: ZhituDestination) {
+        if (detailRecoveryReturn) {
+            detailRecoveryReturn = false
+            destination = ZhituDestination.DECISION_DETAIL
+        } else destination = fallback
+    }
+
+    LaunchedEffect(destination, detailDecisionId, detailOccurrenceId) {
+        if (destination == ZhituDestination.DECISION_DETAIL) detailViewModel.open(detailDecisionId, detailOccurrenceId)
+    }
+    fun navigatePrimary(target: ZhituDestination) {
+        suppressHomePreviewRefresh = false
+        detailRecoveryReturn = false
+        destination = target
+        if (target == ZhituDestination.ROUTE) viewModel.initializeAmap(context)
+    }
+    fun openRecovery(target: ZhituDestination) {
+        detailRecoveryReturn = true
+        destination = target
+    }
     var initialized by permissionViewModel::initialized
     var editorDraft by permissionViewModel::editorDraft
     val permissionAccess = remember(context) { PermissionAccess(context) }
@@ -155,13 +226,14 @@ fun ZhituApp(
         if (permissionViewModel.flow.phase == AlarmEnablePhase.Checking) {
             destination = if (permissionViewModel.flow.pending is AlarmEnableAction.Save) ZhituDestination.EDITOR else ZhituDestination.PLANS
             permissionViewModel.returnFromCheck()
-        } else destination = ZhituDestination.SETTINGS
+        } else returnFromRecovery(ZhituDestination.SETTINGS)
     }
     DisposableEffect(lifecycleOwner, permissionAccess) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshPermissions()
-                if (currentDestination == ZhituDestination.HOME) viewModel.refreshHomePreviewsOnForeground()
+                if (currentDestination == ZhituDestination.DECISION_DETAIL) detailViewModel.refresh()
+                if (currentDestination == ZhituDestination.HOME && !currentSuppressHomeRefresh) viewModel.refreshHomePreviewsOnForeground()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -174,7 +246,7 @@ fun ZhituApp(
                 is AlarmEnableAction.Enable -> viewModel.setEnabledWithCompletion(action.planId, true, permissionViewModel::complete)
                 null -> Unit
             }
-            AlarmEnablePhase.Finished -> { destination = ZhituDestination.PLANS; permissionViewModel.finish() }
+            AlarmEnablePhase.Finished -> { returnFromRecovery(ZhituDestination.PLANS); permissionViewModel.finish() }
             else -> Unit
         }
     }
@@ -186,11 +258,13 @@ fun ZhituApp(
     LaunchedEffect(settingsReady, initialPrivacyAccepted, localSettings.amapConsentPromptedVersion) {
         if (settingsReady && !initialized) {
             initialized = true
-            if ((initialPrivacyAccepted == false || localSettings.amapConsentPromptedVersion == null) && ringingOccurrenceId == null) destination = ZhituDestination.ONBOARDING
+            if ((initialPrivacyAccepted == false || localSettings.amapConsentPromptedVersion == null) && ringingOccurrenceId == null && !detailExternal) destination = ZhituDestination.ONBOARDING
         }
     }
     LaunchedEffect(error) { if (error != null) { delay(4_000); viewModel.clearError() } }
-    LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey, credentialStatus.amapSdkVersion) { viewModel.initializeAmap(context) }
+    LaunchedEffect(localSettings.amapConsentGranted, credentialStatus.hasAmapSdkKey, credentialStatus.amapSdkVersion) {
+        if (destination != ZhituDestination.DECISION_DETAIL && !suppressHomePreviewRefresh) viewModel.initializeAmap(context)
+    }
     LaunchedEffect(destination, plans.map { plan -> plan.id to plan.sound }) {
         if (destination == ZhituDestination.DIAGNOSTICS) refreshDiagnostics()
     }
@@ -210,13 +284,25 @@ fun ZhituApp(
         credentialStatus.caiyunVersion,
         credentialStatus.caiyunTestResult,
     ) {
-        if (destination == ZhituDestination.HOME) viewModel.refreshHomePreviews()
+        if (destination == ZhituDestination.HOME) {
+            if (suppressHomePreviewRefresh) suppressHomePreviewRefresh = false
+            else viewModel.refreshHomePreviews()
+        }
     }
     BackHandler(enabled = destination != ZhituDestination.HOME && destination != ZhituDestination.RINGING) {
-        if (destination == ZhituDestination.DIAGNOSTICS) returnFromDiagnostics()
-        else {
+        when {
+            destination == ZhituDestination.DECISION_DETAIL -> returnFromDecision()
+            detailRecoveryReturn && destination in setOf(ZhituDestination.CREDENTIALS, ZhituDestination.ROUTE, ZhituDestination.ONBOARDING, ZhituDestination.EDITOR, ZhituDestination.HISTORY) -> returnFromRecovery(detailReturn)
+            else -> when (destination) {
+            ZhituDestination.DIAGNOSTICS -> returnFromDiagnostics()
+            ZhituDestination.PLAN_COMMUTE -> destination = ZhituDestination.EDITOR
+            ZhituDestination.PLACE_PICKER -> destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE
+            ZhituDestination.CALENDAR, ZhituDestination.CREDENTIALS, ZhituDestination.HISTORY, ZhituDestination.WEATHER -> destination = ZhituDestination.SETTINGS
+            else -> {
             permissionViewModel.cancel()
             destination = if (destination == ZhituDestination.EDITOR) ZhituDestination.PLANS else ZhituDestination.HOME
+            }
+        }
         }
     }
 
@@ -224,6 +310,31 @@ fun ZhituApp(
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         Surface(color = ZhituColors.Background, modifier = Modifier.fillMaxSize()) {
             when (destination) {
+                ZhituDestination.DECISION_DETAIL -> {
+                    val anchoredLookup = detailLookup?.takeIf { it.matchesDetailAnchor(detailDecisionId, detailOccurrenceId) }
+                    val decision = anchoredLookup.historicalDecision()
+                    DecisionDetailScreen(
+                        detail = if (detailReadError != null) DecisionDetailUi(false, unavailableMessage = detailReadError)
+                            else anchoredLookup?.toDecisionDetailUi() ?: DecisionDetailUi(false, unavailableMessage = "正在读取本地决策记录…"),
+                        onBack = ::returnFromDecision,
+                        onReevaluate = { decision?.let { historical -> viewModel.reevaluatePlan(historical.planId) { reevaluateFeedback = it } } },
+                        reevaluateInProgress = decision?.planId in evaluatingPlanIds,
+                        reevaluateFeedback = reevaluateFeedback,
+                        onCredentials = { openRecovery(ZhituDestination.CREDENTIALS) },
+                        onOnboarding = { openRecovery(ZhituDestination.ONBOARDING) },
+                        onCommute = {
+                            anchoredLookup.currentPlan()?.let { plan ->
+                                editorDraft = plan.toEditorDraft()
+                                openRecovery(ZhituDestination.EDITOR)
+                            } ?: run { reevaluateFeedback = "该计划已删除，无法编辑通勤配置。" }
+                        },
+                        onDiagnostics = { openRecovery(ZhituDestination.DIAGNOSTICS) },
+                        onRefresh = detailViewModel::refresh,
+                        nextRetryLabel = decision?.let { decisionRetryLabel(it, detailTaskRuns) },
+                        currentPlanMessage = anchoredLookup?.toDecisionDetailUi()?.currentPlanMessage,
+                        onHistory = { openRecovery(ZhituDestination.HISTORY) },
+                    )
+                }
                 ZhituDestination.HOME -> HomeScreen(
                     plans = upcomingPlans,
                     decisions = decisions,
@@ -232,38 +343,55 @@ fun ZhituApp(
                     schedulingError = evaluationSchedulingError,
                     homeUiState = homeUiState,
                     mapStatus = mapStatus,
-                    onPlans = { destination = ZhituDestination.PLANS },
+                    onPlans = { navigatePrimary(ZhituDestination.PLANS) },
                     onAdd = openEditor,
                     onEvaluate = viewModel::evaluateNow,
-                    onRoute = { destination = ZhituDestination.ROUTE },
+                    onDecision = ::openDecision,
+                    onRoute = { navigatePrimary(ZhituDestination.ROUTE) },
                     onWeather = { destination = ZhituDestination.WEATHER },
                     onCredentials = { destination = ZhituDestination.CREDENTIALS },
                     onAmapConsent = { destination = ZhituDestination.ONBOARDING },
-                    onRefreshPreviews = { viewModel.refreshHomePreviews(forceRefresh = true) },
-                    onSettings = { destination = ZhituDestination.SETTINGS },
+                    onRefreshPreviews = { suppressHomePreviewRefresh = false; viewModel.refreshHomePreviews(forceRefresh = true) },
+                    onSettings = { navigatePrimary(ZhituDestination.SETTINGS) },
                 )
                 ZhituDestination.PLANS -> PlansScreen(plans, openEditor, { destination = ZhituDestination.HOME }, { planId, enabled ->
                     if (enabled) {
                         refreshPermissions()
                         permissionViewModel.start(AlarmEnableAction.Enable(planId), permissionSnapshot.signature(permissionViewModel.confirmations))
                     } else viewModel.setEnabled(planId, false)
-                }, { destination = it })
-                ZhituDestination.EDITOR -> AlarmEditorScreen(editorDraft, { editorDraft = it }, { permissionViewModel.cancel(); destination = ZhituDestination.PLANS }, {
-                    refreshPermissions()
-                    permissionViewModel.start(AlarmEnableAction.Save(editorDraft), permissionSnapshot.signature(permissionViewModel.confirmations))
-                }, { editorDraft.id?.let(viewModel::delete); destination = ZhituDestination.PLANS })
+                }, ::navigatePrimary, decisions = decisions, onDecision = ::openDecision)
+                ZhituDestination.EDITOR -> AlarmEditorScreen(
+                    draft = editorDraft,
+                    commuteSummary = if (editorDraft.commute?.useGlobal ?: (planCommuteOverrides[editorDraft.id] == null)) "使用全局通勤" else "使用本计划通勤覆盖",
+                    onOpenCommuteOverride = {
+                        viewModel.startDraftCommuteEditor(editorDraft)
+                        destination = ZhituDestination.PLAN_COMMUTE
+                    },
+                    calendarState = calendarState,
+                    calendarOverrides = dayOverrides
+                        .filter { it.planId == editorDraft.id }
+                        .associate { it.date to it.status },
+                    update = { editorDraft = it },
+                    onCalendarPreviewRefresh = { viewModel.refreshCalendar() },
+                    onCancel = { permissionViewModel.cancel(); returnFromRecovery(ZhituDestination.PLANS) },
+                    onSave = {
+                        refreshPermissions()
+                        permissionViewModel.start(AlarmEnableAction.Save(editorDraft), permissionSnapshot.signature(permissionViewModel.confirmations))
+                    },
+                    onDelete = { editorDraft.id?.let(viewModel::delete); returnFromRecovery(ZhituDestination.PLANS) },
+                )
                 ZhituDestination.ROUTE -> LocalRouteScreen(
                     settings = localSettings,
                     routeState = routeState,
                     mapStatus = mapStatus,
                     onSave = viewModel::updateSettingsWithCompletion,
-                    onBack = { destination = ZhituDestination.HOME },
+                    onBack = { returnFromRecovery(ZhituDestination.HOME) },
                     onModeChange = viewModel::setRouteMode,
                     onRefresh = viewModel::refreshRoute,
                     onSelectRoute = viewModel::selectRoute,
                     onTrafficChange = viewModel::setTrafficEnabled,
                     onPickPlace = { target -> placeTarget = target; viewModel.beginPlaceSelection(); destination = ZhituDestination.PLACE_PICKER },
-                    onConfigurePlan = { plans.firstOrNull()?.let { viewModel.startPlanCommuteEditor(it.id) }; destination = ZhituDestination.PLAN_COMMUTE },
+                    onConfigurePlan = { destination = ZhituDestination.PLANS },
                 )
                 ZhituDestination.PLACE_PICKER -> PlacePickerScreen(
                     target = placeTarget,
@@ -299,28 +427,39 @@ fun ZhituApp(
                     onBack = { destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE },
                 )
                 ZhituDestination.PLAN_COMMUTE -> PlanCommuteScreen(
-                    plans = plans,
+                    planName = editorDraft.name,
                     editor = planCommuteEditor,
                     mapStatus = mapStatus,
-                    onBack = { destination = ZhituDestination.ROUTE },
-                    onSelectPlan = viewModel::startPlanCommuteEditor,
+                    onBack = { destination = ZhituDestination.EDITOR },
                     onUseGlobal = viewModel::setPlanCommuteUseGlobal,
                     onModeChange = viewModel::setPlanCommuteMode,
                     onPickPlace = { target -> placeTarget = target; viewModel.beginPlaceSelection(); destination = ZhituDestination.PLACE_PICKER },
                     onRefresh = viewModel::refreshPlanCommutePreview,
                     onSelectRoute = viewModel::selectPlanCommuteRoute,
                     onTrafficChange = viewModel::setPlanCommuteTraffic,
-                    onSave = viewModel::savePlanCommute,
+                    onSave = {
+                        runCatching { editorDraft.withCommute(planCommuteEditor) }
+                            .onSuccess { editorDraft = it; destination = ZhituDestination.EDITOR }
+                            .onFailure { viewModel.showError(it.message ?: "请检查通勤配置") }
+                    },
                 )
                 ZhituDestination.CALENDAR -> LocalCalendarScreen(plans, dayOverrides, calendarState, viewModel::saveDayOverride, viewModel::refreshCalendar, { destination = ZhituDestination.SETTINGS })
                 ZhituDestination.SETTINGS -> SettingsScreen(
                     permissionSnapshot = permissionSnapshot,
                     permissionConfirmations = permissionViewModel.confirmations,
                     settings = localSettings,
-                    onSettingsChange = { updated -> viewModel.updateSettings { updated } },
+                    onWeatherBufferChange = { kind, buffers ->
+                        viewModel.updateSettings { current ->
+                            when (kind) {
+                                WeatherBufferKind.Workday -> current.copy(workdayWeatherBuffers = buffers)
+                                WeatherBufferKind.Weekend -> current.copy(weekendWeatherBuffers = buffers)
+                                WeatherBufferKind.LegalRest -> current.copy(holidayWeatherBuffers = buffers)
+                            }
+                        }
+                    },
                     onCalendar = { destination = ZhituDestination.CALENDAR },
-                    onRoute = { destination = ZhituDestination.ROUTE },
-                    onNavigate = { destination = it },
+                    onRoute = { navigatePrimary(ZhituDestination.ROUTE) },
+                    onNavigate = ::navigatePrimary,
                     onCredentials = { destination = ZhituDestination.CREDENTIALS },
                     onDiagnostics = { destination = ZhituDestination.DIAGNOSTICS },
                     onHistory = { destination = ZhituDestination.HISTORY },
@@ -338,7 +477,7 @@ fun ZhituApp(
                     onClear = viewModel::clearCredentialsWithCompletion,
                     onTestAmapWebKey = viewModel::testAmapWebKey,
                     onTestCaiyun = viewModel::testCaiyun,
-                    onBack = { destination = ZhituDestination.SETTINGS },
+                    onBack = { returnFromRecovery(ZhituDestination.SETTINGS) },
                 )
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen(
                     snapshot = permissionSnapshot,
@@ -357,7 +496,7 @@ fun ZhituApp(
                     statusMessage = settingsMessage,
                     returningToAlarm = permissionViewModel.flow.phase == AlarmEnablePhase.Checking,
                 )
-                ZhituDestination.HISTORY -> HistoryScreen(events, decisions, occurrences, plans) { destination = ZhituDestination.SETTINGS }
+                ZhituDestination.HISTORY -> HistoryScreen(events, decisions, onDecision = ::openDecision, onBack = { returnFromRecovery(ZhituDestination.SETTINGS) })
                 ZhituDestination.WEATHER -> WeatherScreen(
                     state = weatherState,
                     onRefresh = viewModel::refreshWeather,
@@ -372,8 +511,8 @@ fun ZhituApp(
                     }
                 }
                 ZhituDestination.ONBOARDING -> OnboardingScreen(
-                    onGrantAmap = { viewModel.setAmapConsent(true); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.CREDENTIALS },
-                    onSkipAmap = { viewModel.setAmapConsent(false); viewModel.updateSettings { it.copy(privacyAccepted = true) }; destination = ZhituDestination.HOME },
+                    onGrantAmap = { viewModel.setAmapConsent(true); viewModel.updateSettings { it.copy(privacyAccepted = true) }; returnFromRecovery(ZhituDestination.CREDENTIALS) },
+                    onSkipAmap = { viewModel.setAmapConsent(false); viewModel.updateSettings { it.copy(privacyAccepted = true) }; returnFromRecovery(ZhituDestination.HOME) },
                 )
             }
         }
@@ -392,6 +531,7 @@ fun ZhituApp(
 
 internal fun AlarmPlan.toEditorDraft() = EditorDraft(
     id = id,
+    zoneId = zoneId,
     name = name,
     time = defaultWakeLocalTime,
     ringtone = sound.title,
@@ -429,6 +569,7 @@ internal fun HomeScreen(
     onAmapConsent: () -> Unit,
     onRefreshPreviews: () -> Unit,
     onSettings: () -> Unit,
+    onDecision: (String) -> Unit = {},
 ) {
     Scaffold(
         containerColor = ZhituColors.Background,
@@ -462,17 +603,19 @@ internal fun HomeScreen(
                     onRetry = onRefreshPreviews,
                 )
             }
-            item { HomeLatestEvaluationCard(decisions.maxByOrNull { it.generatedAt.homeInstant()?.toEpochMilli() ?: Long.MIN_VALUE }, schedulingError) }
+            item { HomeLatestEvaluationCard(decisions.maxByOrNull { it.generatedAt.homeInstant()?.toEpochMilli() ?: Long.MIN_VALUE }, schedulingError, onDecision) }
             item { SectionTitle("最近的有效闹钟", action = "全部闹钟", onAction = onPlans) }
             if (plans.isEmpty()) item { HomeAlarmHero(onAdd) }
             else items(plans.take(3), key = { it.plan.id }) { item ->
                 HomePlanCard(
                     item = item,
-                    decision = decisions.firstOrNull { it.decisionId == item.occurrence.decisionId },
+                    decision = decisions.firstOrNull { it.decisionId == item.occurrence.decisionId }
+                        ?: decisions.filter { it.planId == item.plan.id }.maxByOrNull { it.generatedAt.homeInstant()?.toEpochMilli() ?: Long.MIN_VALUE },
                     taskState = evaluationTaskStates[item.plan.id],
                     canEvaluate = item.plan.id in evaluablePlanIds,
                     onClick = { onAdd(item.plan) },
                     onEvaluate = { onEvaluate(item.plan.id) },
+                    onDecision = onDecision,
                 )
             }
             item { SectionTitle("通勤信息") }
@@ -506,15 +649,18 @@ private fun HomeAlarmHero(onAdd: (AlarmPlan?) -> Unit) = Card(
 }
 
 @Composable
-private fun HomeLatestEvaluationCard(decision: AlarmDecision?, schedulingError: String?) = FormCard {
+private fun HomeLatestEvaluationCard(decision: AlarmDecision?, schedulingError: String?, onDecision: (String) -> Unit) = FormCard {
     Text("最近自动评估", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
     Spacer(Modifier.height(6.dp))
     if (decision == null) {
         Text("尚无真实评估结果。已启用且配置通勤的闹钟将在后台评估路线、天气和工作日。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
     } else {
-        Text("${decision.targetDate} · ${decision.evaluationOutcome.homeLabel()}", color = ZhituColors.Brand, style = MaterialTheme.typography.bodySmall)
-        Text("基础 ${decision.defaultWakeAt.homeTime()} · 建议 ${decision.recommendedWakeAt.homeTime()} · 实际 ${decision.actualWakeAt.homeTime() ?: "未注册"}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
-        decision.failureReason?.let { Text("评估失败，请在记录中查看详情。", color = ZhituColors.Amber, style = MaterialTheme.typography.bodySmall) }
+        val summary = decision.toDecisionDetailUi()
+        Text("${summary.planName} · ${summary.targetDate}", color = ZhituColors.Ink)
+        Text(summary.title, color = ZhituColors.Brand, style = MaterialTheme.typography.bodyMedium)
+        Text(summary.applicationLabel, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+        Text("基础 ${summary.baseWake} · 建议 ${summary.recommendedWake}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { onDecision(decision.decisionId) }, modifier = Modifier.testTag("home_decision_${decision.decisionId}")) { Text("查看本次评估") }
     }
     schedulingError?.let { Text(it, color = ZhituColors.Amber, style = MaterialTheme.typography.bodySmall) }
 }
@@ -527,6 +673,7 @@ private fun HomePlanCard(
     canEvaluate: Boolean,
     onClick: () -> Unit,
     onEvaluate: () -> Unit,
+    onDecision: (String) -> Unit,
 ) = Card(
     modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = ZhituColors.Navy),
@@ -547,7 +694,10 @@ private fun HomePlanCard(
         Spacer(Modifier.height(12.dp))
         Text("下次 ${java.time.Instant.ofEpochMilli(item.nextWakeAt).atZone(java.time.ZoneId.of(item.plan.zoneId)).format(java.time.format.DateTimeFormatter.ofPattern("M月d日 HH:mm"))}", color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
         decision?.let {
-            Text("${it.evaluationOutcome.homeLabel()} · ${it.advanceStatus()}", color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
+            val summary = it.toDecisionDetailUi()
+            Text("${summary.targetDate} · ${summary.title}", color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
+            Text(summary.applicationLabel, color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall)
+            TextButton(onClick = { onDecision(it.decisionId) }, modifier = Modifier.testTag("plan_decision_${item.plan.id}")) { Text("查看提前摘要", color = ZhituColors.Mint) }
         }
         taskState?.let { Text(it.homeTaskLabel(), color = ZhituColors.Mint, style = MaterialTheme.typography.labelSmall) }
         if (canEvaluate) {
@@ -558,26 +708,9 @@ private fun HomePlanCard(
 
 private fun EvaluationTaskState.homeTaskLabel(): String = when (phase) {
     "RUNNING" -> "正在评估"
-    "RETRYING" -> "第 $attemptNumber 次重试 · ${nextAttemptAt.homeTimestamp()}"
-    else -> "下次评估 · ${nextAttemptAt.homeTimestamp()}"
-}
-
-private fun EvaluationOutcome.homeLabel(): String = when (this) {
-    EvaluationOutcome.SUCCESS -> "评估成功"
-    EvaluationOutcome.FAILED -> "评估失败"
-    EvaluationOutcome.STALE -> "结果已过期"
-    EvaluationOutcome.SKIPPED -> "评估跳过"
-}
-
-private fun AlarmDecision.advanceStatus(): String {
-    val defaultAt = defaultWakeAt.homeInstant()
-    val actualAt = actualWakeAt.homeInstant()
-    return if (actualAt == null) {
-        "建议 ${recommendedWakeAt.homeTime()}；实际提前提醒未注册"
-    } else if (defaultAt != null) {
-        val minutes = ((defaultAt.toEpochMilli() - actualAt.toEpochMilli()) / 60_000L).coerceAtLeast(0)
-        if (minutes == 0L) "按基础闹钟" else "实际提前 $minutes 分钟"
-    } else "实际提前提醒 ${actualWakeAt.homeTime()}"
+    "RETRYING" -> nextAttemptAt?.let { "第 $attemptNumber 次重试 · ${it.homeTimestamp()}" }
+        ?: "正在进行第 $attemptNumber 次重试"
+    else -> nextAttemptAt?.let { "下次评估 · ${it.homeTimestamp()}" } ?: "评估等待系统安排"
 }
 
 private fun String?.homeInstant(): Instant? = this?.let { value ->
@@ -589,7 +722,7 @@ private fun Long.homeTimestamp(): String = Instant.ofEpochMilli(this).atZone(Zon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlansScreen(plans: List<AlarmPlan>, onEdit: (AlarmPlan?) -> Unit, onBack: () -> Unit, onEnabled: (String, Boolean) -> Unit, onNavigate: (ZhituDestination) -> Unit) {
+private fun PlansScreen(plans: List<AlarmPlan>, onEdit: (AlarmPlan?) -> Unit, onBack: () -> Unit, onEnabled: (String, Boolean) -> Unit, onNavigate: (ZhituDestination) -> Unit, decisions: List<AlarmDecision>, onDecision: (String) -> Unit) {
     Scaffold(
         containerColor = ZhituColors.Background,
         topBar = { ZhituTopBar("闹钟", navigation = onBack) },
@@ -599,7 +732,16 @@ private fun PlansScreen(plans: List<AlarmPlan>, onEdit: (AlarmPlan?) -> Unit, on
         if (plans.isEmpty()) Box(Modifier.fillMaxSize().padding(padding).padding(24.dp), contentAlignment = Alignment.Center) { HomeAlarmHero(onEdit) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("本机闹钟", style = MaterialTheme.typography.titleLarge, color = ZhituColors.Ink) }
-            items(plans, key = { it.id }) { plan -> PlanRow(plan, { onEdit(plan) }, { onEnabled(plan.id, it) }) }
+            items(plans, key = { it.id }) { plan ->
+                Column {
+                    PlanRow(plan, { onEdit(plan) }, { onEnabled(plan.id, it) })
+                    decisions.filter { it.planId == plan.id }.maxByOrNull { it.generatedAt.homeInstant()?.toEpochMilli() ?: Long.MIN_VALUE }?.let { decision ->
+                        TextButton(onClick = { onDecision(decision.decisionId) }, modifier = Modifier.testTag("plans_decision_${plan.id}")) {
+                            Text("${decision.targetDate} · ${decision.toDecisionDetailUi().title} · 查看详情")
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -372,6 +372,8 @@ class EvaluationCoordinator @Inject constructor(
         weatherWindowEnd = null, fallbackReason = fallback, insufficientAdvance = false, generatedAt = generatedAt.toString(),
         expiresAt = expiresAt.toString(), evaluationOutcome = outcome, failureReason = failure, attemptNumber = attempt,
         preparationMinutes = plan.preparationMinutes, defaultWakeAt = defaultWake.toString(),
+        planName = plan.name, zoneId = plan.zoneId,
+        applicationOutcome = "NOT_APPLIED",
     )
 
     private fun decision(
@@ -393,6 +395,8 @@ class EvaluationCoordinator @Inject constructor(
         evaluationOutcome = outcome, failureReason = failureReason, attemptNumber = attempt,
         preparationMinutes = snapshot.plan.preparationMinutes, defaultWakeAt = snapshot.defaultWake.toInstant().toString(),
         calendarSource = snapshot.calendarSource, weatherDataSource = weatherDataSource?.name,
+        planName = snapshot.plan.name, zoneId = snapshot.plan.zoneId,
+        applicationOutcome = if (outcome == EvaluationOutcome.SUCCESS) null else "NOT_APPLIED",
     )
 
     private fun decisionId(plan: AlarmPlan, date: LocalDate, attempt: Int, salt: String? = null): String {

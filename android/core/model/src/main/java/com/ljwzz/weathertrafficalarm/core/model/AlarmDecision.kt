@@ -47,4 +47,7 @@ data class AlarmDecision(
     val actualWakeAt: String? = null,
     val calendarSource: String? = null,
     val weatherDataSource: String? = null,
+    /** Immutable display metadata captured during the evaluation; legacy rows can be absent. */
+    val planName: String? = null,
+    val zoneId: String? = null,
 )

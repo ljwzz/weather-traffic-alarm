@@ -13,11 +13,13 @@ import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
+import com.ljwzz.weathertrafficalarm.core.data.repository.CommuteOverrideMutation
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.evaluation.EvaluationWorkScheduler
 import com.ljwzz.weathertrafficalarm.evaluation.EvaluationTaskState
+import com.ljwzz.weathertrafficalarm.evaluation.userMessage
 import com.ljwzz.weathertrafficalarm.core.map.AmapSdkController
 import com.ljwzz.weathertrafficalarm.core.map.AmapSdkInitialization
 import com.ljwzz.weathertrafficalarm.core.map.MapLocationResult
@@ -237,14 +239,20 @@ class ZhituViewModel @Inject constructor(
                 vibration = previous.vibration.copy(enabled = draft.vibration), snoozeMinutes = draft.snoozeMinutes,
                 enabled = true, armedState = AlarmArmedState.NEEDS_PERMISSION, scheduleError = null,
             ) ?: AlarmPlan(
-                id = UUID.randomUUID().toString(), revision = 0, name = draft.name.trim(), enabled = true,
+                id = draft.planId, revision = 0, name = draft.name.trim(), enabled = true,
                 zoneId = ZoneId.systemDefault().id, defaultWakeLocalTime = draft.time,
                 arrivalLocalTime = draft.arrivalLocalTime, preparationMinutes = draft.preparationMinutes,
                 maxAdvanceMinutes = draft.maxAdvanceMinutes, commuteMode = CommuteMode.DRIVING,
                 schedule = schedule, armedState = AlarmArmedState.NEEDS_PERMISSION,
                 sound = AlarmSound(uri = draft.soundUri, title = draft.ringtone), vibration = com.ljwzz.weathertrafficalarm.core.model.VibrationPattern(enabled = draft.vibration), snoozeMinutes = draft.snoozeMinutes,
             )
-            coordinator.save(plan)
+            val commuteMutation = draft.commute?.let { commute ->
+                commute.toOverride(plan.id)?.let(CommuteOverrideMutation::Replace) ?: CommuteOverrideMutation.Reset
+            }
+            val saved = coordinator.save(plan, commuteMutation)
+            if (commuteMutation != null && saved.revision <= plan.revision) {
+                error(saved.scheduleError ?: "闹钟未更新，请检查后重试")
+            }
             }.onSuccess { onComplete(true) }.onFailure {
                 _error.value = it.message ?: "保存闹钟失败"
                 onComplete(false)
@@ -451,18 +459,32 @@ class ZhituViewModel @Inject constructor(
         }
     }
 
-    fun startPlanCommuteEditor(planId: String) = viewModelScope.launch {
+    fun startPlanCommuteEditor(planId: String) = startDraftCommuteEditor(EditorDraft(id = planId))
+
+    private var commuteEditorJob: Job? = null
+    private var commutePreviewJob: Job? = null
+    fun startDraftCommuteEditor(draft: EditorDraft) {
+        commuteEditorJob?.cancel()
+        commutePreviewJob?.cancel()
+        _planCommuteEditor.value = PlanCommuteEditorState(planId = draft.planId, loading = true)
+        commuteEditorJob = viewModelScope.launch {
+        runCatching {
         val current = settings.value
-        val override = planCommuteOverrideRepository.getByPlanId(planId)
-        val effective = effectiveCommuteResolver.resolveForPlan(planId, current)
+        val override = draft.id?.let { planCommuteOverrideRepository.getByPlanId(it) }
+        val effective = effectiveCommuteResolver.resolveGlobal(current)
         _planCommuteEditor.value = PlanCommuteEditorState(
-            planId = planId,
-            origin = override?.origin ?: effective?.origin,
-            destination = override?.destination ?: effective?.destination,
-            mode = override?.commuteMode ?: effective?.commuteMode ?: current.commuteMode,
-            useGlobal = override == null,
+            planId = draft.planId,
+            origin = draft.commute?.origin ?: override?.origin ?: effective?.origin,
+            destination = draft.commute?.destination ?: override?.destination ?: effective?.destination,
+            mode = draft.commute?.mode ?: override?.commuteMode ?: effective?.commuteMode ?: current.commuteMode,
+            useGlobal = draft.commute?.useGlobal ?: (override == null),
         )
         refreshPlanCommutePreview()
+        }.onFailure {
+            if (it is CancellationException) throw it
+            _planCommuteEditor.update { state -> state.copy(loading = false, loadError = "读取计划通勤失败，请返回重试") }
+        }
+        }
     }
 
     fun setPlanCommuteUseGlobal(useGlobal: Boolean) {
@@ -487,9 +509,11 @@ class ZhituViewModel @Inject constructor(
     }
 
     /** Shows the draft route while editing, or the resolver-selected commute in global mode. */
-    fun refreshPlanCommutePreview() = viewModelScope.launch {
+    fun refreshPlanCommutePreview() {
+        commutePreviewJob?.cancel()
+        commutePreviewJob = viewModelScope.launch {
         val editor = _planCommuteEditor.value
-        if (editor.planId == null) return@launch
+        if (editor.planId == null || editor.loading || editor.loadError != null) return@launch
         if (!settings.value.amapConsentGranted) {
             _planCommuteEditor.update { it.copy(route = RouteUiState(message = "请先完成高德地图专项授权")) }
             return@launch
@@ -507,7 +531,9 @@ class ZhituViewModel @Inject constructor(
         estimateRoute(origin, destination, mode).onSuccess { estimate ->
             _planCommuteEditor.update { it.copy(route = RouteUiState(estimate.alternatives.take(3), estimate.alternatives.firstOrNull()?.id)) }
         }.onFailure { failure ->
+            if (failure is CancellationException) throw failure
             _planCommuteEditor.update { it.copy(route = RouteUiState(message = providerMessage(failure))) }
+        }
         }
     }
 
@@ -699,13 +725,25 @@ class ZhituViewModel @Inject constructor(
 
     fun clearError() { _error.value = null }
     fun showError(message: String) { _error.value = message }
-    fun evaluateNow(planId: String) = viewModelScope.launch {
-        if (planId !in evaluablePlanIds.value) {
-            _error.value = "请先启用闹钟并配置通勤地点"
-            return@launch
+    private val _evaluatingPlanIds = MutableStateFlow<Set<String>>(emptySet())
+    val evaluatingPlanIds: StateFlow<Set<String>> = _evaluatingPlanIds
+
+    fun evaluateNow(planId: String) { reevaluatePlan(planId) { _error.value = it } }
+
+    fun reevaluatePlan(planId: String, onResult: (String) -> Unit) {
+        if (planId in _evaluatingPlanIds.value) return
+        _evaluatingPlanIds.update { it + planId }
+        viewModelScope.launch {
+            try {
+                onResult(evaluationWorkScheduler.evaluateNow(planId).userMessage())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                onResult("无法加入评估队列，请重试")
+            } finally {
+                _evaluatingPlanIds.update { it - planId }
+            }
         }
-        runCatching { evaluationWorkScheduler.evaluateNow(planId) }
-            .onFailure { _error.value = it.message ?: "无法启动自动评估" }
     }
     private fun safe(block: suspend () -> Unit) = viewModelScope.launch { runCatching { block() }.onFailure { _error.value = it.message ?: "操作失败" } }
 
@@ -798,7 +836,7 @@ private const val TRANSIT_CITY_CODE_UNAVAILABLE_MESSAGE = "无法确定起点或
 
 enum class ZhituDestination {
     HOME, PLANS, EDITOR, ROUTE, CALENDAR, SETTINGS, CREDENTIALS,
-    DIAGNOSTICS, HISTORY, WEATHER, RINGING, ONBOARDING, PLACE_PICKER, PLAN_COMMUTE,
+    DIAGNOSTICS, HISTORY, WEATHER, RINGING, ONBOARDING, PLACE_PICKER, PLAN_COMMUTE, DECISION_DETAIL,
 }
 
 data class UpcomingPlan(val plan: AlarmPlan, val occurrence: AlarmOccurrence) {
@@ -880,10 +918,13 @@ data class PlanCommuteEditorState(
     val mode: CommuteMode = CommuteMode.DRIVING,
     val useGlobal: Boolean = true,
     val route: RouteUiState = RouteUiState(),
+    val loading: Boolean = false,
+    val loadError: String? = null,
 )
 
 data class EditorDraft(
     val id: String? = null,
+    val zoneId: String = ZoneId.systemDefault().id,
     val name: String = "本地闹钟",
     val time: String = "06:00",
     val date: String = java.time.LocalDate.now().let { if (java.time.LocalTime.now().isBefore(java.time.LocalTime.of(6, 0))) it else it.plusDays(1) }.toString(),
@@ -896,8 +937,36 @@ data class EditorDraft(
     val arrivalLocalTime: String = AlarmPlan.DEFAULT_ARRIVAL_TIME,
     val preparationMinutes: Int = AlarmPlan.DEFAULT_PREPARATION_MINUTES,
     val maxAdvanceMinutes: Int = AlarmPlan.DEFAULT_MAX_ADVANCE_MINUTES,
-)
+    val newPlanId: String = UUID.randomUUID().toString(),
+    val commute: EditorCommuteDraft? = null,
+) {
+    val planId: String get() = id ?: newPlanId
+
+    fun withCommute(editor: PlanCommuteEditorState): EditorDraft {
+        require(editor.planId == planId) { "通勤配置与当前闹钟不匹配" }
+        require(!editor.loading && editor.loadError == null) { "请等待通勤配置读取完成" }
+        val updated = EditorCommuteDraft(editor.useGlobal, editor.origin, editor.destination, editor.mode)
+        updated.toOverride(planId)
+        return copy(commute = updated)
+    }
+}
+
+/** Session draft only. Null on EditorDraft means the stored override has not been edited. */
+data class EditorCommuteDraft(
+    val useGlobal: Boolean = true,
+    val origin: PlaceRef? = null,
+    val destination: PlaceRef? = null,
+    val mode: CommuteMode = CommuteMode.DRIVING,
+) {
+    fun toOverride(planId: String): PlanCommuteOverride? {
+        if (useGlobal) return null
+        val from = requireNotNull(origin) { "请选择计划专属起点" }
+        val to = requireNotNull(destination) { "请选择计划专属终点" }
+        require(from != to) { "起点与终点不能相同" }
+        return PlanCommuteOverride(planId, from, to, mode, System.currentTimeMillis())
+    }
+}
 
 enum class RepeatChoice(val label: String) {
-    ONCE("指定日期"), WEEKLY("每周重复"), WORKDAYS("工作日"),
+    ONCE("指定日期"), WEEKLY("每周重复"), WORKDAYS("法定工作日"),
 }

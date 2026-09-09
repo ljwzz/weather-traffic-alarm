@@ -42,14 +42,45 @@ class RingingUiStateTest {
     }
 
     @Test fun advanceRingingShowsTheRegisteredLeadAndSnoozeUsesItsOwnReason() {
-        val advance = parent.copy(occurrenceKind = "ADVANCE", defaultWakeAtMillis = parent.triggerAtMillis + 12 * 60_000)
+        val advance = parent.copy(
+            occurrenceKind = "ADVANCE",
+            decisionId = "decision-advance",
+            defaultWakeAtMillis = parent.triggerAtMillis + 12 * 60_000,
+        )
         val ui = project(listOf(advance))
         assertEquals("知途 · 提前提醒", ui.header)
         assertEquals("提前 12 分钟提醒", ui.badge)
         assertTrue(ui.reason.contains("基础闹钟仍按原定时间响铃"))
+        assertTrue(ui.canOpenAdvanceDetail)
         val snooze = project(listOf(advance.copy(occurrenceKind = "SNOOZE", parentOccurrenceId = "original")))
         assertEquals("贪睡后再次响铃", snooze.badge)
         assertFalse(snooze.reason.contains("提前"))
+        assertFalse(snooze.canOpenAdvanceDetail)
+    }
+
+    @Test fun advanceWithoutPersistedDecisionDoesNotOfferAReasonLink() {
+        val advance = parent.copy(occurrenceKind = "ADVANCE", decisionId = null)
+        assertFalse(project(listOf(advance)).canOpenAdvanceDetail)
+    }
+
+    @Test fun snoozedAdvanceParentNeverPresentsItsDecisionAsTheChildSuggestion() {
+        val parentAdvance = parent.copy(
+            occurrenceKind = "ADVANCE",
+            decisionId = "decision-advance",
+            occurrenceState = "SNOOZED",
+        )
+        val child = parent.copy(
+            occurrenceId = "snooze-child",
+            parentOccurrenceId = parentAdvance.occurrenceId,
+            occurrenceKind = "SNOOZE",
+            occurrenceState = "SCHEDULED",
+            triggerAtMillis = parentAdvance.triggerAtMillis + 10 * 60_000,
+        )
+
+        val ui = project(listOf(parentAdvance, child), emptySet())
+
+        assertEquals(RingingPhase.SNOOZED, ui.phase)
+        assertFalse(ui.canOpenAdvanceDetail)
     }
 
     @Test fun completionWaitsUntilThisOccurrenceLeavesTheAudioService() {

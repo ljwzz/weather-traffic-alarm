@@ -19,7 +19,6 @@ import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
 import java.time.Clock
 import java.time.Duration
-import java.time.LocalTime
 import java.util.UUID
 
 @HiltWorker
@@ -58,7 +57,7 @@ class EvaluationWorker @AssistedInject constructor(
             val retryDeadline = minOf(run.deadline,
                 EvaluationWorkPolicy.deadline(clock.instant().atZone(plan.zoneIdInstance()).toLocalDate(), plan.zoneIdInstance()))
             EvaluationWorkPolicy.retryAt(clock.instant(), run.attempt, retryDeadline, result.retryAfterSeconds)?.let { retry ->
-                scheduler.enqueueRetry(latest, run, retry)
+                result.decision?.decisionId?.let { decisionId -> scheduler.enqueueRetry(latest, run, retry, decisionId) }
             }
         }
         decisions.deleteOlderThan(clock.instant().minus(Duration.ofDays(30)).toEpochMilli())
@@ -66,23 +65,42 @@ class EvaluationWorker @AssistedInject constructor(
     }
 
     private suspend fun recordExpired(plan: AlarmPlan, run: EvaluationWorkRun) {
-        val now = clock.instant().toString()
-        val baseline = run.targetDate.atTime(LocalTime.parse(plan.defaultWakeLocalTime)).atZone(plan.zoneIdInstance()).toInstant().toString()
-        val key = "expired:${plan.id}:${run.revision}:${run.targetDate}:${run.origin}:${run.attempt}"
-        decisions.save(AlarmDecision(
-            decisionId = UUID.nameUUIDFromBytes(key.toByteArray(Charsets.UTF_8)).toString(),
-            planId = plan.id, planRevision = run.revision, targetDate = run.targetDate.toString(),
-            workdayStatus = null, estimatedDepartureAt = null, commuteSeconds = null,
-            weatherSeverity = 0, weatherBufferMinutes = 0, recommendedWakeAt = baseline,
-            routeProvider = null, routeProviderReportTime = null, weatherProvider = null,
-            weatherProviderReportTime = null, weatherWindowStart = null, weatherWindowEnd = null,
-            fallbackReason = FallbackReason.STALE_RESPONSE, insufficientAdvance = false,
-            generatedAt = now, expiresAt = run.deadline.toString(), evaluationOutcome = EvaluationOutcome.STALE,
-            failureReason = "EVALUATION_WINDOW_EXPIRED", attemptNumber = run.attempt,
-            applicationOutcome = "STALE", defaultWakeAt = baseline,
-        ))
+        decisions.save(expiredDecision(plan, run, id.toString(), clock.instant()))
         diagnostics.record(DiagnosticEventType.EVALUATION, DiagnosticResultCode.STALE,
             planId = plan.id, timestamp = clock.millis())
         decisions.deleteOlderThan(clock.instant().minus(Duration.ofDays(30)).toEpochMilli())
     }
+}
+
+/**
+ * Produces a record for this exact Worker attempt. A current plan can only supply historical
+ * display fields when it is the same evaluated revision and civil-time zone as the run.
+ */
+internal fun expiredDecision(
+    plan: AlarmPlan,
+    run: EvaluationWorkRun,
+    workId: String,
+    now: java.time.Instant,
+): AlarmDecision {
+    val inputsUnchanged = plan.revision == run.revision && plan.zoneId == run.zoneId
+    val baseline = if (inputsUnchanged) {
+        runCatching {
+            run.targetDate.atTime(java.time.LocalTime.parse(plan.defaultWakeLocalTime))
+                .atZone(java.time.ZoneId.of(run.zoneId)).toInstant().toString()
+        }.getOrNull()
+    } else null
+    return AlarmDecision(
+        decisionId = UUID.nameUUIDFromBytes("expired-worker:$workId".toByteArray(Charsets.UTF_8)).toString(),
+        planId = plan.id, planRevision = run.revision, targetDate = run.targetDate.toString(),
+        workdayStatus = null, estimatedDepartureAt = null, commuteSeconds = null,
+        weatherSeverity = 0, weatherBufferMinutes = 0, recommendedWakeAt = baseline.orEmpty(),
+        routeProvider = null, routeProviderReportTime = null, weatherProvider = null,
+        weatherProviderReportTime = null, weatherWindowStart = null, weatherWindowEnd = null,
+        fallbackReason = FallbackReason.STALE_RESPONSE, insufficientAdvance = false,
+        generatedAt = now.toString(), expiresAt = run.deadline.toString(), evaluationOutcome = EvaluationOutcome.STALE,
+        failureReason = if (inputsUnchanged) "EVALUATION_WINDOW_EXPIRED" else "EVALUATION_INPUTS_CHANGED",
+        attemptNumber = run.attempt, applicationOutcome = "NOT_APPLIED",
+        preparationMinutes = if (inputsUnchanged) plan.preparationMinutes else 0,
+        defaultWakeAt = baseline, planName = plan.name.takeIf { inputsUnchanged }, zoneId = run.zoneId,
+    )
 }

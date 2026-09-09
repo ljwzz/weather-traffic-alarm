@@ -120,4 +120,101 @@ object AppDatabaseMigrations {
         db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN calendar_source TEXT")
         db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN weather_data_source TEXT")
     }
+
+    /**
+     * Decision and occurrence rows are immutable history. They must outlive a plan so a user can
+     * inspect the decision that caused an earlier alarm after editing or deleting that plan.
+     */
+    val V4_TO_V5: Migration = Migration(4, 5) { db ->
+        db.execSQL(
+            """
+            CREATE TABLE alarm_decisions_v5 (
+                decision_id TEXT NOT NULL,
+                plan_id TEXT NOT NULL,
+                plan_revision INTEGER NOT NULL,
+                target_date TEXT NOT NULL,
+                workday_status TEXT,
+                estimated_departure_at TEXT,
+                commute_seconds INTEGER,
+                weather_severity INTEGER NOT NULL,
+                weather_buffer_minutes INTEGER NOT NULL,
+                recommended_wake_at TEXT NOT NULL,
+                route_provider TEXT,
+                route_provider_report_time TEXT,
+                weather_provider TEXT,
+                weather_provider_report_time TEXT,
+                weather_window_start TEXT,
+                weather_window_end TEXT,
+                fallback_reason TEXT NOT NULL,
+                insufficient_advance INTEGER NOT NULL,
+                generated_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                evaluation_outcome TEXT NOT NULL DEFAULT 'FAILED',
+                failure_reason TEXT,
+                attempt_number INTEGER NOT NULL DEFAULT 0,
+                application_outcome TEXT,
+                preparation_minutes INTEGER NOT NULL DEFAULT 0,
+                default_wake_at TEXT,
+                actual_wake_at TEXT,
+                calendar_source TEXT,
+                weather_data_source TEXT,
+                PRIMARY KEY(decision_id)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            INSERT INTO alarm_decisions_v5
+            SELECT decision_id, plan_id, plan_revision, target_date, workday_status,
+                estimated_departure_at, commute_seconds, weather_severity,
+                weather_buffer_minutes, recommended_wake_at, route_provider,
+                route_provider_report_time, weather_provider, weather_provider_report_time,
+                weather_window_start, weather_window_end, fallback_reason, insufficient_advance,
+                generated_at, expires_at, evaluation_outcome, failure_reason, attempt_number,
+                application_outcome, preparation_minutes, default_wake_at, actual_wake_at,
+                calendar_source, weather_data_source
+            FROM alarm_decisions
+            """.trimIndent(),
+        )
+        db.execSQL("DROP TABLE alarm_decisions")
+        db.execSQL("ALTER TABLE alarm_decisions_v5 RENAME TO alarm_decisions")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_alarm_decisions_plan_id ON alarm_decisions(plan_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_alarm_decisions_target_date ON alarm_decisions(target_date)")
+
+        db.execSQL(
+            """
+            CREATE TABLE alarm_occurrences_v5 (
+                occurrence_id TEXT NOT NULL,
+                plan_id TEXT NOT NULL,
+                plan_revision INTEGER NOT NULL,
+                target_date TEXT NOT NULL,
+                scheduled_wake_at INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                decision_id TEXT,
+                kind TEXT NOT NULL,
+                parent_occurrence_id TEXT,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY(occurrence_id)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            INSERT INTO alarm_occurrences_v5
+            SELECT occurrence_id, plan_id, plan_revision, target_date, scheduled_wake_at,
+                state, decision_id, kind, parent_occurrence_id, updated_at
+            FROM alarm_occurrences
+            """.trimIndent(),
+        )
+        db.execSQL("DROP TABLE alarm_occurrences")
+        db.execSQL("ALTER TABLE alarm_occurrences_v5 RENAME TO alarm_occurrences")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_alarm_occurrences_plan_id ON alarm_occurrences(plan_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_alarm_occurrences_target_date ON alarm_occurrences(target_date)")
+    }
+
+    /** Adds immutable display metadata to decision history without reading a later plan revision. */
+    val V5_TO_V6: Migration = Migration(5, 6) { db ->
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN plan_name TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN zone_id TEXT")
+    }
 }

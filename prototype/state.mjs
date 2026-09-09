@@ -1,3 +1,5 @@
+import { isLegalWorkday } from './legal-calendar.mjs';
+
 /**
  * Prototype-only state helpers.
  *
@@ -151,7 +153,10 @@ export const EVALUATION_FIXTURE_STATES = Object.freeze({
   ADVANCED: 'advanced',
   NO_ADVANCE: 'no-advance',
   RETRY: 'retry',
+  REGISTRATION_FAILED: 'registration-failed',
+  INSUFFICIENT_ADVANCE: 'insufficient-advance',
   DEADLINE: 'deadline',
+  SKIPPED: 'skipped',
   EXPIRED: 'expired',
 });
 
@@ -382,6 +387,7 @@ export function createEvaluationFixture({
   targetDate = '2026-09-04',
   transport = 'driving',
   selectedRouteIndex = 0,
+  weatherBuffers = DEFAULT_WEATHER_BUFFERS,
 } = {}) {
   assertEvaluationFixtureState(fixture);
   const baseWake = plan.time || '07:30';
@@ -392,9 +398,10 @@ export function createEvaluationFixture({
     planName: plan.name || '上班闹钟（fixture）',
     baseWake,
     route: { transport, minutes: routeMinutes, source:'高德路线 fixture' },
-    weather: { condition:'小雨', severity:3, bufferMinutes:30, source:'彩云天气 fixture', observedAt:'20:45' },
+    weather: { condition:'小雨', severity:3, bufferMinutes:weatherBufferFor({ dayKind:DAY_KINDS.WORKDAY, severity:3, buffers:weatherBuffers }), source:'彩云天气 fixture', observedAt:'20:45' },
     dayRule: { kind:DAY_KINDS.WORKDAY, label:'工作日', source:'星期规则 fixture' },
     arrivalTime: plan.arrivalTime || '09:00',
+    estimatedDepartureTime: plan.estimatedDepartureTime ?? null,
     preparationMinutes: Number.isInteger(plan.preparationMinutes) ? plan.preparationMinutes : 30,
     maxAdvanceMinutes: Number.isInteger(plan.maxAdvanceMinutes) ? plan.maxAdvanceMinutes : 60,
   };
@@ -406,7 +413,14 @@ export function createEvaluationFixture({
     weatherBufferMinutes: inputs.weather.bufferMinutes,
     maxAdvanceMinutes: inputs.maxAdvanceMinutes,
   });
-  const common = { fixture, inputs, evaluatedAt:'2026-09-03 20:45', retryCount:0, expiresAt:'2026-09-04 07:18' };
+  const common = {
+    fixture,
+    inputs,
+    evaluatedAt:'2026-09-03 20:45',
+    attemptNumber:1,
+    retryCount:0,
+    expiresAt:'2026-09-04 07:18',
+  };
   if (fixture === EVALUATION_FIXTURE_STATES.PENDING) {
     return { ...common, state:'pending', title:'待评估', detail:'等待次日评估窗口；基础闹钟保持 07:30。', decision:'not_started', schedule:{ baseWake, earlyWake:null, action:'none' } };
   }
@@ -414,18 +428,46 @@ export function createEvaluationFixture({
     return { ...common, state:'running', title:'评估中', detail:'正在汇总路线、天气和工作日规则；尚未创建提前提醒。', decision:'collecting_inputs', schedule:{ baseWake, earlyWake:null, action:'none' } };
   }
   if (fixture === EVALUATION_FIXTURE_STATES.ADVANCED) {
-    return { ...common, state:'advanced', title:`提前 ${early.advanceMinutes} 分钟`, detail:'已创建独立提前提醒；基础闹钟保持 07:30。', decision:'advance_required', schedule:{ baseWake, earlyWake:early.wake, action:'create_early_reminder', capped:early.insufficientAdvance } };
+    return { ...common, state:'advanced', title:`提前 ${early.advanceMinutes} 分钟`, detail:'评估完成；独立提前提醒已申请注册，基础闹钟保持 07:30。', decision:'advance_required', applicationOutcome:'registered', schedule:{ baseWake, earlyWake:early.wake, actualWake:early.wake, action:'create_early_reminder', capped:early.insufficientAdvance } };
   }
   if (fixture === EVALUATION_FIXTURE_STATES.NO_ADVANCE) {
-    return { ...common, state:'no-advance', title:'无需提前', detail:'路线与天气结果满足到岗时间；不创建额外提醒。', decision:'no_advance_required', schedule:{ baseWake, earlyWake:null, action:'none' }, inputs:{ ...inputs, route:{ ...inputs.route, minutes:30 }, weather:{ ...inputs.weather, condition:'晴', severity:1, bufferMinutes:10 } } };
+    return { ...common, state:'no-advance', title:'无需提前', detail:'评估完成；路线与天气结果满足到岗时间，不创建额外提醒。', decision:'no_advance_required', applicationOutcome:'not_needed', schedule:{ baseWake, earlyWake:null, actualWake:null, action:'none' }, inputs:{ ...inputs, route:{ ...inputs.route, minutes:30 }, weather:{ ...inputs.weather, condition:'晴', severity:1, bufferMinutes:weatherBufferFor({ dayKind:DAY_KINDS.WORKDAY, severity:1, buffers:weatherBuffers }) } } };
   }
   if (fixture === EVALUATION_FIXTURE_STATES.RETRY) {
-    return { ...common, state:'retry', title:'失败，等待重试', detail:'天气结果暂不可用；将在截止前重试，已存在的提前提醒不变。', decision:'retry_scheduled', retryCount:1, retryAt:'2026-09-03 21:00', schedule:{ baseWake, earlyWake:early.wake, action:'preserve_early_reminder' } };
+    return { ...common, state:'retry', title:'评估失败，等待重试', detail:'天气结果暂不可用；已存在的提前提醒保持不变。', decision:'retry_scheduled', applicationOutcome:'preserved_existing', failureReason:'天气结果暂不可用', fallbackReason:'保留已注册的提前提醒', attemptNumber:2, retryCount:1, retryAt:'2026-09-03 21:00', schedule:{ baseWake, earlyWake:early.wake, actualWake:early.wake, action:'preserve_early_reminder' } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.REGISTRATION_FAILED) {
+    return { ...common, state:'registration-failed', title:'提前提醒注册失败', detail:'评估已完成，但独立提前提醒未注册成功。', decision:'advance_required', applicationOutcome:'registration_failed', failureReason:'提前实例注册失败', fallbackReason:'基础闹钟保持原计划', schedule:{ baseWake, earlyWake:early.wake, actualWake:null, action:'create_early_reminder' } };
+  }
+  if (fixture === EVALUATION_FIXTURE_STATES.INSUFFICIENT_ADVANCE) {
+    const limited = calculateEarlyWake({ defaultWake:inputs.baseWake, arrivalTime:inputs.arrivalTime, commuteMinutes:inputs.route.minutes, preparationMinutes:inputs.preparationMinutes, weatherBufferMinutes:inputs.weather.bufferMinutes, maxAdvanceMinutes:5 });
+    return { ...common, state:'insufficient-advance', title:'提前额度不足', detail:'建议提前量超过当前计划允许的上限；仅可按上限应用。', decision:'advance_required', applicationOutcome:'limited_by_maximum', fallbackReason:'按计划最多提前额度处理', schedule:{ baseWake, earlyWake:early.wake, actualWake:limited.wake, action:'create_early_reminder', capped:true } };
   }
   if (fixture === EVALUATION_FIXTURE_STATES.DEADLINE) {
-    return { ...common, state:'deadline', title:'已过评估截止', detail:'未在截止前获得可用结果；不新增或调整提前提醒。', decision:'deadline_passed', retryCount:2, schedule:{ baseWake, earlyWake:null, action:'none' } };
+    return { ...common, state:'deadline', title:'已过评估截止', detail:'未在截止前获得可用结果；不新增或调整提前提醒。', decision:'deadline_passed', applicationOutcome:'skipped', failureReason:'评估窗口已结束', fallbackReason:'基础闹钟保持原计划', attemptNumber:2, retryCount:2, schedule:{ baseWake, earlyWake:null, actualWake:null, action:'none' } };
   }
-  return { ...common, state:'expired', title:'结果已过期', detail:'目标日期已过去；该结果仅保留在决策记录中，不能用于新的调度。', decision:'expired_result', evaluatedAt:'2026-09-02 20:45', expiresAt:'2026-09-03 07:18', schedule:{ baseWake, earlyWake:null, action:'none' } };
+  if (fixture === EVALUATION_FIXTURE_STATES.SKIPPED) {
+    return { ...common, state:'skipped', title:'本次已跳过', detail:'当前计划在本次评估条件下不应创建提前提醒。', decision:'skipped', applicationOutcome:'skipped', fallbackReason:'基础闹钟保持原计划', schedule:{ baseWake, earlyWake:null, actualWake:null, action:'none' } };
+  }
+  return { ...common, state:'expired', title:'结果已过期', detail:'目标日期已过去；该结果仅保留在决策记录中，不能用于新的调度。', decision:'expired_result', applicationOutcome:'historical_only', fallbackReason:'不改写本次历史执行结果', evaluatedAt:'2026-09-02 20:45', expiresAt:'2026-09-03 07:18', schedule:{ baseWake, earlyWake:null, actualWake:null, action:'none' } };
+}
+
+export function decisionRecordFromEvaluation(run, plan, { decisionId = `decision-${run.fixture}-${plan?.id || 'fixture-work'}`, occurrence = null } = {}) {
+  const planSnapshot = {
+    id: plan?.id || run.inputs.planId,
+    name: plan?.name || run.inputs.planName,
+    revision: plan?.revision ?? plan?.updatedAt ?? 'fixture-r1',
+    time: run.inputs.baseWake,
+  };
+  return structuredClone({
+    ...run,
+    id: decisionId,
+    decisionId,
+    planId: planSnapshot.id,
+    planRevision: planSnapshot.revision,
+    planSnapshot,
+    occurrence,
+  });
 }
 
 export function evaluationFixtureHistory(plan) {
@@ -433,12 +475,16 @@ export function evaluationFixtureHistory(plan) {
     EVALUATION_FIXTURE_STATES.ADVANCED,
     EVALUATION_FIXTURE_STATES.NO_ADVANCE,
     EVALUATION_FIXTURE_STATES.RETRY,
+    EVALUATION_FIXTURE_STATES.REGISTRATION_FAILED,
+    EVALUATION_FIXTURE_STATES.INSUFFICIENT_ADVANCE,
     EVALUATION_FIXTURE_STATES.DEADLINE,
+    EVALUATION_FIXTURE_STATES.SKIPPED,
     EVALUATION_FIXTURE_STATES.EXPIRED,
-  ].map((fixture, index) => ({
-    ...createEvaluationFixture({ fixture, plan, targetDate:`2026-09-0${4 - Math.min(index, 3)}` }),
-    id:`evaluation-${fixture}`,
-  }));
+  ].map((fixture, index) => decisionRecordFromEvaluation(
+    createEvaluationFixture({ fixture, plan, targetDate:`2026-09-0${4 - Math.min(index, 3)}` }),
+    plan,
+    { decisionId:`decision-${plan?.id || 'fixture-work'}-${fixture}` },
+  ));
 }
 
 /**
@@ -700,7 +746,7 @@ function addDays(date, days) {
 }
 
 /** Returns the next local occurrence without registering a system alarm. */
-export function nextAlarmOccurrence(plan, { now = new Date(), isWorkday = date => weekdayNumber(date) <= 5, override = null } = {}) {
+export function nextAlarmOccurrence(plan, { now = new Date(), isWorkday = isLegalWorkday, override = null } = {}) {
   const item = normalizeAlarmPlan(plan);
   if (!item.enabled || item.scheduleStatus === 'completed') return null;
   if (item.repeat.kind === REPEAT_KINDS.ONCE) {

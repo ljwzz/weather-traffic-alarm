@@ -2,6 +2,8 @@ package com.ljwzz.weathertrafficalarm.core.data.db
 
 import android.content.Context
 import androidx.room3.Room
+import androidx.room3.executeSQL
+import androidx.room3.useWriterConnection
 import androidx.test.core.app.ApplicationProvider
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmDecisionDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmEventDao
@@ -12,6 +14,7 @@ import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmDecisionEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmEventEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmOccurrenceEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmPlanEntity
+import com.ljwzz.weathertrafficalarm.core.data.db.entity.PlanCommuteOverrideEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
@@ -175,6 +178,37 @@ class DatabaseTest {
         assertNotNull(retrieved)
         assertEquals("Evening Commute", retrieved!!.name)
         assertEquals(2L, retrieved.revision)
+    }
+
+    @Test
+    fun planAndCommuteWriteRollsBackThePlanWhenOverrideInsertAborts() = runTest {
+        val plan = createTestPlan("atomic-plan")
+        val override = PlanCommuteOverrideEntity(
+            planId = plan.id,
+            origin = origin,
+            destination = destination,
+            commuteMode = CommuteMode.DRIVING,
+            updatedAt = System.currentTimeMillis(),
+        )
+        db.useWriterConnection { connection ->
+            connection.executeSQL(
+                """
+                CREATE TRIGGER reject_plan_commute_override_insert
+                BEFORE INSERT ON plan_commute_overrides
+                BEGIN
+                    SELECT RAISE(ABORT, 'forced override insert failure');
+                END
+                """.trimIndent(),
+            )
+        }
+
+        val failure = runCatching {
+            db.planCommuteWriteDao().upsertPlanAndOverride(plan, override)
+        }.exceptionOrNull()
+
+        assertNotNull(failure)
+        assertNull(planDao.getById(plan.id))
+        assertNull(db.planCommuteOverrideDao().getByPlanId(plan.id))
     }
 
     @Test

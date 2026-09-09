@@ -14,7 +14,7 @@ test('basic and early fixtures create independent local occurrences', () => {
   const basic = createRingingSession(RINGING_KINDS.BASIC);
   const early = createRingingSession(RINGING_KINDS.EARLY);
 
-  assert.deepEqual(basic.occurrence, { id:'basic:2026-09-02T07:30:00#0', parentId:null, sequence:0, date:'2026-09-02', time:'07:30' });
+  assert.deepEqual(basic.occurrence, { id:'basic:2026-09-02T07:30:00#0', rootOccurrenceId:'basic:2026-09-02T07:30:00#0', decisionId:null, parentId:null, sequence:0, date:'2026-09-02', time:'07:30' });
   assert.equal(early.occurrence.time, '07:18');
   assert.equal(early.snoozeMinutes, 10);
   assert.equal(basic.phase, RINGING_PHASES.RINGING);
@@ -35,6 +35,15 @@ test('snooze is idempotent and a replayed alarm uses a child occurrence', () => 
   assert.equal(snoozeRingingSession(child).nextOccurrence.time, '07:38');
 });
 
+test('snooze children retain the parent occurrence and decision association', () => {
+  const root = createRingingSession(RINGING_KINDS.EARLY, { decisionId:'decision-a' });
+  const child = ringSnoozedSession(snoozeRingingSession(root));
+
+  assert.equal(child.occurrence.decisionId, 'decision-a');
+  assert.equal(child.occurrence.rootOccurrenceId, root.occurrence.id);
+  assert.equal(child.occurrence.parentId, root.occurrence.id);
+});
+
 test('snooze crosses calendar dates from the current child occurrence', () => {
   const late = createRingingSession(RINGING_KINDS.BASIC, { date:'2026-09-02', time:'23:55', snoozeMinutes:10 });
   const firstSnooze = snoozeRingingSession(late);
@@ -42,7 +51,7 @@ test('snooze crosses calendar dates from the current child occurrence', () => {
   const secondSnooze = snoozeRingingSession(child);
 
   assert.deepEqual(firstSnooze.nextOccurrence, {
-    id:'basic:2026-09-02T23:55:00#0/2026-09-03T00:05:00#1', parentId:'basic:2026-09-02T23:55:00#0', sequence:1, date:'2026-09-03', time:'00:05',
+    id:'basic:2026-09-02T23:55:00#0/2026-09-03T00:05:00#1', parentId:'basic:2026-09-02T23:55:00#0', rootOccurrenceId:'basic:2026-09-02T23:55:00#0', decisionId:null, sequence:1, date:'2026-09-03', time:'00:05',
   });
   assert.equal(secondSnooze.nextOccurrence.time, '00:15');
   assert.equal(secondSnooze.nextOccurrence.sequence, 2);

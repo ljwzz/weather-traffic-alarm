@@ -29,6 +29,20 @@ data class LocationPermissionSnapshot(
     val servicesEnabled: Boolean,
 )
 
+/**
+ * A settings-page summary of the checks that affect alarm presentation.
+ *
+ * Android capability results and the Xiaomi confirmations deliberately stay
+ * separate: the latter can only be asserted by the person using the device.
+ */
+data class AlarmReliabilitySummary(
+    val missing: List<String>,
+) {
+    val pendingCount: Int get() = missing.size
+    val label: String
+        get() = if (pendingCount == 0) "设置已完成检查。" else "有 $pendingCount 项设置待检查。"
+}
+
 enum class PermissionSetting {
     Notifications,
     ExactAlarm,
@@ -66,6 +80,10 @@ class PermissionAccess private constructor(
         ): PermissionAccess = PermissionAccess(snapshotReader, settingsOpener)
     }
 }
+
+fun PermissionSnapshot.alarmReliabilitySummary(
+    confirmations: Set<XiaomiDisplayPermission>,
+): AlarmReliabilitySummary = AlarmReliabilitySummary(signature(confirmations).missing)
 
 private fun Context.readPermissionSnapshot(): PermissionSnapshot {
     val notificationManager = getSystemService(NotificationManager::class.java)

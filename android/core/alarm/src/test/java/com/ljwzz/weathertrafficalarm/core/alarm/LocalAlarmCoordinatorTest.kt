@@ -12,8 +12,11 @@ import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.CommuteOverrideMutation
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
+import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
@@ -28,6 +31,7 @@ import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
 import java.time.LocalDate
 import java.time.Instant
@@ -56,6 +60,7 @@ class LocalAlarmCoordinatorTest {
     private lateinit var context: Context
     private lateinit var db: AppDatabase
     private lateinit var plans: AlarmPlanRepository
+    private lateinit var commuteOverrides: PlanCommuteOverrideRepository
     private lateinit var occurrences: OccurrenceRepository
     private lateinit var decisions: DecisionRepository
     private lateinit var events: AlarmEventRepository
@@ -67,7 +72,8 @@ class LocalAlarmCoordinatorTest {
     fun setUp() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
-        plans = AlarmPlanRepository(db.alarmPlanDao())
+        plans = AlarmPlanRepository(db.alarmPlanDao(), db.planCommuteWriteDao())
+        commuteOverrides = PlanCommuteOverrideRepository(db.planCommuteOverrideDao())
         occurrences = OccurrenceRepository(db.alarmOccurrenceDao())
         decisions = DecisionRepository(db.alarmDecisionDao())
         events = AlarmEventRepository(db.alarmEventDao())
@@ -131,6 +137,63 @@ class LocalAlarmCoordinatorTest {
         assertEquals(existing.name, returned.name)
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(active.occurrenceId)!!.state)
         assertFalse(gateway.cancelled.contains(active.occurrenceId))
+    }
+
+    @Test
+    fun `failed armed edit keeps prior commute override`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val active = occurrence(existing, "existing", OccurrenceState.SCHEDULED)
+        occurrences.save(active)
+        val previousOverride = commuteOverride(existing.id, "Old home", "Old office")
+        commuteOverrides.save(previousOverride)
+        gateway.result = AlarmRegistrationResult.Rejected(RegistrationFailure.PLATFORM_REJECTED, "platform failure")
+
+        coordinator.save(
+            existing.copy(name = "Unsaved edit"),
+            CommuteOverrideMutation.Replace(commuteOverride(existing.id, "New home", "New office")),
+        )
+
+        assertEquals(existing.name, plans.getById(existing.id)!!.name)
+        assertEquals(previousOverride, commuteOverrides.getByPlanId(existing.id))
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(active.occurrenceId)!!.state)
+    }
+
+    @Test
+    fun `new plan persists its replacement override under the plan id`() = runBlocking {
+        val proposed = plan(id = "stable-draft-id")
+        val override = commuteOverride(proposed.id, "Home", "Office")
+
+        val saved = coordinator.save(proposed, CommuteOverrideMutation.Replace(override))
+
+        assertEquals(proposed.id, saved.id)
+        assertEquals(override, commuteOverrides.getByPlanId(proposed.id))
+    }
+
+    @Test
+    fun `armed edit without a commute mutation retains its existing override`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        occurrences.save(occurrence(existing, "existing", OccurrenceState.SCHEDULED))
+        val existingOverride = commuteOverride(existing.id, "Home", "Office")
+        commuteOverrides.save(existingOverride)
+
+        coordinator.save(existing.copy(name = "Other alarm fields"))
+
+        assertEquals(existingOverride, commuteOverrides.getByPlanId(existing.id))
+    }
+
+    @Test
+    fun `armed edit resets its override with the plan commit`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        occurrences.save(occurrence(existing, "existing", OccurrenceState.SCHEDULED))
+        commuteOverrides.save(commuteOverride(existing.id, "Home", "Office"))
+
+        coordinator.save(existing.copy(name = "Global commute"), CommuteOverrideMutation.Reset)
+
+        assertEquals("Global commute", plans.getById(existing.id)!!.name)
+        assertEquals(null, commuteOverrides.getByPlanId(existing.id))
     }
 
     @Test
@@ -245,6 +308,8 @@ class LocalAlarmCoordinatorTest {
         val result = coordinator.applyEvaluation(decision(existing, regular, "earlier", firstAt - 600_000L))
 
         assertEquals("FAILED", result.outcome)
+        assertEquals(EvaluationOutcome.SUCCESS, decisions.getById("earlier")?.evaluationOutcome)
+        assertEquals("FAILED", decisions.getById("earlier")?.applicationOutcome)
         val original = occurrences.getByPlanId(existing.id).single { it.decisionId == "first" }
         assertEquals(OccurrenceState.SCHEDULED, original.state)
         assertFalse(gateway.cancelled.contains(original.occurrenceId))
@@ -651,6 +716,23 @@ class LocalAlarmCoordinatorTest {
         maxAdvanceMinutes = 60,
         commuteMode = CommuteMode.DRIVING,
         schedule = schedule,
+    )
+
+    private fun commuteOverride(planId: String, originName: String, destinationName: String) = PlanCommuteOverride(
+        planId = planId,
+        origin = place(originName, 116.39, 39.90),
+        destination = place(destinationName, 116.40, 39.91),
+        commuteMode = CommuteMode.DRIVING,
+        updatedAt = 1L,
+    )
+
+    private fun place(name: String, longitude: Double, latitude: Double) = PlaceRef(
+        name = name,
+        displayAddress = "$name address",
+        longitudeGcj02 = longitude,
+        latitudeGcj02 = latitude,
+        adcode = "110000",
+        citycode = "010",
     )
 
     private fun occurrence(

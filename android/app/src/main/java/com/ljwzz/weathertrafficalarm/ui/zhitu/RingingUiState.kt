@@ -18,6 +18,8 @@ data class RingingUiState(
     val reason: String = "正在确认本次实例状态。",
     val footer: String = "仅操作本次闹钟，不改变其他计划。",
     val snoozeMinutes: Int = 10,
+    /** Detail is available only for an independently armed advance occurrence. */
+    val canOpenAdvanceDetail: Boolean = false,
     val busy: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -58,6 +60,9 @@ fun ringingUiState(
         "SNOOZED" -> if (active) RingingPhase.RINGING else if (child != null) RingingPhase.SNOOZED else RingingPhase.UNAVAILABLE
         else -> RingingPhase.UNAVAILABLE
     }
+    // A snoozed child must never surface the parent advance as a new suggestion.
+    val canOpenAdvanceDetail =
+        phase == RingingPhase.RINGING && isAdvance && !snapshot.decisionId.isNullOrBlank()
     val display = if (phase == RingingPhase.SNOOZED) requireNotNull(child) else snapshot
     val local = Instant.ofEpochMilli(display.triggerAtMillis).atZone(zoneId)
     val time = local.format(DateTimeFormatter.ofPattern("HH:mm", Locale.CHINA))
@@ -99,6 +104,7 @@ fun ringingUiState(
         },
         footer = "由本 App 负责响铃、停止与贪睡。\n仅操作本次闹钟，不改变其他计划。",
         snoozeMinutes = snoozeMinutes,
+        canOpenAdvanceDetail = canOpenAdvanceDetail,
         busy = pendingAction || waitingForService,
         errorMessage = errorMessage,
     )

@@ -2,7 +2,6 @@ package com.ljwzz.weathertrafficalarm.core.data.db.entity
 
 import androidx.room3.ColumnInfo
 import androidx.room3.Entity
-import androidx.room3.ForeignKey
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
@@ -10,14 +9,6 @@ import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 
 @Entity(
     tableName = "alarm_occurrences",
-    foreignKeys = [
-        ForeignKey(
-            entity = AlarmPlanEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["plan_id"],
-            onDelete = ForeignKey.CASCADE,
-        ),
-    ],
     indices = [
         Index("plan_id"),
         Index("target_date"),

@@ -26,6 +26,11 @@ object ZhituColors {
     val Line = Color(0xFFE5ECEE)
     val Amber = Color(0xFFAD661C)
     val AmberBackground = Color(0xFFFFF1DA)
+    val CalendarPrimaryText = Color(0xFF303133)
+    val CalendarRestText = Color(0xFF79BBFF)
+    val CalendarHolidayBackground = Color(0xFFECF5FF)
+    val CalendarWorkdayText = Color(0xFFE6A23C)
+    val CalendarWorkdayBackground = Color(0xFFFDF6EC)
 }
 
 private val LightScheme = lightColorScheme(

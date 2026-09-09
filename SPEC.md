@@ -1,8 +1,8 @@
 # 知途（weather-traffic-alarm）产品与技术规格
 
 - 状态：实施与设计交接基线（本地闹钟优先）
-- 版本：4.4
-- 日期：2026-09-03
+- 版本：4.6
+- 日期：2026-09-07
 - 仓库名：`weather-traffic-alarm`
 - 显示名称：`知途`
 - Android `applicationId` / `namespace`：`com.ljwzz.weathertrafficalarm`
@@ -14,6 +14,8 @@
 > 2026-09-01 高德已接入：Android 已实现首次专项授权、Web Service Key／Android SDK Key的加密运行时存储、输入提示、POI 搜索、地图选点、单次定位、五种路线、最多三条备选、当前路况和计划覆盖。待用户提供两项真实 Key 后完成设备实网验收。`prototype/` 继续使用确定性离线 fixture，不发送请求、不使用真实 Key、不显示坐标。彩云天气的 Android 实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动评估由统一协调器接通路线、工作日和天气，仅在有效成功结果下调整独立提前提醒。
 >
 > 当前 Figma 设计稿决定页面级需求；开发和界面验收参照本地 [`prototype/`](./prototype/) 的页面结构、布局、组件、文案与交互。除非用户明确要求修改，不得自行调整原型或另行设计。非视觉业务与安全规则以本规格为准；两者冲突时先向用户确认。页面和节点见 [`docs/design-handoff.md`](./docs/design-handoff.md)。
+
+> 2026-09-07 设计／原型合并基线：Figma 保留 `01 · 知途设计提案`（[`0:1`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=0-1)）、`02 · 可点击原型`（[`16:180`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=16-180)）和 `03 · 通勤路线方案`（[`79:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=79-600)）作为来源；新增 [`04 · 项目合并版 · 2026-09-07`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) 为本轮可审阅基线。合并页的当前主流程对齐已实现 Android，旧设计的有效未实现目标与必要状态继续保留。节点映射见 [`docs/design-handoff.md`](./docs/design-handoff.md)。第一阶段同步设置与闹钟编辑的 Android 信息组织、计划草稿及必要导航；执行结果与设备证据见 [`设置与编辑验收`](./android/qa/settings-editor-2026-09-07/README.md)。
 
 ## 0. 当前本地闹钟实施基线
 
@@ -67,7 +69,7 @@ enum class AlarmArmedState {
 - 支持多个本地闹钟、单次／每周／工作日规则、启停、删除、停止与贪睡。
 - 新闹钟默认单次 `06:00`；当天时间已过自动选择次日。每周规则至少选择一天；用户指定的过去单次时间无效。
 - 工作日由本地 `WorkdayCalendarRepository` 读取 holiday-cn 缓存并结合每计划每日期覆盖判定；缓存缺失或刷新失败时按星期规则兜底。
-- Figma 的 21 个页面是视觉素材基线；当前 Android 范围为 12 个主页面及路线／日历功能整合，不得将设计素材数等同于原生实现页面数。
+- Figma 的 21 个页面是视觉素材基线；当前 Android 页面及路线／日历、决策详情的实施范围以设计交接清单为准，不得将设计素材数等同于原生实现页面数。
 - 无用户账号；计划、决策与日历缓存全部保存在本机，不上传任何服务端。
 - 首次启动要求用户选择同意高德授权或仅用基础功能；只在用户主动点击“使用当前位置”后，先说明用途再请求前台定位。Android 12 及以上的精确定位请求与粗略定位同次发起，并接受用户只授予粗略定位的结果。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime
 - 保存或启用闹钟按实际能力注册下一次本地实例；注册失败保留失败原因和可重新检查入口。
@@ -390,10 +392,12 @@ weatherWindowEnd: ZonedDateTime?
 evaluationOutcome: SUCCESS | FAILED | STALE | SKIPPED
 failureReason: String?                // 固定脱敏原因代码
 attemptNumber: Int                   // 首次为 0，重试为 1–3
-applicationOutcome: APPLIED | UNCHANGED | CANCELLED | STALE | FAILED
+applicationOutcome: APPLIED | UNCHANGED | CANCELLED | STALE | FAILED | NOT_APPLIED
 preparationMinutes: Int
 defaultWakeAt/actualWakeAt: Instant?
 calendarSource/weatherDataSource: String?
+planName: String?                    // 本次评估快照，旧记录允许缺失
+zoneId: String?                      // 本次计划时区，不从当前配置补填
 fallbackReason: FallbackReason?
 insufficientAdvance: Boolean
 generatedAt: Instant
@@ -705,9 +709,24 @@ ProviderError(
 
 ### 8.0 设计与原型参照
 
-- Figma 旧 21 个页面是视觉素材基线；当前 Android 实现范围为 12 个主页面及其本地路线／日历功能整合，不得据此声称 21 个原生页面已实现。
-- 页面级需求和当前状态以 `docs/design-handoff.md` 的 2026-08-31 本地闹钟状态组、2026-09-02 基础与提前响铃交互状态组及本地 `prototype/` 为准。
+- Figma 旧 21 个页面是视觉素材基线；当前 Android 实现范围以设计交接中的主页面及路线／日历、决策详情清单为准，不得据此声称 21 个原生页面已实现。当前有效的 Figma 页面组织及主流程／目标分界以 `docs/design-handoff.md` 开头的 2026-09-07 基线为准。
+- 页面级需求和当前状态以 `docs/design-handoff.md` 的当前有效基线、稳定追溯状态组及本地 `prototype/` 为准。
 - 开发和界面验收必须参照本地 `prototype/`；未经用户明确要求不得调整原型或另行设计。修改获得确认后，同步更新设计、规格和原型。
+
+#### 8.0A 本轮设置与计划编辑的信息架构
+
+- 设置以通勤路线、日历、凭据、隐私四个入口组织；“闹钟可靠性”作为摘要进入诊断。通知、精确闹钟、全屏提醒和位置等标准系统状态在诊断或首次启用引导中核验；全屏提醒的标准可用性以 Android 平台状态为准：https://source.android.com/docs/core/permissions/fsi-limits
+- 品牌／系统条件项只在诊断或首次启用引导中按设备条件展开。界面必须区分系统已核验、待人工确认和用户已确认；人工确认不能展示为系统核验结果。设置页不平铺每个品牌的专项设置。
+- 当前 Android 的“通知摘要”“锁屏摘要”字段没有接入行为消费者。本阶段已从 Android 与原型设置页移除这两个开关；保留现有持久化字段及历史数据兼容性。
+- “通勤路线”合并地图与常用地点；“隐私”合并隐私说明与地图授权。
+- 设置页顶栏为“设置／闹钟与通勤”，顶部“闹钟可靠性”通过“查看并检查”进入诊断；通勤地点与路线、工作日日历、数据与凭据、隐私与地图授权分别可达。天气预览与闹钟记录保留入口。
+- 三套天气缓冲归入“天气缓冲”折叠组，展开后分别编辑工作日、周末、法定休息日；每套三级均校验 0–60 分钟并单独保存，只更新对应 profile。评估仍按原有日期分类读取三套配置。
+- 计划通勤子页绑定当前 `EditorDraft.planId`；新建草稿生成稳定 ID，但不会仅因进入子页而创建计划。完成通勤配置仅回填整份草稿；子页返回不提交该次修改，闹钟取消丢弃整份草稿，权限诊断和系统设置往返保留草稿。
+- 整份保存继续由 `LocalAlarmCoordinator` 执行。计划及本次通勤覆盖变更在同一数据库事务中提交，不改持久化 schema；未修改覆盖、明确沿用全局、保存专属覆盖分别处理。系统设置跳转不代表授权成功，返回后重新读取真实状态。状态与权限依据：https://developer.android.com/develop/ui/compose/state-hoisting https://developer.android.com/training/permissions/requesting-special
+
+- Android 与原型计划编辑以“通勤与提前提醒”折叠组保留期望到达时间、准备时间、最多提前和计划通勤覆盖。默认收起，以摘要区分全局通勤和本计划覆盖；基础字段与工作日四周预览直接可见。折叠状态仅属于界面状态。日级通勤覆写尚未具备当前 Android 数据模型，保留为设计目标，不能标为已实现。
+- 决策详情、评估失败详情及提前响铃进入本次决策已接入 Android，契约见 8.7C。锁屏通知与胶囊摘要／展开详情继续以设计交接中的目标清单为准。
+- 路线主方案使用合并页节点 [`219:2898`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-2898)，由源节点 [`81:808`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=81-808) 合并；备选和公交方案分别见 [`230:3205`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=230-3205) 与 [`230:3308`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=230-3308)。提前响铃目标见 [`228:3086`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3086)。
 
 ### 8.1 首次启动与隐私引导（页面 18）
 
@@ -761,6 +780,17 @@ ProviderError(
 ### 8.5 工作日日历与单日加班（页面 15–17、20）
 
 - 月历显示 holiday-cn 缓存、周规则兜底和每计划每日期覆盖；刷新采用本地缓存优先和多源回退。
+- 当用户在计划中选择“法定工作日”时，日历预览固定展示上周、本周、下周和下下周；每周按周一至周日排列，共 28 天。预览卡片填充计划编辑内容区，七列等分其内宽度。设计主状态以 `2026-09-03` 为今天，覆盖 `2026-08-24` 至 `2026-09-20`。
+- 日期视觉分类固定如下；“今天”只增加轮廓标记，不替换或覆盖日期原有的文字色与背景色。
+
+| 日期类别 | 判定 | 文字 | 背景 |
+|---|---|---|---|
+| 普通工作日 | 周规则工作日，且未被年度节假日数据标记为调休上班 | `Primary Text`（`#303133`） | 无 |
+| 休息日 | 周规则周末，且未被年度节假日数据标记 | `--el-color-primary-light-3`（`#79bbff`） | 无 |
+| 特殊节假日 | 年度节假日数据中 `isOffDay=true` | `--el-color-primary-light-3`（`#79bbff`） | `--el-color-primary-light-9`（`#ecf5ff`） |
+| 特殊工作日 | 年度节假日数据中 `isOffDay=false` | `--el-color-warning`（`#e6a23c`） | `--el-color-warning-light-9`（`#fdf6ec`） |
+
+- 上述 Element Plus 色值以主题变量定义为准：https://github.com/element-plus/element-plus/blob/dev/packages/theme-chalk/src/common/var.scss 。`2026-09-20` 在该主状态中按特殊工作日显示；2026 年节假日与调休安排以国务院办公厅通知为准：https://big5.www.gov.cn/gate/big5/www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm 。
 - 选中日期后可保存沿用计划、本日停用、本日启用或替代本日时间；保存后立即重算该计划下一次本地实例。
 - 日期覆盖只影响指定计划和日期；撤销覆盖恢复日历判定。
 
@@ -774,6 +804,7 @@ ProviderError(
 
 - 首次安装为空态；记录本地注册、触发、停止、贪睡、错过、取消和异常事件，支持日期及结果筛选。
 - 不显示或导出完整坐标、凭证或铃声 URI。
+- 决策记录可按本次 ID 打开详情；历史快照与当前计划分开，见 8.7C。
 
 ### 8.7A 原型响铃离线演示
 
@@ -788,7 +819,24 @@ ProviderError(
 - 操作按钮在请求处理中禁用；不因发出 PendingIntent 就显示成功或关闭页面。停止需确认终态且该实例已离开服务；贪睡需确认父状态与同计划、同版本的已注册子实例。错误回执只包含静态业务文案。
 - `NextAlarmSnapshot.actionRevision` 与 `actionError` 为向后兼容的动作回执，不保存地点、凭据或 Provider 响铃理由。Direct Boot 继续只读取设备保护存储；回执随现有恢复清理流程收敛。Android 的设备保护存储约束依据 https://developer.android.com/privacy-and-security/direct-boot 。
 - 结果页提供“返回闹钟／关闭”，不注册新的即时重演闹钟。返回计划页前要求解锁；贪睡子实例由系统到点触发，不能以演示按钮代替真实触发。
-- 原型中的提前四态为后续界面参照；没有生产提前实例或可信提前理由时，不向正式原生界面填入固定提前分钟数、天气或通勤数据。
+- 提前响铃从当前 ADVANCE 快照展示真实时间和提前分钟，并提供“查看提前原因”；完整决策进入解锁后的主应用，按 8.7C 关联。贪睡实例展示自己的响铃状态和时间。
+
+### 8.7C 本次决策详情与响铃导航（第二阶段）
+
+- 已接入首页“最近自动评估”、首页相关闹钟的“查看提前摘要”、闹钟列表的最近评估入口，以及历史记录的“查看本次评估”；闹钟卡片仍可进入编辑。三个列表入口绑定所展示记录的 `decisionId`，不在详情中重新选取最新评估。
+- `DecisionDetailRepository` 按 `decisionId` 读取持久化决策。响铃入口携带当前 `occurrenceId`，精确读取实例；贪睡链沿 `parentOccurrenceId` 追溯 ADVANCE 根，核对根实例的 `planId`、`planRevision`、`targetDate` 与 `decisionId`。当前计划版本变化不影响有效历史关联。
+- 决策入口关联当前实例时只考虑属于该决策的 ADVANCE 根；多个根必须由记录的 `actualWakeAt` 唯一定位，否则显示关联不唯一。SNOOZE 时间单独属于当前子实例，不用于改写建议或实际应用时间。缺失、清理、关联不完整显示明确空态，不跳转至其他记录。
+- 决策快照增加可空 `planName`、`zoneId`；新评估在本次输入快照中保存。旧记录缺失字段显示“本次未提供”；已有绝对时刻但缺少原时区时明确用 UTC 展示。不使用当前计划名称、当前天气或路线补历史数据。
+- Room v4→v5 解除决策及实例对计划的删除级联；v5→v6 增加快照名称和时区。删除计划仍由 `LocalAlarmCoordinator` 取消有效实例；保留历史记录和实例身份以供查看。决策继续沿用既有 30 天清理入口。
+- 首页、列表和详情共享 `DecisionDetailUi` 中文映射。详情先展示结论，再显示基础／建议／实际应用时间、出发、通勤、准备、天气等级／缓冲、日期规则；来源与更新时间折叠展示。页面只格式化持久化时刻和时长，不重新计算提前建议。
+- `evaluationOutcome`、`applicationOutcome`、实例当前状态分别呈现。成功评估不等于注册成功；注册失败保留计算结果，单独记录应用失败。新失败／过期／跳过记录用 `NOT_APPLIED` 明确本次没有调度动作；旧记录缺失时不推断。无需提前为正常结果；保留已有提醒不能当作本次新建实例；数据有效期结束只提示时效，不改写历史执行结果。
+- 失败、过期、跳过、注册失败、提前额度不足分别提供结论；原因来自本次 `failureReason`、`fallbackReason`，`attemptNumber > 0` 显示实际重试次数。下一次重试仅显示真实未完成 Work 的时间，且 Work 标签必须绑定当前决策 `decisionId` 及同一计划、版本和目标日期；运行中、无关联或不唯一时不推测时间。
+- 重新评估通过现有 `evaluateNow` 发起当前计划的新任务，返回入队、已有任务或准确拒绝原因。读取当前计划和通勤／授权／凭据条件；缺少日期规则、有效基础实例、计划已删除或停用时明确反馈。页面请求处理中禁用重复点击，调度层保留已有非终态任务；新评估不覆盖正在查看的历史决策。
+- 凭据、地图授权、当前计划通勤编辑和诊断入口返回原详情。打开、返回和重新读取详情只读本地数据；不会触发首页预览、自动地图初始化或 `recover()`。既有后台评估按其独立任务生命周期运行。
+- 响铃页仍只读取设备保护快照与服务活动实例。ADVANCE 正在响铃且具备决策关联时显示“查看提前原因”；解锁取消时仍可停止／贪睡。主应用详情返回原响铃 Activity，不停止服务或调整提醒时间；Direct Boot 快照未加入地点、Provider 内容或凭据。
+- Figma 合并页 `218:2464` 中 `223:3919`、`223:4317`、`228:3086` 已同步，来源页面保留。Web 原型以明确标记的离线记录演示同一关联和往返语义。实现与测试证据见 [第二阶段 QA](android/qa/decision-details-2026-09-07/README.md)。
+
+系统解锁及设备保护存储边界依据（本轮核验）：https://developer.android.com/reference/android/app/KeyguardManager.KeyguardDismissCallback https://developer.android.com/privacy-and-security/direct-boot?authuser=1
 
 ### 8.8 通知摘要与可靠性诊断（页面 08、21）
 

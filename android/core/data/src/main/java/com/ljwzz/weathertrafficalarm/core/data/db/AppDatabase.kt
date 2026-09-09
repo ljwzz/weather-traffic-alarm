@@ -9,6 +9,7 @@ import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmEventDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmOccurrenceDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmPlanDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.PlanCommuteOverrideDao
+import com.ljwzz.weathertrafficalarm.core.data.db.dao.PlanCommuteWriteDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.WorkdayOverrideDao
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmDecisionEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmEventEntity
@@ -26,13 +27,14 @@ import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
         AlarmOccurrenceEntity::class,
         WorkdayOverrideEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = true,
 )
 @ColumnTypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun alarmPlanDao(): AlarmPlanDao
     abstract fun planCommuteOverrideDao(): PlanCommuteOverrideDao
+    abstract fun planCommuteWriteDao(): PlanCommuteWriteDao
     abstract fun alarmDecisionDao(): AlarmDecisionDao
     abstract fun alarmEventDao(): AlarmEventDao
     abstract fun alarmOccurrenceDao(): AlarmOccurrenceDao

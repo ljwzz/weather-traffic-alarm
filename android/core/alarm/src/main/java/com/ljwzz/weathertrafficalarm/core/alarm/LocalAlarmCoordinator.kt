@@ -12,6 +12,7 @@ import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.CommuteOverrideMutation
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
@@ -92,7 +93,7 @@ class LocalAlarmCoordinator @Inject constructor(
 
         if (recommendedAt < regular.scheduledWakeAt - plan.maxAdvanceMinutes * 60_000L) {
             return@withLock persistEvaluationResult(
-                decision, OUTCOME_FAILED, null, EvaluationOutcome.FAILED, regular.scheduledWakeAt,
+                decision, OUTCOME_FAILED, null, defaultWakeAt = regular.scheduledWakeAt,
             )
         }
 
@@ -153,7 +154,7 @@ class LocalAlarmCoordinator @Inject constructor(
             occurrenceRepository.updateState(advance.occurrenceId, OccurrenceState.FAILED.name, now)
             snapshotStore.removeOccurrence(advance.occurrenceId)
             return@withLock persistEvaluationResult(
-                decision, OUTCOME_FAILED, null, EvaluationOutcome.FAILED, regular.scheduledWakeAt,
+                decision, OUTCOME_FAILED, null, defaultWakeAt = regular.scheduledWakeAt,
             )
         }
         when (val result = registration) {
@@ -169,25 +170,32 @@ class LocalAlarmCoordinator @Inject constructor(
                 snapshotStore.removeOccurrence(advance.occurrenceId)
                 eventRepository.record(plan.id, advance.occurrenceId, AlarmEventType.REGISTRATION_FAILED, registrationMessage(result))
                 persistEvaluationResult(
-                    decision, OUTCOME_FAILED, null, EvaluationOutcome.FAILED, regular.scheduledWakeAt,
+                    decision, OUTCOME_FAILED, null, defaultWakeAt = regular.scheduledWakeAt,
                 )
             }
         }
     }
 
-    suspend fun save(plan: AlarmPlan): AlarmPlan = mutex.withLock {
+    suspend fun save(
+        plan: AlarmPlan,
+        commuteOverrideMutation: CommuteOverrideMutation? = null,
+    ): AlarmPlan = mutex.withLock {
         ensureOnceIsNotPast(plan)
+        (commuteOverrideMutation as? CommuteOverrideMutation.Replace)?.let {
+            require(it.override.planId == plan.id) { "commute override must belong to the plan being saved" }
+        }
         val current = planRepository.getById(plan.id)
         if (current?.enabled == true && plan.enabled) {
             return@withLock armCandidate(
                 candidate = plan.copy(revision = current.revision + 1),
                 previous = current,
+                commuteOverrideMutation = commuteOverrideMutation,
             )
         }
         if (current?.enabled == true && !plan.enabled) {
             cancelPlanOccurrences(current, "用户关闭闹钟")
         }
-        val saved = planRepository.save(plan)
+        val saved = planRepository.save(plan, commuteOverrideMutation)
         if (saved.enabled) armNext(saved.id, Instant.now()) else saved
     }
 
@@ -384,7 +392,11 @@ class LocalAlarmCoordinator @Inject constructor(
      * PendingIntent valid. The candidate occurrence can reference the existing
      * plan row while it is staged.
      */
-    private suspend fun armCandidate(candidate: AlarmPlan, previous: AlarmPlan): AlarmPlan {
+    private suspend fun armCandidate(
+        candidate: AlarmPlan,
+        previous: AlarmPlan,
+        commuteOverrideMutation: CommuteOverrideMutation?,
+    ): AlarmPlan {
         if (candidate.schedule == null) {
             return preserveExistingRegistration(previous, "请先选择日期或重复规则")
         }
@@ -417,10 +429,16 @@ class LocalAlarmCoordinator @Inject constructor(
             AlarmRegistrationResult.Registered -> {
                 occurrenceRepository.updateState(staged.occurrenceId, OccurrenceState.SCHEDULED.name, System.currentTimeMillis())
                 snapshotStore.save(stagedSnapshot.copy(occurrenceState = AlarmReceiver.STATE_SCHEDULED))
-                planRepository.update(candidate.copy(armedState = AlarmArmedState.SCHEDULED, scheduleError = null))
+                val committed = candidate.copy(armedState = AlarmArmedState.SCHEDULED, scheduleError = null)
+                try {
+                    planRepository.update(committed, commuteOverrideMutation)
+                } catch (failure: Exception) {
+                    discardUncommittedCandidate(staged)
+                    throw failure
+                }
                 cancelPlanOccurrences(previous, "闹钟已更新", exceptOccurrenceId = staged.occurrenceId)
                 eventRepository.record(candidate.id, staged.occurrenceId, AlarmEventType.REGISTERED, "本地闹钟已更新")
-                candidate.copy(armedState = AlarmArmedState.SCHEDULED, scheduleError = null)
+                committed
             }
             is AlarmRegistrationResult.Rejected -> {
                 occurrenceRepository.updateState(staged.occurrenceId, OccurrenceState.FAILED.name, System.currentTimeMillis())
@@ -684,6 +702,19 @@ class LocalAlarmCoordinator @Inject constructor(
                     context.startService(AlarmRingingService.intent(context, AlarmRingingService.ACTION_DISMISS, it))
                 }
             }
+    }
+
+    /** A registered candidate is invalid until its plan and commute draft commit together. */
+    private suspend fun discardUncommittedCandidate(candidate: AlarmOccurrence) {
+        runCatching { scheduler.cancelOccurrence(candidate.occurrenceId) }
+        runCatching {
+            occurrenceRepository.updateState(
+                candidate.occurrenceId,
+                OccurrenceState.CANCELLED.name,
+                System.currentTimeMillis(),
+            )
+        }
+        runCatching { snapshotStore.removeOccurrence(candidate.occurrenceId) }
     }
 
     private suspend fun completeOneShotIfNeeded(plan: AlarmPlan) {

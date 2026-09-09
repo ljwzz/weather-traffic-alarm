@@ -44,7 +44,7 @@ export function createRingingSession(kind = RINGING_KINDS.EARLY, options = {}) {
     kind,
     phase: RINGING_PHASES.RINGING,
     snoozeMinutes,
-    occurrence: { id: `${kind}:${date}T${time}:00#0`, parentId: null, sequence: 0, date, time },
+    occurrence: { id: `${kind}:${date}T${time}:00#0`, rootOccurrenceId:`${kind}:${date}T${time}:00#0`, decisionId:options.decisionId ?? null, parentId: null, sequence: 0, date, time },
   };
 }
 
@@ -64,6 +64,8 @@ export function snoozeRingingSession(session, minutes = session?.snoozeMinutes) 
     nextOccurrence: {
       id: `${session.occurrence.id}/${next.date}T${next.time}:00#${session.occurrence.sequence + 1}`,
       parentId: session.occurrence.id,
+      rootOccurrenceId: session.occurrence.rootOccurrenceId || session.occurrence.id,
+      decisionId: session.occurrence.decisionId ?? null,
       sequence: session.occurrence.sequence + 1,
       ...next,
     },

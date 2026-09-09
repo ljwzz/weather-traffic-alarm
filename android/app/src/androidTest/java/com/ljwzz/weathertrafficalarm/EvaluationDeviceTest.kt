@@ -4,17 +4,17 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.WorkManager
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
-import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
-import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.evaluation.EvaluationWorkScheduler
+import com.ljwzz.weathertrafficalarm.evaluation.EvaluateNowRejection
+import com.ljwzz.weathertrafficalarm.evaluation.EvaluateNowResult
 import dagger.hilt.android.EntryPointAccessors
 import java.time.Instant
 import java.time.ZoneId
@@ -30,13 +30,13 @@ import org.junit.runner.RunWith
 
 /**
  * Exercises the installed Hilt Worker. AMap consent is disabled only for this
- * test so evaluation fails before any provider request; no real route or
- * weather request is made.
+ * test so the explicit action is rejected before any provider request; no
+ * real route or weather request is made.
  */
 @RunWith(AndroidJUnit4::class)
 class EvaluationDeviceTest {
     @Test
-    fun manualEvaluationRecordsFailureWithoutReplacingTheBaselineOccurrence() = runBlocking {
+    fun manualEvaluationRejectsMissingConsentWithoutReplacingTheBaselineOccurrence() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val deps = EntryPointAccessors.fromApplication(context, DeviceTestDependencies::class.java)
         val originalSettings = deps.settings().loadInitial()
@@ -62,28 +62,16 @@ class EvaluationDeviceTest {
                 ),
             )
 
-            deps.evaluationScheduler().evaluateNow(planId)
-            await {
-                deps.decisions().getByPlanId(planId).any { it.evaluationOutcome == EvaluationOutcome.FAILED }
-            }
+            val result = deps.evaluationScheduler().evaluateNow(planId)
+            assertEquals(EvaluateNowResult.Rejected(EvaluateNowRejection.AMAP_CONSENT_REQUIRED), result)
 
             val after = requireNotNull(deps.occurrences().getById(baseline.occurrenceId))
             assertEquals(baseline.scheduledWakeAt, after.scheduledWakeAt)
             assertEquals(OccurrenceState.SCHEDULED, after.state)
-            assertTrue(deps.decisions().getByPlanId(planId).any { it.evaluationOutcome == EvaluationOutcome.FAILED })
-            await {
-                diagnostics.recentEvents().any {
-                    it.timestamp >= startedAt && it.eventType == DiagnosticEventType.EVALUATION &&
-                        it.resultCode == DiagnosticResultCode.FAILED
-                }
-            }
-            val event = diagnostics.recentEvents().last {
+            assertTrue(deps.decisions().getByPlanId(planId).isEmpty())
+            assertFalse(diagnostics.recentEvents().any {
                 it.timestamp >= startedAt && it.eventType == DiagnosticEventType.EVALUATION
-            }
-            assertTrue(event.planIdHash != null && event.planIdHash != planId)
-            assertTrue(requireNotNull(event.durationMs) >= 0)
-            assertFalse(event.toString().contains("测试起点"))
-            assertFalse(event.toString().contains("116.397"))
+            })
         } finally {
             runCatching {
                 WorkManager.getInstance(context)

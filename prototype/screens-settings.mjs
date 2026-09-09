@@ -1,23 +1,25 @@
-import { AMAP_DEMO_TIPS, AMAP_FIXTURE_STATES, amapFixtureState } from './state.mjs';
-import { DEVICE_TYPES, locationPermissionLabel, missingAlarmDisplayPermissions, xiaomiPermissionLabel } from './permission-state.mjs';
+import { AMAP_DEMO_TIPS, AMAP_FIXTURE_STATES, DAY_KINDS, DEFAULT_WEATHER_BUFFERS, amapFixtureState } from './state.mjs';
+import { missingAlarmDisplayPermissions } from './permission-state.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-export function createSettingsScreens({ asset, state, overlayAction }) {
+export function createSettingsScreens({ state, overlayAction }) {
   const read = () => state();
-  const icon = file => asset(file, '', 'settings-icon');
   const link = (label, route, value = '›') => `<button type="button" class="settings-link" data-route="${route}"><span>${label}</span><b>${value}</b></button>`;
+  const bufferLabels = {
+    [DAY_KINDS.WORKDAY]: '工作日',
+    [DAY_KINDS.WEEKEND]: '周末',
+    [DAY_KINDS.STATUTORY_HOLIDAY]: '法定休息日',
+  };
+  const bufferEditor = (kind, values) => `<section class="settings-buffer-profile"><header><strong>${bufferLabels[kind]}</strong><button type="button" data-action="save-weather-buffer" data-value="${kind}">保存</button></header><div>${['轻度','中度','重度'].map((label, index) => `<label><span>${label}</span><input type="number" min="0" max="60" step="1" inputmode="numeric" data-weather-buffer="${kind}" data-weather-buffer-index="${index}" value="${values[index]}"><small>分钟</small></label>`).join('')}</div></section>`;
   return {
     settings() {
       const { config: c, runtime: r } = read();
-      const toggle = (key, label, note, file) => `<label class="settings-toggle">${icon(file)}<span><b>${label}</b><small>${note}</small></span><input type="checkbox" data-setting="${key}" ${c[key] ? 'checked' : ''}><i></i></label>`;
       const permissionState = r.permissionState;
       const missing = missingAlarmDisplayPermissions(permissionState);
-      const deviceLabel = permissionState.device === DEVICE_TYPES.XIAOMI ? '小米演示' : '通用 Android 演示';
-      const summary = missing.length ? `当前 ${deviceLabel}：${missing.length} 项响铃显示设置未补齐；启用时会提示，仍可继续。` : `当前 ${deviceLabel}：响铃显示设置演示为已补齐。`;
-      const xiaomiLinks = permissionState.device === DEVICE_TYPES.XIAOMI
-        ? `${link('小米锁屏显示','diagnostics',`${xiaomiPermissionLabel(permissionState.xiaomi.lockScreen)} ›`)}${link('小米后台弹出界面','diagnostics',`${xiaomiPermissionLabel(permissionState.xiaomi.backgroundPopup)} ›`)}`
-        : '';
-      return `<div class="settings-page"><section class="settings-summary"><div>${icon('b7256810-29df-4240-b463-4dc964155356.svg')}<h2>本地闹钟</h2><em>Android 负责调度</em></div><p>${summary}</p></section><section class="settings-card"><h2>提醒偏好</h2>${toggle('notificationsEnabled','通知提醒','Android 端实际申请通知权限','207f0477-a230-4d7f-b6cf-941e2c5409ad.svg')}${toggle('lockSummaryEnabled','锁屏摘要','Android 端根据系统能力显示','09d81958-b63a-432d-a2a8-2bdc245f70a8.svg')}</section><section class="settings-card"><div class="settings-card-title"><h2>系统权限</h2><button data-route="diagnostics">查看全部</button></div>${link('通知、精确闹钟与全屏提醒','diagnostics','检查 ›')}${link('位置权限','diagnostics',`${locationPermissionLabel(permissionState.location)} ›`)}${xiaomiLinks}</section><section class="settings-card"><h2>本地数据</h2>${link('常用地点与出行方式','place-search','管理 ›')}${link('工作日日历','calendar','查看 ›')}${link('数据与凭据','credentials','管理 ›')}${link('首次使用说明','onboarding','查看 ›')}</section><p class="settings-note">浏览器原型不读取设备权限、不播放铃声，也不创建系统闹钟。</p></div>`;
+      const summary = missing.length ? `有 ${missing.length} 项设置待检查。` : '设置已完成检查。';
+      const buffers = r.weatherBufferDraft || c.weatherBuffers || DEFAULT_WEATHER_BUFFERS;
+      const weatherBuffers = r.weatherBufferExpanded ? `<div class="settings-buffer-profiles">${Object.keys(bufferLabels).map(kind => bufferEditor(kind, buffers[kind] || DEFAULT_WEATHER_BUFFERS[kind])).join('')}</div>` : '';
+      return `<div class="settings-page"><section class="settings-summary"><h2>闹钟可靠性</h2><p>${summary}</p>${link('查看并检查','diagnostics','›')}</section><section class="settings-card"><h2>通勤与数据</h2>${link('通勤地点与路线','route','管理 ›')}${link('工作日日历','calendar','查看 ›')}${link('数据与凭据','credentials','管理 ›')}<button type="button" class="settings-buffer-summary" data-action="toggle-weather-buffers" aria-expanded="${Boolean(r.weatherBufferExpanded)}"><span><strong>天气缓冲</strong><small>工作日、周末、法定休息日分别配置</small></span><b>${r.weatherBufferExpanded ? '收起' : '编辑'} ›</b></button>${weatherBuffers}</section><section class="settings-card"><h2>隐私</h2>${link('隐私与地图授权','onboarding','查看 ›')}</section></div>`;
     },
     'place-search'() {
       const { config: c, runtime: r } = read(); const query = r.placeQuery || ''; const fixture = amapFixtureState(r.credentials, r.amapFixture || AMAP_FIXTURE_STATES.SUCCESS); const results = fixture === AMAP_FIXTURE_STATES.SUCCESS ? [...AMAP_DEMO_TIPS, ...(c.favorites || [])].filter(place => !query || `${place.name}${place.address}`.includes(query)) : (c.favorites || []).filter(place => !query || `${place.name}${place.address}`.includes(query)); const selected = r.selectedPlace;

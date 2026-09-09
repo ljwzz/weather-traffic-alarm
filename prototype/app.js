@@ -1,5 +1,5 @@
 /* Local interaction prototype. Android owns alarm registration, ringing and permissions. */
-import { AMAP_DEMO_TIPS, CAIYUN_FIXTURE_STATES, EVALUATION_FIXTURE_STATES, HOME_PREVIEW_REFRESH_WINDOWS, HOME_PREVIEW_STATES, applyHomePreviewResponse, createDefaultState, createEvaluationFixture, createHomePreviewState, defaultAlarmDraft, evaluationFixtureHistory, homePreviewInputSignature, homePreviewIsFresh, homePreviewPrerequisite, loadSettings, nextAlarmOccurrence, persistSettings, REPEAT_KINDS, routePreviewResult, todayIso, validateAlarmPlan, weatherPreviewResult } from './state.mjs';
+import { AMAP_DEMO_TIPS, CAIYUN_FIXTURE_STATES, EVALUATION_FIXTURE_STATES, HOME_PREVIEW_REFRESH_WINDOWS, HOME_PREVIEW_STATES, applyHomePreviewResponse, createDefaultState, createEvaluationFixture, createHomePreviewState, decisionRecordFromEvaluation, defaultAlarmDraft, evaluationFixtureHistory, homePreviewInputSignature, homePreviewIsFresh, homePreviewPrerequisite, loadSettings, nextAlarmOccurrence, persistSettings, REPEAT_KINDS, routePreviewResult, saveWeatherBufferProfile, todayIso, validateAlarmPlan, weatherPreviewResult } from './state.mjs';
 import { createTravelScreens } from './screens-travel.mjs';
 import { createAlarmScreens } from './screens-alarm.mjs';
 import { createSettingsScreens } from './screens-settings.mjs';
@@ -11,10 +11,15 @@ import { createPermissionScreens } from './screens-permissions.mjs';
 
 const STORAGE_KEY = 'zhitu-prototype-config-v3';
 const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','lock','island','island-expand','ringing','ringing-basic','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
-const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['我的通勤','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['提前计算',''], settings:['通知与保障',''], history:['本机记录',''], failure:['评估状态',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['可靠性诊断',''], 'place-search':['选择地点',''] };
+const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['我的通勤','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['本次决策',''], settings:['设置','闹钟与通勤'], history:['决策与本机记录',''], failure:['评估详情',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['可靠性诊断',''], 'place-search':['选择地点',''] };
 const BACK = { weather:'home', route:'home', 'route-edit':'route', 'plan-edit':'plans', why:'home', history:'plans', failure:'plans', rest:'plans', 'overtime-select':'plans', 'overtime-active':'plans', onboarding:'home', credentials:'settings', calendar:'plan-edit', diagnostics:'settings', 'place-search':'route-edit', lock:'settings', island:'settings', 'island-expand':'island', ringing:'plans', 'ringing-basic':'plans' };
 const NAV = [['home','今日','bea94e9a-63d6-46a2-be51-c2a550277636.svg'],['route','路线','91c986c2-5c7e-4908-a9ea-11f77f84ba30.svg'],['plans','闹钟','1ae38d70-e6a0-416f-85d1-71545f1256bf.svg'],['settings','设置','7b9895bd-a3db-41ea-b369-eb67fda8373d.svg']];
 const RINGING_ROUTES = new Set(['ringing', 'ringing-basic']);
+function createRingingFixtureSession(kind) {
+  const session = createRingingSession(kind);
+  if (kind === RINGING_KINDS.EARLY) session.occurrence.decisionId = 'decision-fixture-work-advanced';
+  return session;
+}
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const clone = value => structuredClone(value);
 const action = (label, route, extra = '') => `<button type="button" class="prototype-button" data-route="${route}" ${extra}>${esc(label)}</button>`;
@@ -22,12 +27,19 @@ const overlayAction = (label, name, value = '') => `<button type="button" class=
 const asset = (file, alt = '', className = '') => `<img class="${className}" src="./assets/figma-svg/${file}" alt="${esc(alt)}">`;
 
 function defaults() {
-  return { ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], notificationsEnabled:true, lockSummaryEnabled:true, onboardingDone:false };
+  return { ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], onboardingDone:false };
+}
+function demoDecisionRecords() {
+  const plan = { id:'fixture-work', name:'上班闹钟（fixture）', time:'07:30', preparationMinutes:25, estimatedDepartureTime:'08:03', revision:'fixture-r1' };
+  return evaluationFixtureHistory(plan).map(item => item.state === EVALUATION_FIXTURE_STATES.ADVANCED
+    ? { ...item, title:'提前 12 分钟', inputs:{ ...item.inputs, preparationMinutes:25, estimatedDepartureTime:'08:03' }, schedule:{ ...item.schedule, earlyWake:'07:18', actualWake:'07:18' }, occurrence:{ id:'early:2026-09-02T07:18:00#0', planId:'fixture-work', planRevision:'fixture-r1', kind:'ADVANCE', state:'RINGING', parentId:null } }
+    : item);
 }
 function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults()); } catch { return defaults(); } }
 let config = load();
 function createRuntime() {
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  const decisionRecords = demoDecisionRecords();
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, evaluationSubmitting:false, decisionRecords, selectedDecisionId:null, selectedOccurrenceId:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, commuteSettingsExpanded:false, weatherBufferExpanded:false, weatherBufferDraft:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, ringingDetailOpen:false, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -55,7 +67,19 @@ function evaluationRun(fixture = runtime.evaluationFixture) {
     plan:selectedEvaluationPlan(),
     transport:config.selectedTransport,
     selectedRouteIndex:runtime.selectedRouteIndex,
+    weatherBuffers:config.weatherBuffers,
   });
+}
+function appendDecision(run, plan = selectedEvaluationPlan()) {
+  const decisionId = `decision-${plan.id}-${run.fixture}-${Date.now()}`;
+  const record = decisionRecordFromEvaluation(run, plan, { decisionId });
+  runtime.decisionRecords = [record, ...(runtime.decisionRecords || [])];
+  return record;
+}
+function openDecision(decisionId) {
+  const item = decisionRecord(decisionId);
+  const route = [EVALUATION_FIXTURE_STATES.RETRY, EVALUATION_FIXTURE_STATES.REGISTRATION_FAILED, EVALUATION_FIXTURE_STATES.INSUFFICIENT_ADVANCE, EVALUATION_FIXTURE_STATES.DEADLINE, EVALUATION_FIXTURE_STATES.SKIPPED, EVALUATION_FIXTURE_STATES.EXPIRED].includes(item?.state) ? 'failure' : 'why';
+  return navigate(item ? `${route}?decisionId=${encodeURIComponent(decisionId)}` : route);
 }
 function invalidateHomePreviews() {
   for (const kind of ['weather', 'route']) {
@@ -118,7 +142,8 @@ function refreshHomePreview({ force = false, kind = null } = {}) {
     }, 160);
   }
 }
-function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; const evaluationPlan = selectedEvaluationPlan(); return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null, evaluationPlan:clone(evaluationPlan), evaluationPlans:clone(evaluationPlans()), evaluationRun:runtime.evaluationRun ? clone(runtime.evaluationRun) : null, evaluationHistory:evaluationFixtureHistory(evaluationPlan) }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
+function decisionRecord(decisionId = runtime.selectedDecisionId) { return (runtime.decisionRecords || []).find(item => item.decisionId === decisionId) || null; }
+function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; const evaluationPlan = selectedEvaluationPlan(); return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null, evaluationPlan:clone(evaluationPlan), evaluationPlans:clone(evaluationPlans()), evaluationRun:runtime.evaluationRun ? clone(runtime.evaluationRun) : null, evaluationHistory:clone(runtime.decisionRecords || []), selectedDecision:clone(decisionRecord()) }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
 const travel = createTravelScreens({ action, overlayAction, asset, state });
 const alarms = createAlarmScreens({ action, overlayAction, asset, state });
 const settings = createSettingsScreens({ asset, state, overlayAction });
@@ -129,8 +154,16 @@ const permissions = createPermissionScreens({ state, overlayAction });
 function notice(message) { runtime.notice = message; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { runtime.notice = ''; render(); }, 3200); }
 function closeOverlay() { runtime.overlay = null; runtime.overrideDraftTime = ''; }
 function enterRouteDraft() { if (!runtime.routeDraft) runtime.routeDraft = clone(config); }
-function navigate(route, { replace = false, fromHistory = false } = {}) {
+function routeName(target) { return String(target || '').split('?')[0]; }
+function navigate(target, { replace = false, fromHistory = false } = {}) {
+  const [route, query = ''] = String(target || '').split('?');
   if (!ROUTES.includes(route)) return;
+  const params = new URLSearchParams(query);
+  if (route === 'why' || route === 'failure') {
+    const decisionId = params.get('decisionId');
+    runtime.selectedDecisionId = decisionId && runtime.decisionRecords.some(item => item.decisionId === decisionId) ? decisionId : null;
+    runtime.selectedOccurrenceId = params.get('occurrenceId') || null;
+  }
   const old = runtime.route;
   const preservesPermissionFlow = old === 'plan-edit' && route === 'diagnostics' && runtime.permissionFlow;
   const resumesPermissionFlow = old === 'diagnostics' && route === runtime.permissionFlow?.originRoute;
@@ -139,11 +172,18 @@ function navigate(route, { replace = false, fromHistory = false } = {}) {
   if (runtime.locationRequest && route !== runtime.locationRequest.route) runtime.locationRequest = null;
   if (old === 'plan-edit' && !['calendar','route-edit','place-search'].includes(route) && !preservesPermissionFlow) { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
   if (old === 'route-edit' && route !== 'place-search' && runtime.routeScope !== 'plan') runtime.routeDraft = null;
+  if (old === 'route-edit' && route === 'plan-edit' && runtime.routeScope === 'plan') { runtime.routeScope = 'global'; runtime.routeDraft = null; }
   if ((route === 'route-edit' || route === 'place-search') && runtime.routeScope !== 'plan') enterRouteDraft();
+  const preservesRingingSession = old === 'ringing' && route === 'why' && runtime.ringingDetailOpen;
+  const returnsToRingingSession = old === 'why' && (route === 'ringing' || route === 'ringing-basic') && runtime.ringingDetailOpen;
   if (route === 'ringing' || route === 'ringing-basic') {
     const kind = route === 'ringing-basic' ? RINGING_KINDS.BASIC : RINGING_KINDS.EARLY;
-    if (old !== route || !runtime.ringingSession) runtime.ringingSession = createRingingSession(kind);
-  } else if (old === 'ringing' || old === 'ringing-basic') runtime.ringingSession = null;
+    if (old !== route || !runtime.ringingSession) {
+      if (!runtime.ringingSession) runtime.ringingSession = createRingingFixtureSession(kind);
+    }
+    if (returnsToRingingSession) runtime.ringingDetailOpen = false;
+  } else if ((old === 'ringing' || old === 'ringing-basic') && !preservesRingingSession) runtime.ringingSession = null;
+  else if (runtime.ringingDetailOpen && old === 'why' && route !== 'why') { runtime.ringingSession = null; runtime.ringingDetailOpen = false; }
   if (!replace && old !== route) runtime.history.push(old);
   runtime.route = route; closeOverlay();
   if (resumesPermissionFlow) runtime.overlay = 'permission-guide';
@@ -151,7 +191,7 @@ function navigate(route, { replace = false, fromHistory = false } = {}) {
   if (route === 'home') refreshHomePreview();
   if (route === 'weather') syncHomePreviewPrerequisites('weather');
   if (route === 'route') syncHomePreviewPrerequisites('route');
-  if (!fromHistory) history[replace ? 'replaceState' : 'pushState'](null, '', `#/${route}`);
+  if (!fromHistory) history[replace ? 'replaceState' : 'pushState'](null, '', `#/${route}${query ? `?${query}` : ''}`);
   render();
 }
 function back() { if (runtime.overlay) { closeOverlay(); render(); return; } if (runtime.route === 'plan-edit') { navigate('plans', { replace:true }); return; } const previous = runtime.history.pop(); navigate(previous || BACK[runtime.route] || 'home', { replace:true }); }
@@ -246,24 +286,34 @@ function handleClick(event) {
     if (op === 'ringing-stop') { runtime.ringingSession = stopRingingSession(runtime.ringingSession); render(); return; }
     if (op === 'ringing-snooze') { runtime.ringingSession = snoozeRingingSession(runtime.ringingSession); render(); return; }
     if (op === 'ringing-again') { runtime.ringingSession = ringSnoozedSession(runtime.ringingSession); render(); return; }
-    if (op === 'ringing-replay') { const kind = runtime.route === 'ringing-basic' ? RINGING_KINDS.BASIC : RINGING_KINDS.EARLY; runtime.ringingSession = createRingingSession(kind); render(); return; }
+    if (op === 'ringing-replay') { const kind = runtime.route === 'ringing-basic' ? RINGING_KINDS.BASIC : RINGING_KINDS.EARLY; runtime.ringingSession = createRingingFixtureSession(kind); render(); return; }
     if (op === 'ringing-return') return navigate('plans');
+    if (op === 'ringing-view-reason') {
+      const occurrence = runtime.ringingSession?.occurrence;
+      const rootOccurrenceId = occurrence?.rootOccurrenceId || occurrence?.id;
+      const item = (runtime.decisionRecords || []).find(record => record.occurrence?.id === rootOccurrenceId && record.decisionId === occurrence?.decisionId);
+      runtime.ringingDetailOpen = true;
+      return navigate(item ? `why?decisionId=${encodeURIComponent(item.decisionId)}&occurrenceId=${encodeURIComponent(occurrence?.id || '')}` : 'why');
+    }
     if (op === 'close-overlay') { closeOverlay(); render(); return; }
     if (op === 'overlay') return openOverlay(value);
-    if (op === 'new-alarm') { runtime.alarmDraft = defaultAlarmDraft(); runtime.editingAlarmId = null; return navigate('plan-edit'); }
-    if (op === 'edit-alarm') { const plan = config.alarmPlans.find(item => item.id === value); if (!plan) throw Error('闹钟不存在。'); runtime.alarmDraft = clone(plan); runtime.editingAlarmId = value; return navigate('plan-edit'); }
+    if (op === 'new-alarm') { runtime.alarmDraft = defaultAlarmDraft(); runtime.editingAlarmId = null; runtime.commuteSettingsExpanded = false; return navigate('plan-edit'); }
+    if (op === 'edit-alarm') { const plan = config.alarmPlans.find(item => item.id === value); if (!plan) throw Error('闹钟不存在。'); runtime.alarmDraft = clone(plan); runtime.editingAlarmId = value; runtime.commuteSettingsExpanded = false; return navigate('plan-edit'); }
     if (op === 'save-alarm') return requestSaveAlarm();
     if (op === 'delete-alarm') { config.alarmPlans = config.alarmPlans.filter(plan => plan.id !== value); record('stopped', '已删除闹钟'); persist(); runtime.alarmDraft = null; notice('闹钟已删除。'); return navigate('plans', { replace:true }); }
     if (op === 'toggle-alarm') return;
     if (op === 'select-repeat') { const plan = alarmDraft(); plan.repeat = value === REPEAT_KINDS.ONCE ? { kind:value, date:todayIso() } : value === REPEAT_KINDS.WEEKLY ? { kind:value, weekdays:[1,2,3,4,5] } : { kind:value }; render(); return; }
+    if (op === 'toggle-commute-settings') { runtime.commuteSettingsExpanded = !runtime.commuteSettingsExpanded; render(); return; }
+    if (op === 'toggle-weather-buffers') { runtime.weatherBufferExpanded = !runtime.weatherBufferExpanded; if (runtime.weatherBufferExpanded && !runtime.weatherBufferDraft) runtime.weatherBufferDraft = clone(config.weatherBuffers); render(); return; }
+    if (op === 'save-weather-buffer') { const profile = runtime.weatherBufferDraft?.[value]; if (!profile) throw Error('天气缓冲草稿不存在。'); config = saveWeatherBufferProfile(config, value, profile); runtime.weatherBufferDraft = clone(config.weatherBuffers); persist(); notice('天气缓冲已保存。'); render(); return; }
     if (op === 'toggle-weekday') { const plan = alarmDraft(); const day = Number(value); const days = new Set(plan.repeat.weekdays || []); days.has(day) ? days.delete(day) : days.add(day); plan.repeat.weekdays = [...days].sort(); render(); return; }
     if (['save-overlay-time','save-overlay-snooze','save-overlay-arrival','save-overlay-preparation','save-overlay-max-advance','save-overlay-sound'].includes(op)) { closeOverlay(); render(); return; }
     if (op === 'open-calendar') { runtime.calendarPlanId = alarmDraft().id; runtime.dateOverridesDraft = clone(config.dateOverrides || {}); return navigate('calendar'); }
     if (op === 'calendar-previous') return changeMonth(-1);
     if (op === 'calendar-next') return changeMonth(1);
     if (op === 'select-calendar-date') { runtime.selectedDate = value; render(); return; }
-    if (op === 'set-date-override') { const plan = config.alarmPlans.find(item => item.id === runtime.calendarPlanId) || alarmDraft(); const key = `${plan.id}:${runtime.selectedDate}`; const overrides = runtime.dateOverridesDraft || (runtime.dateOverridesDraft = clone(config.dateOverrides || {})); if (value === 'inherit') delete overrides[key]; else overrides[key] = value === 'off' ? { enabled:false } : { enabled:true }; render(); return; }
-    if (op === 'save-override-time') { const plan = config.alarmPlans.find(item => item.id === runtime.calendarPlanId) || alarmDraft(); const key = `${plan.id}:${runtime.selectedDate}`; const overrides = runtime.dateOverridesDraft || (runtime.dateOverridesDraft = clone(config.dateOverrides || {})); overrides[key] = { ...(overrides[key] || { enabled:true }), time:runtime.overrideDraftTime || plan.time }; closeOverlay(); render(); return; }
+    if (op === 'set-date-override') { const plan = alarmDraft(); if (plan.id !== runtime.calendarPlanId) throw Error('日期覆盖未绑定当前闹钟草稿。'); const key = `${plan.id}:${runtime.selectedDate}`; const overrides = runtime.dateOverridesDraft || (runtime.dateOverridesDraft = clone(config.dateOverrides || {})); if (value === 'inherit') delete overrides[key]; else overrides[key] = value === 'off' ? { enabled:false } : { enabled:true }; render(); return; }
+    if (op === 'save-override-time') { const plan = alarmDraft(); if (plan.id !== runtime.calendarPlanId) throw Error('日期覆盖未绑定当前闹钟草稿。'); const key = `${plan.id}:${runtime.selectedDate}`; const overrides = runtime.dateOverridesDraft || (runtime.dateOverridesDraft = clone(config.dateOverrides || {})); overrides[key] = { ...(overrides[key] || { enabled:true }), time:runtime.overrideDraftTime || plan.time }; closeOverlay(); render(); return; }
     if (op === 'save-calendar') return navigate('plan-edit', { replace:true });
     if (op === 'history-filter') { runtime.historyFilter = value; closeOverlay(); render(); return; }
     if (op === 'select-evaluation-plan') {
@@ -281,7 +331,12 @@ function handleClick(event) {
       return;
     }
     if (op === 'evaluate-now') {
+      if (runtime.evaluationSubmitting) return;
+      runtime.evaluationSubmitting = true;
       runtime.evaluationRun = evaluationRun();
+      const decision = appendDecision(runtime.evaluationRun);
+      runtime.selectedDecisionId = decision.decisionId;
+      queueMicrotask(() => { runtime.evaluationSubmitting = false; render(); });
       notice(`已生成“${runtime.evaluationRun.title}”离线评估结果。`);
       render();
       return;
@@ -289,16 +344,33 @@ function handleClick(event) {
     if (op === 'evaluate-plan') {
       if (!evaluationPlans().some(plan => plan.id === value)) throw Error('评估计划不存在。');
       runtime.selectedEvaluationPlanId = value;
+      if (runtime.evaluationSubmitting) return;
+      runtime.evaluationSubmitting = true;
       runtime.evaluationRun = evaluationRun();
+      const decision = appendDecision(runtime.evaluationRun);
+      runtime.selectedDecisionId = decision.decisionId;
+      queueMicrotask(() => { runtime.evaluationSubmitting = false; render(); });
       notice(`已生成“${runtime.evaluationRun.title}”离线评估结果。`);
       render();
       return;
     }
-    if (op === 'select-evaluation-history') {
-      const item = evaluationFixtureHistory(selectedEvaluationPlan()).find(record => record.id === value);
-      if (!item) throw Error('评估记录不存在。');
-      runtime.evaluationRun = item;
-      return navigate('why');
+    if (op === 'open-decision') return openDecision(value);
+    if (op === 'open-current-decision') return openDecision(runtime.selectedDecisionId);
+    if (op === 're-evaluate-decision') {
+      const historical = decisionRecord();
+      const plan = config.alarmPlans.find(item => item.id === historical?.planId);
+      if (!historical) throw Error('本次决策记录不可用。');
+      if (!plan) throw Error('该计划已删除，无法重新评估。');
+      if (!plan.enabled) throw Error('该计划已停用，无法重新评估。');
+      if (runtime.evaluationSubmitting) return;
+      runtime.evaluationSubmitting = true;
+      const run = createEvaluationFixture({ fixture:runtime.evaluationFixture, plan, transport:config.selectedTransport, selectedRouteIndex:runtime.selectedRouteIndex, weatherBuffers:config.weatherBuffers });
+      runtime.evaluationRun = run;
+      appendDecision(run, plan);
+      queueMicrotask(() => { runtime.evaluationSubmitting = false; render(); });
+      notice('已针对当前有效计划生成新的离线评估；正在查看的历史记录未改写。');
+      render();
+      return;
     }
     if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); config.commuteRevision = (config.commuteRevision || 0) + 1; runtime.routeDraft = null; invalidateHomePreviews(); persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
     if (op === 'mode') { activeCommute().selectedTransport = value; runtime.selectedRouteIndex = 0; render(); return; }
@@ -309,7 +381,7 @@ function handleClick(event) {
     if (op === 'add-favorite') { runtime.favoriteDraft = { id:`place-${Date.now()}`, name:'', address:'', description:'本机文字地点' }; runtime.overlay = 'favorite'; render(); return; }
     if (op === 'save-favorite') { const place = runtime.favoriteDraft; if (!place?.name?.trim() || !place?.address?.trim()) throw Error('请填写名称和地址文字。'); currentConfig().favorites.push(clone(place)); runtime.favoriteDraft = null; closeOverlay(); render(); return; }
     if (op === 'amap-consent') { config.amapConsent = value === 'approved' ? 'approved' : 'basic'; config.onboardingDone = true; persist(); notice(value === 'approved' ? '已同意高德授权；可配置运行时 Key。' : '仅使用基础功能；高德地图保持未初始化。'); return navigate(value === 'approved' ? 'credentials' : 'home', { replace:true }); }
-    if (op === 'edit-plan-commute') { const plan = alarmDraft(); plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport }; runtime.routeScope = 'plan'; return navigate('route-edit'); }
+    if (op === 'edit-plan-commute') { const plan = alarmDraft(); if (!plan.commuteOverride?.enabled) plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport }; runtime.routeScope = 'plan'; return navigate('route-edit'); }
     if (op === 'use-global-commute') { alarmDraft().commuteOverride = { enabled:false }; render(); return; }
     if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
     if (op === 'locate-once') return requestCurrentLocation();
@@ -383,6 +455,7 @@ function handleInput(event) {
   const target = event.target;
   if (target.dataset.credential) { runtime.credentials[target.dataset.credential] = target.value; return; }
   if (target.dataset.alarmField) { const plan = alarmDraft(); const field = target.dataset.alarmField; if (field === 'date') plan.repeat.date = target.value; else plan[field] = target.value; return; }
+  if (target.dataset.weatherBuffer) { const profile = runtime.weatherBufferDraft?.[target.dataset.weatherBuffer]; const index = Number(target.dataset.weatherBufferIndex); if (!profile || !Number.isInteger(index) || index < 0 || index > 2) return; profile[index] = target.value.trim() === '' ? NaN : Number(target.value); return; }
   if (target.dataset.overlayField) { const plan = alarmDraft(); const field = target.dataset.overlayField; if (field === 'overrideTime') runtime.overrideDraftTime = target.value; else if (field === 'vibration') plan.vibration = target.checked; else plan[field] = ['snoozeMinutes','preparationMinutes','maxAdvanceMinutes'].includes(field) ? Number(target.value) : target.value; return; }
   if (target.dataset.favoriteField) { runtime.favoriteDraft[target.dataset.favoriteField] = target.value; return; }
   if (target.dataset.field === 'placeQuery') { runtime.placeQuery = target.value; render(); return; }
@@ -390,7 +463,6 @@ function handleInput(event) {
 function handleChange(event) {
   const target = event.target;
   if (target.dataset.action === 'toggle-alarm') return requestToggleAlarm(target.dataset.value, target.checked);
-  if (target.dataset.setting) { config[target.dataset.setting] = target.checked; persist(); render(); }
   if (target.dataset.amapFixture) { runtime.amapFixture = target.value; render(); }
   if (target.dataset.caiyunFixture) { runtime.caiyunFixture = target.value; invalidateHomePreviews(); render(); }
   if (target.dataset.routeFixture) { runtime.routeFixture = target.value; invalidateHomePreviews(); render(); }
@@ -452,5 +524,6 @@ function setDiagnosticFixture(fixture = 'records') {
   if (runtime.route === 'diagnostics') render();
 }
 window.ZhituPrototype = { ROUTES, navigate, reset, refreshHomePreview:() => { refreshHomePreview({ force:true }); render(); }, setHomePreviewFixture, setDiagnosticFixture, homePreview:() => clone(runtime.homePreview) };
-navigate(config.onboardingDone && ROUTES.includes(location.hash.replace(/^#\/?/, '')) ? location.hash.replace(/^#\/?/, '') : (config.onboardingDone ? 'home' : 'onboarding'), { replace:true });
+const initialTarget = location.hash.replace(/^#\/?/, '');
+navigate(config.onboardingDone && ROUTES.includes(routeName(initialTarget)) ? initialTarget : (config.onboardingDone ? 'home' : 'onboarding'), { replace:true });
 document.fonts.ready.then(() => { document.getElementById('render-status').textContent = '412 × 892 · 本地设计字体已加载'; });

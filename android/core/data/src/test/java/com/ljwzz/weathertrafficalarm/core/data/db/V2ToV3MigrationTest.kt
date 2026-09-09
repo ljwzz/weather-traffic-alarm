@@ -30,6 +30,8 @@ class V2ToV3MigrationTest {
         db = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .addMigrations(AppDatabaseMigrations.V2_TO_V3)
             .addMigrations(AppDatabaseMigrations.V3_TO_V4)
+            .addMigrations(AppDatabaseMigrations.V4_TO_V5)
+            .addMigrations(AppDatabaseMigrations.V5_TO_V6)
             .build()
     }
 
@@ -60,6 +62,8 @@ class V2ToV3MigrationTest {
 
         db.alarmPlanDao().deleteById("plan-v2")
         assertNull(db.planCommuteOverrideDao().getByPlanId("plan-v2"))
+        assertEquals(1, db.alarmDecisionDao().getByPlanId("plan-v2").size)
+        assertNotNull(db.alarmOccurrenceDao().getById("occurrence-v2"))
     }
 
     private fun createV2Fixture() {
@@ -103,6 +107,10 @@ class V2ToV3MigrationTest {
             sqlite.execSQL(
                 "INSERT INTO alarm_decisions (decision_id, plan_id, plan_revision, target_date, workday_status, estimated_departure_at, commute_seconds, weather_severity, weather_buffer_minutes, recommended_wake_at, route_provider, route_provider_report_time, weather_provider, weather_provider_report_time, weather_window_start, weather_window_end, fallback_reason, insufficient_advance, generated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arrayOf<Any?>("decision-v2", "plan-v2", 4, "2026-09-03", "WORKDAY", null, null, 0, 0, "2026-09-03T06:30", null, null, null, null, null, null, "NONE", 0, 1_000L, 2_000L),
+            )
+            sqlite.execSQL(
+                "INSERT INTO alarm_occurrences (occurrence_id, plan_id, plan_revision, target_date, scheduled_wake_at, state, decision_id, kind, parent_occurrence_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>("occurrence-v2", "plan-v2", 4, "2026-09-03", 2_000L, "SCHEDULED", "decision-v2", "ADVANCE", null, 2_000L),
             )
         }
     }

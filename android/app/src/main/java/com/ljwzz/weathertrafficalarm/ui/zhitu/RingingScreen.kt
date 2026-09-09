@@ -30,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +80,7 @@ fun RingingScreen(
     onSnooze: () -> Unit,
     onOpenPlans: () -> Unit,
     onClose: () -> Unit,
+    onOpenAdvanceDetail: () -> Unit = {},
 ) {
     val isRingingAction = state.phase == RingingPhase.RINGING
     val scrollState = rememberScrollState()
@@ -104,6 +106,22 @@ fun RingingScreen(
             Spacer(Modifier.height(30.dp))
             RingingTimeBlock(state)
             RingingReasonCard(state)
+            if (state.canOpenAdvanceDetail) {
+                TextButton(
+                    onClick = onOpenAdvanceDetail,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("ringing_open_advance_detail"),
+                ) {
+                    Text(
+                        text = "查看提前原因",
+                        color = RingingWhite,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
             Spacer(Modifier.height(104.dp))
             RingingActions(
                 state = state,

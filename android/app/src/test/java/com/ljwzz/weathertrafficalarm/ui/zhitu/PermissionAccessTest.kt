@@ -4,6 +4,47 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PermissionAccessTest {
+    @Test
+    fun `reliability summary combines system checks and only applicable manual checks`() {
+        val generic = PermissionSnapshot(
+            notificationRuntimeGranted = false,
+            notificationsAvailable = true,
+            alarmChannelAvailable = true,
+            exactAlarmAvailable = true,
+            fullScreenIntentAvailable = false,
+            isXiaomi = false,
+            location = LocationPermissionSnapshot(false, false, true),
+        )
+        val xiaomi = generic.copy(notificationRuntimeGranted = true, isXiaomi = true)
+
+        assertEquals(listOf("通知权限", "全屏提醒"), generic.alarmReliabilitySummary(emptySet()).missing)
+        assertEquals("有 2 项设置待检查。", generic.alarmReliabilitySummary(emptySet()).label)
+        assertEquals(
+            listOf("全屏提醒", "锁屏显示", "后台弹出界面"),
+            xiaomi.alarmReliabilitySummary(emptySet()).missing,
+        )
+        assertEquals(
+            listOf("全屏提醒"),
+            xiaomi.alarmReliabilitySummary(XiaomiDisplayPermission.entries.toSet()).missing,
+        )
+    }
+
+    @Test
+    fun `notification diagnostic status requires runtime permission as well as app and channel state`() {
+        val snapshot = PermissionSnapshot(
+            notificationRuntimeGranted = false,
+            notificationsAvailable = true,
+            alarmChannelAvailable = true,
+            exactAlarmAvailable = true,
+            fullScreenIntentAvailable = true,
+            isXiaomi = false,
+            location = LocationPermissionSnapshot(false, false, true),
+        )
+
+        assertEquals("未补齐（通知运行时权限）", snapshot.notificationStatusLabel())
+        assertEquals("已开启", snapshot.copy(notificationRuntimeGranted = true).notificationStatusLabel())
+    }
+
     @Test fun directSettingsSuccessDoesNotLaunchFallback() {
         val attempts = mutableListOf<PermissionSetting>()
         val result = launchPermissionSetting(PermissionSetting.FullScreenIntent) { attempts += it; true }

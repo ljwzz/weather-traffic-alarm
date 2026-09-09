@@ -308,7 +308,7 @@ fun LocalRouteScreen(
                 }
             }
             onConfigurePlan?.let { configure ->
-                item { LocalCard { Text("已保存计划", fontWeight = FontWeight.Bold, color = ZhituColors.Ink); Spacer(Modifier.height(6.dp)); Text("默认使用全局通勤；可为单个计划设置专属起点、终点和方式。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall); TextButton(onClick = configure) { Text("配置专属通勤") } } }
+                item { LocalCard { Text("已保存计划", fontWeight = FontWeight.Bold, color = ZhituColors.Ink); Spacer(Modifier.height(6.dp)); Text("默认使用全局通勤；可为单个计划设置专属起点、终点和方式。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall); TextButton(onClick = configure) { Text("选择闹钟并配置") } } }
             }
             feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }
         }
@@ -642,11 +642,10 @@ private fun Context.openSettings(intent: Intent): Boolean =
 /** A plan-specific draft; it never writes global preferences. */
 @Composable
 fun PlanCommuteScreen(
-    plans: List<AlarmPlan>,
+    planName: String,
     editor: PlanCommuteEditorState,
     mapStatus: MapStatus,
     onBack: () -> Unit,
-    onSelectPlan: (String) -> Unit,
     onUseGlobal: (Boolean) -> Unit,
     onModeChange: (CommuteMode) -> Unit,
     onPickPlace: (PlaceSelectionTarget) -> Unit,
@@ -655,7 +654,6 @@ fun PlanCommuteScreen(
     onTrafficChange: (Boolean) -> Unit,
     onSave: () -> Unit,
 ) {
-    val selectedPlan = plans.firstOrNull { it.id == editor.planId }
     val mapState = AmapMapUiState(
         markers = listOfNotNull(editor.origin?.toMarker("plan-origin", "计划起点"), editor.destination?.toMarker("plan-destination", "计划终点")),
         routes = editor.route.alternatives,
@@ -664,23 +662,20 @@ fun PlanCommuteScreen(
     )
     Scaffold(
         containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar("计划通勤", "专属配置优先于全局通勤", onBack) },
+        topBar = { ZhituTopBar("计划通勤", planName, onBack) },
         bottomBar = {
-            Button(onClick = onSave, enabled = selectedPlan != null, modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand)) { Text("保存计划通勤") }
+            Button(onClick = onSave, enabled = editor.planId != null && !editor.loading && editor.loadError == null, modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand)) { Text("完成通勤配置") }
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (plans.isEmpty()) item { LocalInfoCard("暂无计划", "创建并保存闹钟后，可为它配置专属通勤。") }
+            if (editor.loading) item { Text("正在读取通勤配置…") }
+            else if (editor.loadError != null) item { LocalInfoCard("读取失败", editor.loadError) }
             else {
                 item {
-                    Text("选择计划", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        items(plans, key = AlarmPlan::id) { plan -> FilterChip(selected = editor.planId == plan.id, onClick = { onSelectPlan(plan.id) }, label = { Text(plan.name) }) }
-                    }
-                }
-                item {
                     LocalCard {
-                        Text(selectedPlan?.name.orEmpty(), fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                        Column(Modifier.testTag("plan_commute_${editor.planId}")) {
+                            Text(planName, fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.testTag("plan_commute_selected_plan"))
+                        }
                         Spacer(Modifier.height(10.dp))
                         FilterChip(selected = editor.useGlobal, onClick = { onUseGlobal(true) }, label = { Text("使用全局通勤") })
                         Spacer(Modifier.height(8.dp))

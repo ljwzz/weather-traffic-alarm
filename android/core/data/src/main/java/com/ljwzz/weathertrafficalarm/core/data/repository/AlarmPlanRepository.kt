@@ -1,6 +1,7 @@
 package com.ljwzz.weathertrafficalarm.core.data.repository
 
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmPlanDao
+import com.ljwzz.weathertrafficalarm.core.data.db.dao.PlanCommuteWriteDao
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
@@ -12,6 +13,7 @@ import javax.inject.Singleton
 @Singleton
 class AlarmPlanRepository @Inject constructor(
     private val planDao: AlarmPlanDao,
+    private val planCommuteWriteDao: PlanCommuteWriteDao? = null,
 ) {
 
     fun observeAll(): Flow<List<AlarmPlan>> =
@@ -20,14 +22,20 @@ class AlarmPlanRepository @Inject constructor(
     suspend fun getById(planId: String): AlarmPlan? =
         planDao.getById(planId)?.toDomain()
 
-    suspend fun save(plan: AlarmPlan): AlarmPlan {
+    suspend fun save(
+        plan: AlarmPlan,
+        commuteOverrideMutation: CommuteOverrideMutation? = null,
+    ): AlarmPlan {
         val withRevision = plan.withRevisionIncremented()
-        planDao.upsert(withRevision.toEntity())
+        persistSave(withRevision, commuteOverrideMutation)
         return withRevision
     }
 
-    suspend fun update(plan: AlarmPlan) {
-        planDao.update(plan.toEntity())
+    suspend fun update(
+        plan: AlarmPlan,
+        commuteOverrideMutation: CommuteOverrideMutation? = null,
+    ) {
+        persistUpdate(plan, commuteOverrideMutation)
     }
 
     suspend fun deleteById(planId: String) {
@@ -42,5 +50,39 @@ class AlarmPlanRepository @Inject constructor(
     suspend fun disable(planId: String) {
         val plan = planDao.getById(planId) ?: return
         planDao.upsert(plan.copy(enabled = false, updatedAt = System.currentTimeMillis()))
+    }
+
+    private suspend fun persistSave(plan: AlarmPlan, mutation: CommuteOverrideMutation?) {
+        if (mutation == null) {
+            planDao.upsert(plan.toEntity())
+            return
+        }
+        val dao = requireNotNull(planCommuteWriteDao) {
+            "PlanCommuteWriteDao is required when saving a commute override mutation"
+        }
+        when (mutation) {
+            CommuteOverrideMutation.Reset -> dao.upsertPlanAndDeleteOverride(plan.toEntity())
+            is CommuteOverrideMutation.Replace -> {
+                require(mutation.override.planId == plan.id) { "commute override must belong to the plan being saved" }
+                dao.upsertPlanAndOverride(plan.toEntity(), mutation.override.toEntity())
+            }
+        }
+    }
+
+    private suspend fun persistUpdate(plan: AlarmPlan, mutation: CommuteOverrideMutation?) {
+        if (mutation == null) {
+            planDao.update(plan.toEntity())
+            return
+        }
+        val dao = requireNotNull(planCommuteWriteDao) {
+            "PlanCommuteWriteDao is required when saving a commute override mutation"
+        }
+        when (mutation) {
+            CommuteOverrideMutation.Reset -> dao.updatePlanAndDeleteOverride(plan.toEntity())
+            is CommuteOverrideMutation.Replace -> {
+                require(mutation.override.planId == plan.id) { "commute override must belong to the plan being saved" }
+                dao.updatePlanAndOverride(plan.toEntity(), mutation.override.toEntity())
+            }
+        }
     }
 }

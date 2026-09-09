@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
@@ -25,9 +26,13 @@ import com.ljwzz.weathertrafficalarm.core.alarm.AlarmRingingService
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
+import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
+import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 import com.ljwzz.weathertrafficalarm.ui.zhitu.AlarmRingingActivity
 import dagger.hilt.android.EntryPointAccessors
 import java.io.File
@@ -168,8 +173,79 @@ class LockedRingingDeviceTest {
         cleanupFailure?.let { throw it }
     }
 
-    private fun futurePlan(planId: String): AlarmPlan {
-        val triggerAt = Instant.now().plusSeconds(18)
+    /**
+     * Runs the actual lock-screen path for an independently scheduled ADVANCE
+     * occurrence. It verifies the post-unlock screen is bound to that exact
+     * persisted decision, then Back returns to the still-ringing occurrence.
+     */
+    @Test fun lockedAdvanceOpensItsPersistedDecisionAndBackKeepsTheAlarmRinging(): Unit = runBlocking {
+        assumeTrue(
+            "Set runLockedAdvanceDetail=true to run this controlled lock-screen scenario",
+            InstrumentationRegistry.getArguments().getString("runLockedAdvanceDetail") == "true",
+        )
+        context = instrumentation.targetContext
+        deps = EntryPointAccessors.fromApplication(context, DeviceTestDependencies::class.java)
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        val keyguardManager = context.getSystemService(KeyguardManager::class.java)
+        val planId = "locked-advance-detail-${UUID.randomUUID()}"
+        assumeTrue("POST_NOTIFICATIONS is required", context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+        assumeTrue("App notifications are disabled", notificationManager.areNotificationsEnabled())
+        assumeTrue("USE_FULL_SCREEN_INTENT is not enabled", notificationManager.canUseFullScreenIntent())
+        assumeTrue("Device is already locked", !keyguardManager.isKeyguardLocked)
+        assumeTrue("Screen must be interactive before the controlled sleep", powerManager.isInteractive)
+        assumeTrue("An app alarm is already active", AlarmRingingService.activeAlarms.value.isEmpty())
+
+        var advanceId: String? = null
+        try {
+            // Keep the regular alarm far enough ahead that its minute-rounded
+            // schedule cannot overtake the deliberately near-term advance.
+            val plan = futurePlan(planId, leadSeconds = 10 * 60)
+            val savedPlan = deps.coordinator().save(plan)
+            val regular = regularOccurrence(savedPlan.id)
+            val decision = advanceDecision(savedPlan, regular)
+            val applyResult = deps.coordinator().applyEvaluation(decision)
+            assertEquals("APPLIED", applyResult.outcome)
+            val advances = deps.occurrences().getByPlanId(plan.id).filter {
+                it.kind == OccurrenceKind.ADVANCE && it.decisionId == decision.decisionId &&
+                    it.state == OccurrenceState.SCHEDULED
+            }
+            assertEquals("Expected exactly one registered ADVANCE occurrence", 1, advances.size)
+            val advance = advances.single()
+            advanceId = advance.occurrenceId
+
+            shell("input keyevent KEYCODE_SLEEP")
+            await(10_000) { !powerManager.isInteractive && keyguardManager.isKeyguardLocked }
+            await(55_000) { deps.occurrences().getById(advance.occurrenceId)?.state == OccurrenceState.FIRING }
+            await(15_000) { AlarmRingingService.activeAlarms.value.any { it.occurrenceId == advance.occurrenceId } }
+            await(15_000) { activeRingingActivities().any { it.intentOccurrenceId() == advance.occurrenceId } }
+            awaitNode("ringing_open_advance_detail", 15_000)
+            screenshotDevice("locked-advance-firing-device.png")
+            screenshotRoot("locked-advance-firing-root.png")
+
+            compose.onNodeWithTag("ringing_open_advance_detail").performClick()
+            unlockWithTemporaryPinIfRequested(keyguardManager)
+            awaitNode("decision-detail-${decision.decisionId}", 15_000)
+            assertEquals(decision.decisionId, deps.decisions().getById(decision.decisionId)?.decisionId)
+            assertEquals(OccurrenceState.FIRING, deps.occurrences().getById(advance.occurrenceId)?.state)
+            assertTrue(AlarmRingingService.activeAlarms.value.any { it.occurrenceId == advance.occurrenceId })
+            screenshotDevice("locked-advance-decision-device.png")
+
+            Espresso.pressBack()
+            awaitNode("ringing_dismiss", 15_000)
+            assertEquals(OccurrenceState.FIRING, deps.occurrences().getById(advance.occurrenceId)?.state)
+            assertTrue(AlarmRingingService.activeAlarms.value.any { it.occurrenceId == advance.occurrenceId })
+            compose.onNodeWithTag("ringing_dismiss").performClick()
+            await(15_000) { deps.occurrences().getById(advance.occurrenceId)?.state == OccurrenceState.DISMISSED }
+        } finally {
+            advanceId?.let { id -> runCatching { finishOwnedRingingActivities(id) } }
+            runCatching { deps.coordinator().delete(planId) }
+            runCatching { shell("input keyevent KEYCODE_WAKEUP") }
+        }
+    }
+
+    private fun futurePlan(planId: String, leadSeconds: Long = 18): AlarmPlan {
+        val triggerAt = Instant.now().plusSeconds(leadSeconds)
         val local = triggerAt.atZone(ZoneId.systemDefault())
         return AlarmPlan(
             id = planId,
@@ -190,6 +266,37 @@ class LockedRingingDeviceTest {
         it.kind == OccurrenceKind.REGULAR && it.state == OccurrenceState.SCHEDULED
     }
 
+    private fun advanceDecision(plan: AlarmPlan, regular: com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence): AlarmDecision {
+        val recommended = System.currentTimeMillis() + 35_000L
+        return AlarmDecision(
+            decisionId = UUID.randomUUID().toString(),
+            planId = plan.id,
+            planRevision = plan.revision,
+            targetDate = regular.targetDate,
+            workdayStatus = WorkdayStatus.WORKDAY,
+            estimatedDepartureAt = Instant.ofEpochMilli(regular.scheduledWakeAt).toString(),
+            commuteSeconds = 1_800,
+            weatherSeverity = 1,
+            weatherBufferMinutes = 10,
+            recommendedWakeAt = Instant.ofEpochMilli(recommended).toString(),
+            routeProvider = "AMAP",
+            routeProviderReportTime = Instant.now().toString(),
+            weatherProvider = "CAIYUN",
+            weatherProviderReportTime = Instant.now().toString(),
+            weatherWindowStart = null,
+            weatherWindowEnd = null,
+            fallbackReason = FallbackReason.NONE,
+            insufficientAdvance = false,
+            generatedAt = Instant.now().toString(),
+            expiresAt = Instant.now().plusSeconds(120).toString(),
+            evaluationOutcome = EvaluationOutcome.SUCCESS,
+            preparationMinutes = plan.preparationMinutes,
+            defaultWakeAt = Instant.ofEpochMilli(regular.scheduledWakeAt).toString(),
+            planName = plan.name,
+            zoneId = plan.zoneId,
+        )
+    }
+
     private fun activeRingingActivities(): List<AlarmRingingActivity> {
         var activities = emptyList<AlarmRingingActivity>()
         instrumentation.runOnMainSync {
@@ -199,6 +306,21 @@ class LockedRingingDeviceTest {
         }
         return activities
     }
+
+    /**
+     * Opt-in test-only bridge for a real emulator PIN. The value is supplied
+     * only as an instrumentation argument, never persisted by the app, and is
+     * used after the ringing page has requested the system unlock flow.
+     */
+    private suspend fun unlockWithTemporaryPinIfRequested(keyguardManager: KeyguardManager) {
+        val pin = InstrumentationRegistry.getArguments().getString("temporaryPin")?.takeIf(String::isNotBlank) ?: return
+        require(pin.matches(Regex("\\d{4,16}"))) { "temporaryPin must be 4-16 digits" }
+        shell("input swipe 720 2400 720 700 300")
+        shell("input text $pin")
+        shell("input keyevent KEYCODE_ENTER")
+        await(10_000) { !keyguardManager.isKeyguardLocked }
+    }
+
 
     private fun finishOwnedRingingActivities(occurrenceId: String) {
         instrumentation.runOnMainSync {

@@ -11,6 +11,8 @@ import {
   applyHomePreviewResponse,
   createHomePreviewState,
   createEvaluationFixture,
+  decisionRecordFromEvaluation,
+  DEFAULT_WEATHER_BUFFERS,
   evaluationFixtureHistory,
   homePreviewInputSignature,
   homePreviewIsFresh,
@@ -143,6 +145,14 @@ test('automatic evaluation fixture keeps the base alarm separate from an early r
   assert.equal(result.schedule.capped, false);
 });
 
+test('automatic evaluation fixture reads the independently saved workday weather-buffer profile', () => {
+  const weatherBuffers = { ...DEFAULT_WEATHER_BUFFERS, workday:[4, 9, 17] };
+  const advanced = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.ADVANCED, weatherBuffers });
+  const noAdvance = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.NO_ADVANCE, weatherBuffers });
+  assert.equal(advanced.inputs.weather.bufferMinutes, 17);
+  assert.equal(noAdvance.inputs.weather.bufferMinutes, 4);
+});
+
 test('retry, deadline and expired fixtures do not create a new early reminder', () => {
   const retry = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.RETRY });
   const deadline = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.DEADLINE });
@@ -153,9 +163,38 @@ test('retry, deadline and expired fixtures do not create a new early reminder', 
   assert.equal(expired.decision, 'expired_result');
 });
 
+test('registration failure, advance limit and skipped fixtures retain distinct application outcomes', () => {
+  const registration = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.REGISTRATION_FAILED });
+  const limited = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.INSUFFICIENT_ADVANCE });
+  const skipped = createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.SKIPPED });
+
+  assert.equal(registration.applicationOutcome, 'registration_failed');
+  assert.equal(registration.schedule.actualWake, null);
+  assert.equal(limited.schedule.capped, true);
+  assert.notEqual(limited.schedule.actualWake, limited.schedule.earlyWake);
+  assert.equal(skipped.applicationOutcome, 'skipped');
+});
+
 test('evaluation history includes success, no-advance and recovery states', () => {
   const history = evaluationFixtureHistory({ id:'work', name:'上班', time:'07:30' });
-  assert.deepEqual(history.map(item => item.state), ['advanced', 'no-advance', 'retry', 'deadline', 'expired']);
+  assert.deepEqual(history.map(item => item.state), ['advanced', 'no-advance', 'retry', 'registration-failed', 'insufficient-advance', 'deadline', 'skipped', 'expired']);
+});
+
+test('decision records retain the evaluated plan snapshot after later plan edits or deletion', () => {
+  const plan = { id:'plan-a', name:'原计划', time:'07:30', revision:'r7' };
+  const record = decisionRecordFromEvaluation(
+    createEvaluationFixture({ fixture:EVALUATION_FIXTURE_STATES.ADVANCED, plan }),
+    plan,
+    { decisionId:'decision-plan-a-1', occurrence:{ id:'advance-a', planId:'plan-a', planRevision:'r7', kind:'ADVANCE', state:'RINGING' } },
+  );
+  plan.name = '后来编辑的计划';
+  plan.time = '08:00';
+
+  assert.equal(record.decisionId, 'decision-plan-a-1');
+  assert.equal(record.planSnapshot.name, '原计划');
+  assert.equal(record.planSnapshot.time, '07:30');
+  assert.equal(record.planRevision, 'r7');
+  assert.equal(record.occurrence.id, 'advance-a');
 });
 
 test('alarm plans persist arrival, preparation and maximum advance settings', () => {

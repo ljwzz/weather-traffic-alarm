@@ -113,6 +113,21 @@ class RingingScreenDeviceTest {
         compose.onNodeWithTag("ringing_snooze").assertHasClickAction()
     }
 
+    @Test fun advanceDetailEntryOnlyAppearsForAResolvedAdvanceOccurrence() {
+        val opens = mutableIntStateOf(0)
+        val state = mutableStateOf(RingingUiState(phase = RingingPhase.RINGING, canOpenAdvanceDetail = true))
+        compose.setContent {
+            ZhituTheme {
+                RingingScreen(state.value, onDismiss = {}, onSnooze = {}, onOpenPlans = {}, onClose = {},
+                    onOpenAdvanceDetail = { opens.intValue++ })
+            }
+        }
+        compose.onNodeWithTag("ringing_open_advance_detail").performClick()
+        assertEquals(1, opens.intValue)
+        compose.runOnIdle { state.value = RingingUiState(phase = RingingPhase.RINGING) }
+        compose.onNodeWithTag("ringing_open_advance_detail").assertDoesNotExist()
+    }
+
     @Test
     fun unavailableErrorOnlyOffersReturnAndClose() {
         setRingingContent(
@@ -160,6 +175,7 @@ class RingingScreenDeviceTest {
         state: RingingUiState,
         onDismiss: () -> Unit = {},
         onSnooze: () -> Unit = {},
+        onOpenAdvanceDetail: () -> Unit = {},
     ) {
         compose.setContent {
             ZhituTheme {
@@ -169,6 +185,7 @@ class RingingScreenDeviceTest {
                     onSnooze = onSnooze,
                     onOpenPlans = {},
                     onClose = {},
+                    onOpenAdvanceDetail = onOpenAdvanceDetail,
                 )
             }
         }

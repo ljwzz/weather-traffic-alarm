@@ -6,7 +6,7 @@ const STORAGE_KEY = 'zhitu-prototype-config-v3';
 
 function defaultStoredConfig() {
   return persistentSettingsSnapshot({
-    ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], notificationsEnabled:true, lockSummaryEnabled:true, onboardingDone:false,
+    ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], onboardingDone:false,
   });
 }
 
@@ -38,9 +38,8 @@ function control(action, value = '') {
   return { disabled:false, dataset:{ action, value }, closest() { return this; } };
 }
 
-async function withBrowserStub(run) {
+async function withBrowserStub(run, initial = JSON.stringify(defaultStoredConfig())) {
   const savedGlobals = Object.fromEntries(['document', 'window', 'localStorage', 'history', 'location', 'CustomEvent', 'setTimeout', 'clearTimeout'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-  const initial = JSON.stringify(defaultStoredConfig());
   const browser = installBrowserStub(initial);
   Object.assign(globalThis, {
     document: browser.document,
@@ -103,4 +102,77 @@ test('app reset rebuilds a ringing session while preserving an already-default s
     assert.match(app.innerHTML, /按设定时间提醒/);
     assert.equal(saved.get(STORAGE_KEY), initial);
   });
+});
+
+test('early ringing opens only its linked decision after the unlock entry and keeps the ringing session for return', async () => {
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = listeners.get('click');
+    window.ZhituPrototype.navigate('ringing');
+    assert.match(app.innerHTML, /解锁后查看提前原因/);
+
+    click({ target:control('ringing-view-reason') });
+    assert.match(app.innerHTML, /本次决策/);
+    assert.match(app.innerHTML, /提前 12 分钟/);
+    assert.match(app.innerHTML, /实际注册 07:18/);
+    assert.match(app.innerHTML, /当前实例 early:2026-09-02T07:18:00#0/);
+
+    click({ target:control('back') });
+    assert.match(app.innerHTML, /知途 · 提前闹钟/);
+    assert.match(app.innerHTML, /07:18/);
+  });
+});
+
+test('direct detail routes are empty without an explicit id and restore only the id in the hash', async () => {
+  await withBrowserStub(async ({ app, location, window }) => {
+    window.ZhituPrototype.navigate('why');
+    assert.match(app.innerHTML, /本次决策不可用/);
+
+    window.ZhituPrototype.navigate('why?decisionId=decision-fixture-work-advanced');
+    assert.match(app.innerHTML, /提前 12 分钟/);
+    assert.equal(location.hash, '#/why?decisionId=decision-fixture-work-advanced');
+  });
+});
+
+test('evaluations keep one explicit record per plan, ignore a duplicate click, and retain a deleted plan snapshot', async () => {
+  const initial = JSON.stringify({
+    ...defaultStoredConfig(),
+    onboardingDone:true,
+    alarmPlans:[
+      { id:'plan-a', name:'计划 A', time:'07:00', enabled:true, repeat:{ kind:'workdays' } },
+      { id:'plan-b', name:'计划 B', time:'08:00', enabled:true, repeat:{ kind:'workdays' } },
+    ],
+  });
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = listeners.get('click');
+    window.ZhituPrototype.navigate('home');
+    click({ target:control('evaluate-plan', 'plan-a') });
+    click({ target:control('evaluate-plan', 'plan-a') });
+    await Promise.resolve();
+    click({ target:control('evaluate-plan', 'plan-b') });
+    await Promise.resolve();
+    click({ target:control('delete-alarm', 'plan-a') });
+    window.ZhituPrototype.navigate('history');
+
+    assert.equal((app.innerHTML.match(/计划 A/g) || []).length, 1);
+    assert.equal((app.innerHTML.match(/计划 B/g) || []).length, 1);
+  }, initial);
+});
+
+test('re-evaluating a valid plan leaves the viewed historical failure selected', async () => {
+  const initial = JSON.stringify({
+    ...defaultStoredConfig(),
+    onboardingDone:true,
+    alarmPlans:[{ id:'fixture-work', name:'当前计划', time:'07:30', enabled:true, repeat:{ kind:'workdays' } }],
+  });
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = listeners.get('click');
+    window.ZhituPrototype.navigate('history');
+    click({ target:control('open-decision', 'decision-fixture-work-retry') });
+    assert.match(app.innerHTML, /评估失败，等待重试/);
+
+    click({ target:control('re-evaluate-decision') });
+    await Promise.resolve();
+    assert.match(app.innerHTML, /评估失败，等待重试/);
+    assert.match(app.innerHTML, /正在查看的历史记录未改写/);
+  }, initial);
 });

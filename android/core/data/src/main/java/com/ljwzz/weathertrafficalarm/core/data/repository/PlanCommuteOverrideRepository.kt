@@ -21,6 +21,15 @@ data class PlanCommuteOverride(
     }
 }
 
+/**
+ * A non-null mutation is an explicit draft choice. Null at the coordinator
+ * boundary means the stored override was not edited and must be retained.
+ */
+sealed interface CommuteOverrideMutation {
+    data object Reset : CommuteOverrideMutation
+    data class Replace(val override: PlanCommuteOverride) : CommuteOverrideMutation
+}
+
 @Singleton
 class PlanCommuteOverrideRepository @Inject constructor(
     private val overrideDao: PlanCommuteOverrideDao,
@@ -48,7 +57,7 @@ private fun PlanCommuteOverrideEntity.toDomain() = PlanCommuteOverride(
     updatedAt = updatedAt,
 )
 
-private fun PlanCommuteOverride.toEntity() = PlanCommuteOverrideEntity(
+internal fun PlanCommuteOverride.toEntity() = PlanCommuteOverrideEntity(
     planId = planId,
     origin = origin,
     destination = destination,

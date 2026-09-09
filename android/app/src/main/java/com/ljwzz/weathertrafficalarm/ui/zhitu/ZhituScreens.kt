@@ -76,6 +76,7 @@ import java.util.UUID
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.ljwzz.weathertrafficalarm.core.data.local.CalendarUiState
 import com.ljwzz.weathertrafficalarm.core.model.WeatherDataSource
 import com.ljwzz.weathertrafficalarm.core.model.WeatherSeverity
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
@@ -84,10 +85,22 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlarmEditorScreen(draft: EditorDraft, update: (EditorDraft) -> Unit, onCancel: () -> Unit, onSave: () -> Unit, onDelete: () -> Unit) {
+fun AlarmEditorScreen(
+    draft: EditorDraft,
+    calendarState: CalendarUiState,
+    calendarOverrides: Map<String, DayStatus>,
+    update: (EditorDraft) -> Unit,
+    onCalendarPreviewRefresh: () -> Unit,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+    commuteSummary: String = "使用全局通勤",
+    onOpenCommuteOverride: () -> Unit = {},
+) {
     val context = LocalContext.current
     var timeDialog by remember { mutableStateOf(false) }
     var dateDialog by remember { mutableStateOf(false) }
@@ -97,6 +110,10 @@ fun AlarmEditorScreen(draft: EditorDraft, update: (EditorDraft) -> Unit, onCance
     var arrivalDialog by remember { mutableStateOf(false) }
     var preparationDialog by remember { mutableStateOf(false) }
     var maxAdvanceDialog by remember { mutableStateOf(false) }
+    var commuteAdvanceExpanded by remember(draft.id) { mutableStateOf(false) }
+    LaunchedEffect(draft.repeat) {
+        if (draft.repeat == RepeatChoice.WORKDAYS) onCalendarPreviewRefresh()
+    }
     val valid = draft.name.isNotBlank() && when (draft.repeat) {
         RepeatChoice.ONCE -> draft.date.isNotBlank()
         RepeatChoice.WEEKLY -> draft.weekdays.isNotEmpty()
@@ -134,11 +151,42 @@ fun AlarmEditorScreen(draft: EditorDraft, update: (EditorDraft) -> Unit, onCance
                             SegmentedButton(selected = draft.repeat == choice, onClick = { update(draft.copy(repeat = choice)) }, modifier = Modifier.testTag("repeat_${when (choice) { RepeatChoice.ONCE -> "once"; RepeatChoice.WEEKLY -> "weekly"; RepeatChoice.WORKDAYS -> "workdays" }}"), shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(index, RepeatChoice.entries.size)) { Text(choice.label) }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    if (draft.repeat != RepeatChoice.WORKDAYS) Spacer(Modifier.height(12.dp))
                     when (draft.repeat) {
                         RepeatChoice.ONCE -> SettingRow("响铃日期", draft.date.ifBlank { "请选择" }, { dateDialog = true }, "alarm_date")
                         RepeatChoice.WEEKLY -> WeekdaySelector(draft.weekdays) { days -> update(draft.copy(weekdays = days)) }
-                        RepeatChoice.WORKDAYS -> NoticeCard("根据本地工作日日历安排。日历数据不可用时按周一至周五处理。", ZhituColors.Mint, ZhituColors.Brand)
+                        RepeatChoice.WORKDAYS -> Unit
+                    }
+                }
+            }
+            if (draft.repeat == RepeatChoice.WORKDAYS) {
+                item(key = "workday_preview") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WorkdayPreviewCard(
+                            calendarState = calendarState,
+                            today = LocalDate.now(ZoneId.of(draft.zoneId)),
+                            overrides = calendarOverrides,
+                        )
+                        val calendarStatus = when {
+                            calendarState.loading -> "正在刷新日历。"
+                            !calendarState.loaded -> "正在读取本地日历。"
+                            calendarState.error != null -> "日历刷新失败。"
+                            else -> ""
+                        }
+                        if (calendarStatus.isNotEmpty() || calendarState.days.isEmpty()) {
+                            val source = if (calendarState.days.isEmpty()) {
+                                "日历数据不可用，使用星期规则。"
+                            } else {
+                                "使用已有年度日历缓存。"
+                            }
+                            Column(Modifier.fillMaxWidth().testTag("workday_preview_status")) {
+                                NoticeCard(
+                                    calendarStatus + source,
+                                    if (calendarState.days.isEmpty()) ZhituColors.AmberBackground else ZhituColors.Mint,
+                                    if (calendarState.days.isEmpty()) ZhituColors.Amber else ZhituColors.Brand,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -154,14 +202,38 @@ fun AlarmEditorScreen(draft: EditorDraft, update: (EditorDraft) -> Unit, onCance
                     SettingRow("贪睡时长", "${draft.snoozeMinutes} 分钟", { snoozeDialog = true })
                 }
             }
-            item {
+            item(key = "commute_advance") {
                 FormCard {
-                    Text("通勤与提前", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    Spacer(Modifier.height(6.dp))
-                    SettingRow("期望到达时间", draft.arrivalLocalTime, { arrivalDialog = true }, "arrival_time")
-                    SettingRow("准备时间", "${draft.preparationMinutes} 分钟", { preparationDialog = true }, "preparation_minutes")
-                    SettingRow("最多提前", "${draft.maxAdvanceMinutes} 分钟", { maxAdvanceDialog = true }, "max_advance_minutes")
-                    Text("已启用且配置通勤的计划会在后台按路线、天气和工作日重新评估下次闹钟。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .testTag("alarm_editor_commute_advance")
+                            .clickable { commuteAdvanceExpanded = !commuteAdvanceExpanded }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("通勤与提前提醒", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                            Text(
+                                commuteSummary,
+                                modifier = Modifier.testTag("alarm_editor_commute_summary"),
+                                color = ZhituColors.Muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Text(
+                            if (commuteAdvanceExpanded) "收起" else "设置",
+                            color = ZhituColors.Brand,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                    if (commuteAdvanceExpanded) {
+                        Spacer(Modifier.height(6.dp))
+                        SettingRow("期望到达时间", draft.arrivalLocalTime, { arrivalDialog = true }, "arrival_time")
+                        SettingRow("准备时间", "${draft.preparationMinutes} 分钟", { preparationDialog = true }, "preparation_minutes")
+                        SettingRow("最多提前", "${draft.maxAdvanceMinutes} 分钟", { maxAdvanceDialog = true }, "max_advance_minutes")
+                        SettingRow("计划通勤覆盖", commuteSummary, onOpenCommuteOverride, "open_plan_commute_override")
+                        Text("有效通勤会参与提前提醒。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
             item { NoticeCard("保存后才会写入计划；取消或返回不会修改已有闹钟。", ZhituColors.Sky, ZhituColors.Blue) }
@@ -178,60 +250,19 @@ fun AlarmEditorScreen(draft: EditorDraft, update: (EditorDraft) -> Unit, onCance
 }
 
 @Composable
-fun SettingsScreen(settings: com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings, onSettingsChange: (com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings) -> Unit, onCalendar: () -> Unit, onRoute: () -> Unit, onNavigate: (ZhituDestination) -> Unit, onCredentials: () -> Unit, onDiagnostics: () -> Unit, onHistory: () -> Unit, onWeather: () -> Unit, onOnboarding: () -> Unit, permissionSnapshot: PermissionSnapshot, permissionConfirmations: Set<XiaomiDisplayPermission>) {
-    Scaffold(
-    topBar = { ZhituTopBar("设置", subtitle = "本地数据与系统能力") }, bottomBar = { ZhituNav(selected = ZhituDestination.SETTINGS, onNavigate = onNavigate) },
-) { padding ->
-    LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { PermissionSummaryCard(permissionSnapshot, permissionConfirmations, onDiagnostics) }
-        item {
-            SettingsGroup("系统权限") {
-                SettingRow("通知、精确闹钟与全屏提醒", "检查", onDiagnostics)
-                SettingRow("位置权限", permissionSnapshot.location.statusLabel(), onDiagnostics)
-                if (permissionSnapshot.isXiaomi) {
-                    TextButton(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Text("小米锁屏显示", color = ZhituColors.Ink)
-                            Text(manualPermissionLabel(XiaomiDisplayPermission.LockScreen in permissionConfirmations), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    TextButton(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Text("小米后台弹出界面", color = ZhituColors.Ink)
-                            Text(manualPermissionLabel(XiaomiDisplayPermission.BackgroundPopup in permissionConfirmations), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-        }
-        item { SettingsGroup("计划") { SettingRow("工作日日历", "本地规则", onCalendar); SettingRow("常用地点", "家、公司", onRoute) } }
-        item { SettingsGroup("提醒") { Row(Modifier.fillMaxWidth().height(50.dp), verticalAlignment = Alignment.CenterVertically) { Text("通知摘要", Modifier.weight(1f)); Switch(settings.notificationSummary, { onSettingsChange(settings.copy(notificationSummary = it)) }) }; Row(Modifier.fillMaxWidth().height(50.dp), verticalAlignment = Alignment.CenterVertically) { Text("锁屏摘要", Modifier.weight(1f)); Switch(settings.lockScreenSummary, { onSettingsChange(settings.copy(lockScreenSummary = it)) }) } } }
-        item { SettingsGroup("自动提前") { Text("已启用且配置通勤的闹钟会在后台评估路线、天气和工作日，并更新下一次闹钟。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall) } }
-        item { BufferEditor("工作日天气缓冲", settings.workdayWeatherBuffers) { onSettingsChange(settings.copy(workdayWeatherBuffers = it)) } }
-        item { BufferEditor("周末天气缓冲", settings.weekendWeatherBuffers) { onSettingsChange(settings.copy(weekendWeatherBuffers = it)) } }
-        item { BufferEditor("法定休息日天气缓冲", settings.holidayWeatherBuffers) { onSettingsChange(settings.copy(holidayWeatherBuffers = it)) } }
-        item { SettingsGroup("数据服务") { SettingRow("高德地图与路线", "地点、路线与路况", onRoute); SettingRow("彩云天气", "手动天气预览", onWeather); SettingRow("接口凭据", "高德与天气", onCredentials) } }
-        item { SettingsGroup("可靠性") { SettingRow("权限与诊断", "查看状态", onDiagnostics); SettingRow("闹钟记录", "本机事件", onHistory) } }
-        item { SettingsGroup("其他") { SettingRow("高德专项授权", if (settings.amapConsentGranted) "已同意，可重新设置" else "未同意", onOnboarding); SettingRow("首次引导", "重新查看", onOnboarding) } }
-    }
-}
-}
-
-@Composable
 fun HistoryScreen(
     events: List<AlarmEvent>,
     decisions: List<AlarmDecision>,
-    occurrences: List<AlarmOccurrence>,
-    plans: List<com.ljwzz.weathertrafficalarm.core.model.AlarmPlan>,
+    onDecision: (String) -> Unit = {},
     onBack: () -> Unit,
 ) {
     var days by remember { mutableStateOf(30) }
     var result by remember { mutableStateOf<HistoryResultFilter?>(null) }
     val now = System.currentTimeMillis()
-    val filtered = historyItems(events, decisions, occurrences, plans)
+    val filtered = historyItems(events, decisions)
         .filter { item -> item.timestamp >= now - days * 86_400_000L && (result == null || item.filter == result) }
     Scaffold(topBar = { ZhituTopBar("闹钟记录", navigation = onBack) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("history_content"), contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 7, 30).forEach { value -> FilterChip(selected = days == value, onClick = { days = value }, label = { Text("$value 天") }) } } }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -248,7 +279,7 @@ fun HistoryScreen(
                 }
             }
             if (filtered.isEmpty()) item { EmptyProviderCard("暂无记录", "后台评估及注册、触发、停止、贪睡等本机事件会显示在这里。") }
-            items(filtered, key = { it.id }) { item -> HistoryItemCard(item) }
+            items(filtered, key = { it.id }) { item -> HistoryItemCard(item, onDecision) }
         }
     }
 }
@@ -263,13 +294,11 @@ private sealed interface HistoryItem {
 
 private data class DecisionHistoryItem(
     val decision: AlarmDecision,
-    val planName: String,
-    val occurrence: AlarmOccurrence?,
     val effectiveOutcome: EvaluationOutcome,
     override val timestamp: Long,
 ) : HistoryItem {
     override val id: String = "decision:${decision.decisionId}"
-    override val filter: HistoryResultFilter = effectiveOutcome.toHistoryFilter()
+    override val filter: HistoryResultFilter = if (decision.applicationOutcome == "FAILED") HistoryResultFilter.FAILED else effectiveOutcome.toHistoryFilter()
 }
 
 private data class EventHistoryItem(val event: AlarmEvent) : HistoryItem {
@@ -281,18 +310,12 @@ private data class EventHistoryItem(val event: AlarmEvent) : HistoryItem {
 private fun historyItems(
     events: List<AlarmEvent>,
     decisions: List<AlarmDecision>,
-    occurrences: List<AlarmOccurrence>,
-    plans: List<com.ljwzz.weathertrafficalarm.core.model.AlarmPlan>,
 ): List<HistoryItem> {
-    val planNames = plans.associate { it.id to it.name }
-    val occurrencesByDecision = occurrences.filter { it.decisionId != null }.associateBy { it.decisionId!! }
     return buildList {
         decisions.forEach { decision ->
             add(
                 DecisionHistoryItem(
                     decision = decision,
-                    planName = planNames[decision.planId] ?: "已删除闹钟",
-                    occurrence = occurrencesByDecision[decision.decisionId],
                     effectiveOutcome = decision.displayOutcome(),
                     timestamp = decision.generatedTimestamp(),
                 ),
@@ -303,7 +326,7 @@ private fun historyItems(
 }
 
 @Composable
-private fun HistoryItemCard(item: HistoryItem) = FormCard {
+private fun HistoryItemCard(item: HistoryItem, onDecision: (String) -> Unit) = FormCard {
     when (item) {
         is EventHistoryItem -> {
             Text(item.event.type.name, color = ZhituColors.Brand, fontWeight = FontWeight.Medium)
@@ -312,34 +335,13 @@ private fun HistoryItemCard(item: HistoryItem) = FormCard {
         }
         is DecisionHistoryItem -> {
             val decision = item.decision
-            Text("自动评估 · ${item.effectiveOutcome.toLabel()}", color = item.effectiveOutcome.toColor(), fontWeight = FontWeight.Medium)
-            Text("${item.planName} · ${decision.targetDate}", color = ZhituColors.Ink)
-            Text(
-                "计算分解：预计出发 ${decision.estimatedDepartureAt?.toDisplayTime() ?: "未提供"}；通勤 ${decision.commuteSeconds.toDurationLabel()}；准备 ${decision.preparationMinutes} 分钟；天气缓冲 ${decision.weatherBufferMinutes} 分钟",
-                color = ZhituColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "基础闹钟 ${decision.defaultWakeAt?.toDisplayTime() ?: "未记录"}；建议时间 ${decision.recommendedWakeAt.toDisplayTime()}；实际提前提醒 ${decision.actualWakeAt?.toDisplayTime() ?: "未注册"}",
-                color = ZhituColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            decision.applicationOutcome?.let { Text("应用结果：${it.toApplicationOutcomeLabel()}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall) }
-            item.occurrence?.let { occurrence ->
-                Text("提醒状态：${occurrence.state.toLabel()} · ${Instant.ofEpochMilli(occurrence.scheduledWakeAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
-            }
-            if (decision.calendarSource != null || decision.fallbackReason == FallbackReason.CALENDAR_FALLBACK) {
-                Text("日历：${when (decision.calendarSource) { "PLAN_OVERRIDE" -> "本日覆盖"; "HOLIDAY_CN" -> "节假日日历"; else -> "周规则兜底" }}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
-            }
-            decision.weatherDataSource?.let { Text("天气数据：${it.toWeatherDataSourceLabel()}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall) }
-            if (decision.fallbackReason != FallbackReason.NONE) {
-                Text("降级：${decision.fallbackReason.toLabel()}", color = ZhituColors.Amber, style = MaterialTheme.typography.bodySmall)
-            }
-            decision.failureReason?.let { Text("失败原因：${it.toFailureReasonLabel()}", color = ZhituColors.Amber, style = MaterialTheme.typography.bodySmall) }
-            if (decision.expiresTimestamp()?.let { it < System.currentTimeMillis() } == true) {
-                Text("评估数据时效已过，历史执行结果保持不变。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
-            }
-            if (decision.attemptNumber > 0) Text("重试次数：${decision.attemptNumber}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+            val summary = decision.toDecisionDetailUi()
+            Text(summary.title, color = if (summary.evaluationTone == DecisionDetailTone.WARNING) ZhituColors.Amber else item.effectiveOutcome.toColor(), fontWeight = FontWeight.Medium)
+            Text("${summary.planName} · ${summary.targetDate}", color = ZhituColors.Ink)
+            Text(summary.applicationLabel, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+            Text("基础 ${summary.baseWake} · 建议 ${summary.recommendedWake}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+            Text("评估于 ${summary.evaluatedAt}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { onDecision(decision.decisionId) }, modifier = Modifier.testTag("history_decision_${decision.decisionId}")) { Text("查看本次评估") }
             HistoryTimestamp(item.timestamp)
         }
     }
@@ -355,92 +357,19 @@ private fun HistoryTimestamp(timestamp: Long) = Text(
 private fun AlarmDecision.displayOutcome(): EvaluationOutcome = evaluationOutcome
 
 private fun AlarmDecision.generatedTimestamp(): Long = generatedAt.toInstantOrNull()?.toEpochMilli() ?: 0L
-private fun AlarmDecision.expiresTimestamp(): Long? = expiresAt.toInstantOrNull()?.toEpochMilli()
 private fun String.toInstantOrNull(): Instant? = runCatching { Instant.parse(this) }.getOrNull()
-    ?: runCatching { java.time.LocalDateTime.parse(this).atZone(ZoneId.systemDefault()).toInstant() }.getOrNull()
-private fun String.toDisplayTime(): String = toInstantOrNull()?.atZone(ZoneId.systemDefault())?.format(DateTimeFormatter.ofPattern("MM-dd HH:mm")) ?: substringAfter('T', this).take(16)
-private fun Long?.toDurationLabel(): String = this?.let { "${it / 60} 分钟" } ?: "未提供"
+
 private fun EvaluationOutcome.toHistoryFilter(): HistoryResultFilter = when (this) {
     EvaluationOutcome.SUCCESS -> HistoryResultFilter.SUCCESS
     EvaluationOutcome.FAILED -> HistoryResultFilter.FAILED
     EvaluationOutcome.STALE -> HistoryResultFilter.STALE
     EvaluationOutcome.SKIPPED -> HistoryResultFilter.SKIPPED
 }
-private fun EvaluationOutcome.toLabel(): String = when (this) {
-    EvaluationOutcome.SUCCESS -> "成功"
-    EvaluationOutcome.FAILED -> "失败"
-    EvaluationOutcome.STALE -> "已过期"
-    EvaluationOutcome.SKIPPED -> "跳过"
-}
 private fun EvaluationOutcome.toColor(): Color = when (this) {
     EvaluationOutcome.SUCCESS -> ZhituColors.Brand
     EvaluationOutcome.FAILED, EvaluationOutcome.STALE -> ZhituColors.Amber
     EvaluationOutcome.SKIPPED -> ZhituColors.Muted
 }
-private fun OccurrenceState.toLabel(): String = when (this) {
-    OccurrenceState.REGISTERING -> "注册中"
-    OccurrenceState.SCHEDULED -> "已注册"
-    OccurrenceState.FAILED -> "注册失败"
-    OccurrenceState.DEFAULT_REGISTERED -> "基础闹钟已注册"
-    OccurrenceState.ADVANCED -> "提前闹钟已注册"
-    OccurrenceState.FIRING -> "响铃中"
-    OccurrenceState.SNOOZED -> "贪睡中"
-    OccurrenceState.DISMISSED -> "已停止"
-    OccurrenceState.MISSED -> "已错过"
-    OccurrenceState.CANCELLED -> "已取消"
-}
-private fun FallbackReason.toLabel(): String = when (this) {
-    FallbackReason.NONE -> "无"
-    FallbackReason.CALENDAR_FALLBACK -> "日历 fallback"
-    FallbackReason.STALE_RESPONSE -> "响应已过期"
-    FallbackReason.CURRENT_TRAFFIC_FALLBACK -> "使用当前路况"
-    FallbackReason.FUTURE_ROUTE_NOT_ENTITLED -> "未来路线不可用"
-    FallbackReason.ROUTE_HORIZON_UNAVAILABLE -> "路线时间范围不可用"
-    FallbackReason.ROUTE_PROVIDER_TIMEOUT -> "路线服务超时"
-    FallbackReason.ROUTE_PROVIDER_QUOTA -> "路线服务额度不足"
-    FallbackReason.ROUTE_NOT_FOUND -> "未找到路线"
-    FallbackReason.WEATHER_HORIZON_UNAVAILABLE -> "天气时间范围不可用"
-    FallbackReason.WEATHER_PROVIDER_TIMEOUT -> "天气服务超时"
-    FallbackReason.WEATHER_PROVIDER_AUTH -> "天气凭据不可用"
-    FallbackReason.WEATHER_PROVIDER_QUOTA -> "天气服务额度不足"
-    FallbackReason.WEATHER_UNKNOWN_CODE -> "天气代码无法识别"
-}
-private fun String.toWeatherDataSourceLabel(): String = when (uppercase()) {
-    "CACHE" -> "本地缓存"
-    "MIXED" -> "网络与本地缓存"
-    "NETWORK" -> "网络数据"
-    else -> this
-}
-private fun String.toApplicationOutcomeLabel(): String = when (uppercase()) {
-    "APPLIED" -> "已应用到提前提醒"
-    "UNCHANGED" -> "沿用现有提醒"
-    "CANCELLED" -> "无需提前，按基础闹钟提醒"
-    "FAILED" -> "提前提醒注册失败"
-    "STALE" -> "结果已过期，未应用"
-    "SKIPPED" -> "本次跳过"
-    else -> "未能应用"
-}
-private fun String.toFailureReasonLabel(): String = when (uppercase()) {
-    "ROUTE_CONSENT_REQUIRED" -> "尚未完成高德专项授权"
-    "COMMUTE_NOT_CONFIGURED" -> "未配置有效通勤地点"
-    "MISSING_CAIYUN_CREDENTIALS" -> "未完成天气服务凭据验证"
-    "EVALUATION_WINDOW_EXPIRED" -> "评估窗口已结束"
-    "EVALUATION_RESULT_EXPIRED", "STALE_RESPONSE" -> "响应已过期"
-    "EVALUATION_INPUTS_CHANGED" -> "计划或通勤配置已更新"
-    "INVALID_TIME_WINDOW" -> "到达时间与起床时间不匹配"
-    "DATE_NOT_APPLICABLE" -> "该日期不需要提醒"
-    "ROUTE_INVALID_KEY", "WEATHER_INVALID_KEY" -> "服务凭据不可用"
-    "ROUTE_MISSING_KEY", "WEATHER_MISSING_KEY" -> "尚未配置服务凭据"
-    "ROUTE_NETWORK", "WEATHER_NETWORK" -> "网络不可用"
-    "ROUTE_TIMEOUT", "WEATHER_TIMEOUT" -> "服务响应超时"
-    "ROUTE_QUOTA_EXCEEDED", "WEATHER_QUOTA_EXCEEDED" -> "服务额度不足"
-    "ROUTE_RATE_LIMITED", "WEATHER_RATE_LIMITED" -> "请求暂受限制，稍后重试"
-    "ROUTE_ROUTE_NOT_FOUND" -> "未找到可用通勤路线"
-    "WEATHER_WEATHER_HORIZON_UNAVAILABLE" -> "目标日期超出天气预报范围"
-    "WEATHER_WEATHER_UNKNOWN_CODE" -> "目标时段天气数据不完整"
-    else -> "后台评估失败"
-}
-
 @Composable
 fun WeatherScreen(
     state: WeatherUiState,
@@ -541,9 +470,6 @@ fun OnboardingScreen(
 internal fun FormCard(content: @Composable ColumnScope.() -> Unit) = Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.fillMaxWidth().padding(16.dp), content = content) }
 
 @Composable
-private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) { Text(title, color = ZhituColors.Muted, style = MaterialTheme.typography.labelMedium); Spacer(Modifier.height(6.dp)); FormCard(content) }
-
-@Composable
 private fun SettingRow(title: String, value: String, onClick: () -> Unit, tag: String? = null) = Row(Modifier.fillMaxWidth().height(50.dp).then(if (tag == null) Modifier else Modifier.testTag(tag)).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) { Text(title, Modifier.weight(1f), color = ZhituColors.Ink); Text(value, color = ZhituColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis); Spacer(Modifier.width(8.dp)); Text("›", color = ZhituColors.Subtle, style = MaterialTheme.typography.headlineSmall) }
 
 @Composable
@@ -551,19 +477,6 @@ fun EmptyProviderCard(title: String, description: String, onClick: (() -> Unit)?
 
 @Composable
 private fun NoticeCard(text: String, background: Color, foreground: Color) = Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = background)) { Text(text, Modifier.padding(16.dp), color = foreground, style = MaterialTheme.typography.bodySmall) }
-
-@Composable
-private fun BufferEditor(title: String, current: com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers, onSave: (com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers) -> Unit) {
-    var light by remember(current) { mutableStateOf(current.lightMinutes.toString()) }
-    var moderate by remember(current) { mutableStateOf(current.moderateMinutes.toString()) }
-    var severe by remember(current) { mutableStateOf(current.severeMinutes.toString()) }
-    SettingsGroup(title) {
-        OutlinedTextField(light, { light = it.filter(Char::isDigit) }, label = { Text("小雨分钟") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(moderate, { moderate = it.filter(Char::isDigit) }, label = { Text("中雨分钟") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(severe, { severe = it.filter(Char::isDigit) }, label = { Text("恶劣天气分钟") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Button(onClick = { onSave(com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers(light.toIntOrNull()?.coerceIn(0, 60) ?: 0, moderate.toIntOrNull()?.coerceIn(0, 60) ?: 0, severe.toIntOrNull()?.coerceIn(0, 60) ?: 0)) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand)) { Text("保存缓冲") }
-    }
-}
 
 @Composable
 fun TonalButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) = Button(onClick, modifier, colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Mint, contentColor = ZhituColors.Brand), shape = RoundedCornerShape(16.dp)) { Text(label) }

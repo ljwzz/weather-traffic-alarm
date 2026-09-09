@@ -10,6 +10,10 @@ import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
 import com.ljwzz.weathertrafficalarm.core.alarm.pendingintent.PendingIntentFactory
 import com.ljwzz.weathertrafficalarm.ui.zhitu.ZhituApp
 import com.ljwzz.weathertrafficalarm.ui.zhitu.ZhituDestination
+import com.ljwzz.weathertrafficalarm.ui.zhitu.ACTION_OPEN_DECISION_DETAIL
+import com.ljwzz.weathertrafficalarm.ui.zhitu.decisionDetailOccurrenceId
+import com.ljwzz.weathertrafficalarm.ui.zhitu.restoredDetailReadOnlySession
+import com.ljwzz.weathertrafficalarm.ui.zhitu.shouldRecoverAlarmsOnResume
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,29 +23,53 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var coordinator: LocalAlarmCoordinator
     private var occurrenceId: String? = null
+    private var decisionOccurrenceId: String? = null
+    private var detailReadOnlySession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
         occurrenceId = intent.showAlarmOccurrenceId()
+        decisionOccurrenceId = intent.decisionDetailOccurrenceId()
+        val decisionDetailRequest = intent.action == ACTION_OPEN_DECISION_DETAIL
+        detailReadOnlySession = if (decisionDetailRequest) true else restoredDetailReadOnlySession(
+            savedInstanceState?.getBoolean(STATE_DETAIL_READ_ONLY), decisionOccurrenceId,
+        )
         setContent {
             ZhituApp(
-                initialDestination = if (intent.action == ACTION_OPEN_ALARM_PLANS) ZhituDestination.PLANS else ZhituDestination.HOME,
+                initialDestination = when (intent.action) {
+                    ACTION_OPEN_ALARM_PLANS -> ZhituDestination.PLANS
+                    ACTION_OPEN_DECISION_DETAIL -> ZhituDestination.DECISION_DETAIL
+                    else -> ZhituDestination.HOME
+                },
                 ringingOccurrenceId = occurrenceId,
+                initialDecisionOccurrenceId = decisionOccurrenceId,
+                onDecisionDetailVisibilityChanged = { detailReadOnlySession = it },
+                onExternalDecisionBack = ::finish,
             )
         }
     }
 
     override fun onResume() {
         super.onResume()
-        lifecycleScope.launch { runCatching { coordinator.recover() } }
+        if (shouldRecoverAlarmsOnResume(detailReadOnlySession)) {
+            lifecycleScope.launch { runCatching { coordinator.recover() } }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         occurrenceId = intent.showAlarmOccurrenceId()
-        if (occurrenceId != null || intent.action == ACTION_OPEN_ALARM_PLANS) recreate()
+        decisionOccurrenceId = intent.decisionDetailOccurrenceId()
+        val decisionDetailRequest = intent.action == ACTION_OPEN_DECISION_DETAIL
+        detailReadOnlySession = decisionDetailRequest
+        if (occurrenceId != null || decisionDetailRequest || intent.action == ACTION_OPEN_ALARM_PLANS) recreate()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(STATE_DETAIL_READ_ONLY, detailReadOnlySession)
+        super.onSaveInstanceState(outState)
     }
 
     private fun Intent.showAlarmOccurrenceId(): String? =
@@ -53,5 +81,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val ACTION_OPEN_ALARM_PLANS = "com.ljwzz.weathertrafficalarm.OPEN_ALARM_PLANS"
+        private const val STATE_DETAIL_READ_ONLY = "detail_read_only"
     }
 }

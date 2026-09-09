@@ -120,6 +120,8 @@ fun AlarmDecisionEntity.toDomain(): AlarmDecision = AlarmDecision(
     actualWakeAt = actualWakeAt,
     calendarSource = calendarSource,
     weatherDataSource = weatherDataSource,
+    planName = planName,
+    zoneId = zoneId,
 )
 
 fun AlarmDecision.toEntity(): AlarmDecisionEntity = AlarmDecisionEntity(
@@ -152,6 +154,8 @@ fun AlarmDecision.toEntity(): AlarmDecisionEntity = AlarmDecisionEntity(
     actualWakeAt = actualWakeAt,
     calendarSource = calendarSource,
     weatherDataSource = weatherDataSource,
+    planName = planName,
+    zoneId = zoneId,
 )
 
 private fun String.toEpochMillis(field: String): Long =

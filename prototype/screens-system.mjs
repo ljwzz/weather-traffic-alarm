@@ -155,7 +155,7 @@ export function createSystemScreens(deps) {
       const badge = phase === 'stopped' ? '本次响铃已停止' : phase === 'snoozed' ? `已贪睡 ${snoozeMinutes} 分钟` : isSnoozeRepeat ? '贪睡后再次响铃' : defaultBadge;
       const reasonTitle = phase === 'stopped' ? '本次响铃仅为演示' : phase === 'snoozed' ? '下次模拟响铃' : isSnoozeRepeat ? '贪睡提醒' : defaultReasonTitle;
       const reason = phase === 'stopped' ? '仅结束当前模拟实例；不修改已保存计划。' : phase === 'snoozed' ? `将在 ${displayOccurrence?.time} 触发新的模拟实例。` : isSnoozeRepeat ? '本次为贪睡后的模拟提醒。\n不修改已保存计划或基础闹钟。' : defaultReason;
-      const info = isBasic ? '仅操作本次模拟实例；不修改已保存计划' : '自动提前尚未启用；不修改基础闹钟';
+      const info = isBasic ? '仅操作本次模拟实例；不修改已保存计划' : '本次为固定提前实例 fixture；不修改基础闹钟';
       const [year, month, day] = displayOccurrence.date.split('-').map(Number);
       const weekday = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
       const dateLabel = `${Number(displayOccurrence.date.slice(5, 7))}月${Number(displayOccurrence.date.slice(8, 10))}日　${weekday}`;
@@ -165,6 +165,9 @@ export function createSystemScreens(deps) {
         : phase === 'snoozed'
           ? `<div class="system-ringing-actions">${action('返回闹钟', 'ringing-return', 'is-stop')}${action('模拟再次响铃', 'ringing-again', 'is-snooze')}</div>`
           : `<div class="system-ringing-actions">${action('停止', 'ringing-stop', 'is-stop')}${action(`贪睡 ${snoozeMinutes} 分钟`, 'ringing-snooze', 'is-snooze', art('c39a1de1-294e-485c-9ba3-547085e07c94.svg', '', 'system-snooze-clock'))}</div>`;
+      const detail = !isBasic && phase === 'ringing' && !isSnoozeRepeat
+        ? `<button type="button" class="system-ringing-detail" data-action="ringing-view-reason">解锁后查看提前原因</button>`
+        : '';
       return `<section class="system-screen system-ringing" aria-label="${isBasic ? '基础' : '提前'}闹钟响铃模拟">
         ${art('90efd783-558d-459e-9023-617c1323b182.svg', '', 'system-wallpaper')}
         ${status(displayOccurrence.time, false, 'c7b6f881-64e0-4bf1-b90a-7678a3cb38f9.svg', '24b9be6c-eb1d-4f38-9995-4f633c4823bc.svg')}
@@ -172,6 +175,7 @@ export function createSystemScreens(deps) {
           <header>${art('bda1ff1c-5875-4d86-89d5-d5e2340fdb6a.svg', '', 'system-ringing-clock')}<b>知途 · ${isBasic ? '基础闹钟' : '提前闹钟'}</b></header>
           <div class="system-ringing-time"><span>${escapeHTML(dateLabel)}</span><time>${escapeHTML(displayOccurrence.time)}</time><b>${escapeHTML(badge)}</b></div>
           <article class="system-ringing-reason"><h2>${reasonIcon}${escapeHTML(reasonTitle)}</h2><p>${escapeHTML(reason).replaceAll('\n', '<br>')}</p></article>
+          ${detail}
           ${controls}
           <p class="system-ringing-foot">离线交互演示 · 不播放声音或振动<br>${info}</p>
         </div>

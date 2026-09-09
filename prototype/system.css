@@ -105,3 +105,5 @@
 .system-snooze-clock { width:18px; height:18px; }
 .system-simulation-state { margin: -4px 0 0; color: #c5dfde; text-align: center; font-size: 10px; line-height: 14px; }
 .system-ringing-foot { margin: 20px 0 0; color: #c5dfde; text-align: center; font-size: 11px; line-height: 16px; }
+.system-ringing-detail { width:100%; margin-top:14px; border:0; background:transparent; color:#d4f3ed; font-size:13px; text-decoration:underline; }
+.system-ringing-detail + .system-ringing-actions { margin-top:16px; }

@@ -6,7 +6,7 @@ const STORAGE_KEY = 'zhitu-prototype-config-v3';
 
 function defaultStoredConfig() {
   return persistentSettingsSnapshot({
-    ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], notificationsEnabled:true, lockSummaryEnabled:true, onboardingDone:false,
+    ...createDefaultState(), origin:'', originAddress:'', destination:'', destinationAddress:'', selectedTransport:'driving', favorites:[], onboardingDone:false,
   });
 }
 
@@ -82,6 +82,75 @@ test('permission guide preserves an alarm draft and only continues the save once
     click({ target:control('continue-permission-flow') });
     assert.match(app.innerHTML, /闹钟计划/);
     assert.notEqual(saved.get(STORAGE_KEY), initial);
+  });
+});
+
+test('selecting a legal-workday schedule immediately shows the four-week calendar preview', async () => {
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = listeners.get('click');
+    window.ZhituPrototype.navigate('plans');
+    click({ target:control('new-alarm') });
+    click({ target:control('select-repeat', 'workdays') });
+
+    assert.match(app.innerHTML, /法定工作日/);
+    assert.match(app.innerHTML, /工作日预览/);
+    assert.match(app.innerHTML, /<span>一<\/span><span>二<\/span><span>三<\/span><span>四<\/span><span>五<\/span><span>六<\/span><span>日<\/span>/);
+    assert.equal((app.innerHTML.match(/data-calendar-date=/g) || []).length, 28);
+  });
+});
+
+test('commute and early-reminder fields remain available behind the plan editor summary', async () => {
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = listeners.get('click');
+    window.ZhituPrototype.navigate('plans');
+    click({ target:control('new-alarm') });
+
+    assert.match(app.innerHTML, /通勤与提前提醒/);
+    assert.doesNotMatch(app.innerHTML, /期望到达时间|编辑本计划覆盖/);
+    click({ target:control('toggle-commute-settings') });
+    assert.match(app.innerHTML, /期望到达时间/);
+    assert.match(app.innerHTML, /准备时间/);
+    assert.match(app.innerHTML, /最多提前/);
+    assert.match(app.innerHTML, /编辑本计划覆盖/);
+  });
+});
+
+test('weather buffer profiles save independently from one collapsed settings entry', async () => {
+  await withBrowserStub(async ({ app, listeners, saved, window }) => {
+    const click = listeners.get('click');
+    const input = listeners.get('input');
+    window.ZhituPrototype.navigate('settings');
+    assert.match(app.innerHTML, /天气缓冲/);
+    assert.doesNotMatch(app.innerHTML, /data-weather-buffer=/);
+
+    click({ target:control('toggle-weather-buffers') });
+    assert.match(app.innerHTML, /工作日[\s\S]*周末[\s\S]*法定休息日/);
+    input({ target:{ dataset:{ weatherBuffer:'workday', weatherBufferIndex:'2' }, value:'17' } });
+    click({ target:control('save-weather-buffer', 'workday') });
+    let persisted = JSON.parse(saved.get(STORAGE_KEY));
+    assert.equal(persisted.weatherBuffers.workday[2], 17);
+    assert.deepEqual(persisted.weatherBuffers.weekend, [5,10,20]);
+
+    input({ target:{ dataset:{ weatherBuffer:'weekend', weatherBufferIndex:'0' }, value:'7' } });
+    click({ target:control('save-weather-buffer', 'weekend') });
+    persisted = JSON.parse(saved.get(STORAGE_KEY));
+    assert.equal(persisted.weatherBuffers.workday[2], 17);
+    assert.equal(persisted.weatherBuffers.weekend[0], 7);
+  });
+});
+
+test('new-plan calendar remains bound to the unsaved current draft and cancel writes nothing', async () => {
+  await withBrowserStub(async ({ app, listeners, saved, window }, initial) => {
+    const click = listeners.get('click');
+    const input = listeners.get('input');
+    window.ZhituPrototype.navigate('plans');
+    click({ target:control('new-alarm') });
+    input({ target:{ dataset:{ alarmField:'name' }, value:'新建草稿闹钟' } });
+    click({ target:control('open-calendar') });
+    assert.match(app.innerHTML, /新建草稿闹钟/);
+    click({ target:control('set-date-override', 'off') });
+    window.ZhituPrototype.navigate('plans');
+    assert.equal(saved.get(STORAGE_KEY), initial);
   });
 });
 

@@ -232,6 +232,23 @@ class EvaluationCoordinatorIntegrationTest {
     }
 
     @Test
+    fun `failed evaluation records no application and preserves an earlier advance`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        val successful = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "before-failure")
+        val before = occurrences.getByPlanId(plan.id)
+        assertTrue(before.any { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED })
+        coordinator = coordinatorWith(FailingRoute(ProviderError.Category.NETWORK), FakeWeather(now))
+
+        val failed = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "later-failure")
+
+        assertEquals(EvaluationOutcome.FAILED, failed.decision?.evaluationOutcome)
+        assertEquals("NOT_APPLIED", failed.decision?.applicationOutcome)
+        assertEquals(before, occurrences.getByPlanId(plan.id))
+        assertEquals(successful.decision, decisions.getById(requireNotNull(successful.decision).decisionId))
+    }
+
+    @Test
     fun `weather failure and an expired evaluation both preserve regular occurrence`() = runBlocking {
         val plan = persistPlan()
         val regular = regular(plan)
