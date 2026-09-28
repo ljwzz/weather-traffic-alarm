@@ -10,9 +10,9 @@ import { canUseLocation, createPermissionState, missingAlarmDisplayPermissions }
 import { createPermissionScreens } from './screens-permissions.mjs';
 
 const STORAGE_KEY = 'zhitu-prototype-config-v3';
-const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','lock','island','island-expand','ringing','ringing-basic','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
-const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['我的通勤','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['本次决策',''], settings:['设置','闹钟与通勤'], history:['决策与本机记录',''], failure:['评估详情',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['可靠性诊断',''], 'place-search':['选择地点',''] };
-const BACK = { weather:'home', route:'home', 'route-edit':'route', 'plan-edit':'plans', why:'home', history:'plans', failure:'plans', rest:'plans', 'overtime-select':'plans', 'overtime-active':'plans', onboarding:'home', credentials:'settings', calendar:'plan-edit', diagnostics:'settings', 'place-search':'route-edit', lock:'settings', island:'settings', 'island-expand':'island', ringing:'plans', 'ringing-basic':'plans' };
+const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','weather-buffers','lock','island','island-expand','ringing','ringing-basic','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
+const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['我的通勤','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['本次决策',''], settings:['设置','闹钟与通勤'], 'weather-buffers':['天气缓冲','按日期类型分别保存'], history:['决策与本机记录',''], failure:['评估详情',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['权限与诊断',''], 'place-search':['选择地点',''] };
+const BACK = { weather:'home', route:'home', 'route-edit':'route', 'plan-edit':'plans', why:'home', history:'plans', failure:'plans', rest:'plans', 'overtime-select':'plans', 'overtime-active':'plans', onboarding:'home', credentials:'settings', calendar:'plan-edit', diagnostics:'settings', 'weather-buffers':'settings', 'place-search':'route-edit', lock:'settings', island:'settings', 'island-expand':'island', ringing:'plans', 'ringing-basic':'plans' };
 const NAV = [['home','今日','bea94e9a-63d6-46a2-be51-c2a550277636.svg'],['route','路线','91c986c2-5c7e-4908-a9ea-11f77f84ba30.svg'],['plans','闹钟','1ae38d70-e6a0-416f-85d1-71545f1256bf.svg'],['settings','设置','7b9895bd-a3db-41ea-b369-eb67fda8373d.svg']];
 const RINGING_ROUTES = new Set(['ringing', 'ringing-basic']);
 function createRingingFixtureSession(kind) {
@@ -165,6 +165,7 @@ function navigate(target, { replace = false, fromHistory = false } = {}) {
     runtime.selectedOccurrenceId = params.get('occurrenceId') || null;
   }
   const old = runtime.route;
+  if (route === 'weather-buffers' && old !== route) runtime.weatherBufferDraft = clone(config.weatherBuffers);
   const preservesPermissionFlow = old === 'plan-edit' && route === 'diagnostics' && runtime.permissionFlow;
   const resumesPermissionFlow = old === 'diagnostics' && route === runtime.permissionFlow?.originRoute;
   const leavesPermissionFlow = runtime.permissionFlow && !['diagnostics', runtime.permissionFlow.originRoute].includes(route);
@@ -304,7 +305,6 @@ function handleClick(event) {
     if (op === 'toggle-alarm') return;
     if (op === 'select-repeat') { const plan = alarmDraft(); plan.repeat = value === REPEAT_KINDS.ONCE ? { kind:value, date:todayIso() } : value === REPEAT_KINDS.WEEKLY ? { kind:value, weekdays:[1,2,3,4,5] } : { kind:value }; render(); return; }
     if (op === 'toggle-commute-settings') { runtime.commuteSettingsExpanded = !runtime.commuteSettingsExpanded; render(); return; }
-    if (op === 'toggle-weather-buffers') { runtime.weatherBufferExpanded = !runtime.weatherBufferExpanded; if (runtime.weatherBufferExpanded && !runtime.weatherBufferDraft) runtime.weatherBufferDraft = clone(config.weatherBuffers); render(); return; }
     if (op === 'save-weather-buffer') { const profile = runtime.weatherBufferDraft?.[value]; if (!profile) throw Error('天气缓冲草稿不存在。'); config = saveWeatherBufferProfile(config, value, profile); runtime.weatherBufferDraft = clone(config.weatherBuffers); persist(); notice('天气缓冲已保存。'); render(); return; }
     if (op === 'toggle-weekday') { const plan = alarmDraft(); const day = Number(value); const days = new Set(plan.repeat.weekdays || []); days.has(day) ? days.delete(day) : days.add(day); plan.repeat.weekdays = [...days].sort(); render(); return; }
     if (['save-overlay-time','save-overlay-snooze','save-overlay-arrival','save-overlay-preparation','save-overlay-max-advance','save-overlay-sound'].includes(op)) { closeOverlay(); render(); return; }

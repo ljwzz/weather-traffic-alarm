@@ -297,7 +297,7 @@ fun ZhituApp(
             ZhituDestination.DIAGNOSTICS -> returnFromDiagnostics()
             ZhituDestination.PLAN_COMMUTE -> destination = ZhituDestination.EDITOR
             ZhituDestination.PLACE_PICKER -> destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE
-            ZhituDestination.CALENDAR, ZhituDestination.CREDENTIALS, ZhituDestination.HISTORY, ZhituDestination.WEATHER -> destination = ZhituDestination.SETTINGS
+            ZhituDestination.CALENDAR, ZhituDestination.CREDENTIALS, ZhituDestination.HISTORY, ZhituDestination.WEATHER, ZhituDestination.WEATHER_BUFFERS -> destination = ZhituDestination.SETTINGS
             else -> {
             permissionViewModel.cancel()
             destination = if (destination == ZhituDestination.EDITOR) ZhituDestination.PLANS else ZhituDestination.HOME
@@ -447,6 +447,16 @@ fun ZhituApp(
                 ZhituDestination.SETTINGS -> SettingsScreen(
                     permissionSnapshot = permissionSnapshot,
                     permissionConfirmations = permissionViewModel.confirmations,
+                    onCalendar = { destination = ZhituDestination.CALENDAR },
+                    onRoute = { navigatePrimary(ZhituDestination.ROUTE) },
+                    onNavigate = ::navigatePrimary,
+                    onCredentials = { destination = ZhituDestination.CREDENTIALS },
+                    onDiagnostics = { destination = ZhituDestination.DIAGNOSTICS },
+                    onHistory = { destination = ZhituDestination.HISTORY },
+                    onWeather = { destination = ZhituDestination.WEATHER },
+                    onOnboarding = { destination = ZhituDestination.ONBOARDING },
+                )
+                ZhituDestination.WEATHER_BUFFERS -> WeatherBuffersScreen(
                     settings = localSettings,
                     onWeatherBufferChange = { kind, buffers ->
                         viewModel.updateSettings { current ->
@@ -457,14 +467,7 @@ fun ZhituApp(
                             }
                         }
                     },
-                    onCalendar = { destination = ZhituDestination.CALENDAR },
-                    onRoute = { navigatePrimary(ZhituDestination.ROUTE) },
-                    onNavigate = ::navigatePrimary,
-                    onCredentials = { destination = ZhituDestination.CREDENTIALS },
-                    onDiagnostics = { destination = ZhituDestination.DIAGNOSTICS },
-                    onHistory = { destination = ZhituDestination.HISTORY },
-                    onWeather = { destination = ZhituDestination.WEATHER },
-                    onOnboarding = { destination = ZhituDestination.ONBOARDING },
+                    onBack = { destination = ZhituDestination.SETTINGS },
                 )
                 ZhituDestination.CREDENTIALS -> CredentialSettingsScreen(
                     status = credentialStatus,

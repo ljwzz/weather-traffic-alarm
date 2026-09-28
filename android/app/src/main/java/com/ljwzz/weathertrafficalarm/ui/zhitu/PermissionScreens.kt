@@ -125,7 +125,7 @@ fun PermissionDiagnosticsContent(
 ) {
     Scaffold(
         containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar("可靠性诊断", subtitle = "从系统设置返回后自动重新检查", navigation = onBack) },
+        topBar = { ZhituTopBar("权限与诊断", subtitle = "从系统设置返回后自动重新检查", navigation = onBack) },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).testTag("permission_diagnostics"),
@@ -372,14 +372,14 @@ private fun CalendarRefreshFailure?.calendarFailureLabel(): String = when (this)
 fun PermissionSummaryCard(snapshot: PermissionSnapshot, confirmations: Set<XiaomiDisplayPermission>, onDiagnostics: () -> Unit) {
     val summary = snapshot.alarmReliabilitySummary(confirmations)
     PermissionCard(background = ZhituColors.Mint, modifier = Modifier.testTag("setting-reliability-summary")) {
-        Text("闹钟可靠性", color = ZhituColors.Ink, fontWeight = FontWeight.Bold)
+        Text("权限与诊断", color = ZhituColors.Ink, fontWeight = FontWeight.Bold)
         Text(summary.label, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
         Text(
             "系统能力与人工确认会在诊断中分别显示。",
             color = ZhituColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
-        TextButton(onClick = onDiagnostics, modifier = Modifier.testTag("setting-open-diagnostics")) { Text("查看并检查") }
+        TextButton(onClick = onDiagnostics, modifier = Modifier.testTag("setting-open-diagnostics")) { Text("提醒权限与诊断") }
     }
 }
 

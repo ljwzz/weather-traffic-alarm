@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="知途">
+  <rect width="108" height="108" rx="25" fill="#0B897B"/>
+  <path d="M54 16c-21 0-38 17-38 38s17 38 38 38 38-17 38-38-17-38-38-38Z" fill="#D9F4E9"/>
+  <path d="M54 27v27l18 11" fill="none" stroke="#0B897B" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="54" cy="54" r="5" fill="#0B897B"/>
+</svg>

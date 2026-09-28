@@ -92,7 +92,7 @@ class MergedSettingsEditorDeviceTest {
         compose.onAllNodesWithText("设置").onFirst().assertExists()
         compose.onNodeWithText("闹钟与通勤").assertExists()
         compose.onNodeWithTag("setting-reliability-summary").assertExists()
-        compose.onNodeWithText("闹钟可靠性").assertExists()
+        compose.onNodeWithText("权限与诊断").assertExists()
         screenshot("settings-collapsed.png")
         compose.onNodeWithTag("setting-open-diagnostics").performClick()
         compose.onNodeWithTag("permission_diagnostics").assertIsDisplayed()
@@ -122,6 +122,7 @@ class MergedSettingsEditorDeviceTest {
 
         compose.onNodeWithTag("weather-buffer-workday").assertDoesNotExist()
         compose.onNodeWithTag("setting-weather-buffer").performScrollTo().performClick()
+        compose.onNodeWithTag("weather-buffers-screen").assertExists()
         listOf("weather-buffer-workday", "weather-buffer-weekend", "weather-buffer-legal-rest").forEach(::scrollSettingsTo)
 
         saveBuffer("weather-buffer-workday", WeatherBuffers(11, 12, 13)) { it.workdayWeatherBuffers }
@@ -280,7 +281,7 @@ class MergedSettingsEditorDeviceTest {
     }
 
     private fun scrollSettingsTo(tag: String) {
-        compose.onNodeWithTag("settings-screen").performScrollToNode(hasTestTag(tag))
+        compose.onNodeWithTag(if (compose.onAllNodesWithTag("weather-buffers-screen").fetchSemanticsNodes().isEmpty()) "settings-screen" else "weather-buffers-screen").performScrollToNode(hasTestTag(tag))
         compose.onNodeWithTag(tag).assertExists()
     }
 

@@ -73,7 +73,7 @@ test('permission guide preserves an alarm draft and only continues the save once
     assert.equal(saved.get(STORAGE_KEY), initial);
 
     click({ target:control('open-permission-diagnostics') });
-    assert.match(app.innerHTML, /可靠性诊断/);
+    assert.match(app.innerHTML, /权限与诊断/);
     assert.match(app.innerHTML, /权限演示/);
     assert.match(app.innerHTML, /位置权限/);
 
@@ -115,7 +115,7 @@ test('commute and early-reminder fields remain available behind the plan editor 
   });
 });
 
-test('weather buffer profiles save independently from one collapsed settings entry', async () => {
+test('weather buffer profiles save independently on a dedicated settings page', async () => {
   await withBrowserStub(async ({ app, listeners, saved, window }) => {
     const click = listeners.get('click');
     const input = listeners.get('input');
@@ -123,7 +123,7 @@ test('weather buffer profiles save independently from one collapsed settings ent
     assert.match(app.innerHTML, /天气缓冲/);
     assert.doesNotMatch(app.innerHTML, /data-weather-buffer=/);
 
-    click({ target:control('toggle-weather-buffers') });
+    window.ZhituPrototype.navigate('weather-buffers');
     assert.match(app.innerHTML, /工作日[\s\S]*周末[\s\S]*法定休息日/);
     input({ target:{ dataset:{ weatherBuffer:'workday', weatherBufferIndex:'2' }, value:'17' } });
     click({ target:control('save-weather-buffer', 'workday') });
@@ -324,7 +324,7 @@ test('location settings recovery consumes the request and never replays it on a 
     window.ZhituPrototype.navigate('diagnostics');
     click({ target:control('open-permission-settings', 'location') });
     click({ target:control('return-from-permission-settings') });
-    assert.match(app.innerHTML, /可靠性诊断/);
+    assert.match(app.innerHTML, /权限与诊断/);
     assert.doesNotMatch(app.innerHTML, /当前位置不可用（演示）/);
   });
 });

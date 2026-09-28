@@ -17,9 +17,12 @@ export function createSettingsScreens({ state, overlayAction }) {
       const permissionState = r.permissionState;
       const missing = missingAlarmDisplayPermissions(permissionState);
       const summary = missing.length ? `有 ${missing.length} 项设置待检查。` : '设置已完成检查。';
+      return `<div class="settings-page"><section class="settings-summary"><h2>权限与诊断</h2><p>${summary}</p>${link('提醒权限与诊断','diagnostics','查看 ›')}</section><section class="settings-card"><h2>通勤与数据</h2>${link('通勤地点与路线','route','管理 ›')}${link('工作日日历','calendar','查看 ›')}${link('数据与凭据','credentials','管理 ›')}${link('天气缓冲','weather-buffers','管理 ›')}</section><section class="settings-card"><h2>隐私</h2>${link('隐私与地图授权','onboarding','查看 ›')}</section><section class="settings-card settings-about"><img src="./assets/app-icon.svg" alt="知途 App 图标"><div><h2>知途</h2><p>版本 0.1.0 · 构建 1</p><small>本地原型 · 系统能力为离线演示</small></div></section></div>`;
+    },
+    'weather-buffers'() {
+      const { config: c, runtime: r } = read();
       const buffers = r.weatherBufferDraft || c.weatherBuffers || DEFAULT_WEATHER_BUFFERS;
-      const weatherBuffers = r.weatherBufferExpanded ? `<div class="settings-buffer-profiles">${Object.keys(bufferLabels).map(kind => bufferEditor(kind, buffers[kind] || DEFAULT_WEATHER_BUFFERS[kind])).join('')}</div>` : '';
-      return `<div class="settings-page"><section class="settings-summary"><h2>闹钟可靠性</h2><p>${summary}</p>${link('查看并检查','diagnostics','›')}</section><section class="settings-card"><h2>通勤与数据</h2>${link('通勤地点与路线','route','管理 ›')}${link('工作日日历','calendar','查看 ›')}${link('数据与凭据','credentials','管理 ›')}<button type="button" class="settings-buffer-summary" data-action="toggle-weather-buffers" aria-expanded="${Boolean(r.weatherBufferExpanded)}"><span><strong>天气缓冲</strong><small>工作日、周末、法定休息日分别配置</small></span><b>${r.weatherBufferExpanded ? '收起' : '编辑'} ›</b></button>${weatherBuffers}</section><section class="settings-card"><h2>隐私</h2>${link('隐私与地图授权','onboarding','查看 ›')}</section></div>`;
+      return `<div class="settings-page"><section class="settings-summary"><h2>按日期类型分别保存</h2><p>工作日、周末和法定休息日各自使用独立缓冲。</p></section><div class="settings-buffer-profiles">${Object.keys(bufferLabels).map(kind => bufferEditor(kind, buffers[kind] || DEFAULT_WEATHER_BUFFERS[kind])).join('')}</div></div>`;
     },
     'place-search'() {
       const { config: c, runtime: r } = read(); const query = r.placeQuery || ''; const fixture = amapFixtureState(r.credentials, r.amapFixture || AMAP_FIXTURE_STATES.SUCCESS); const results = fixture === AMAP_FIXTURE_STATES.SUCCESS ? [...AMAP_DEMO_TIPS, ...(c.favorites || [])].filter(place => !query || `${place.name}${place.address}`.includes(query)) : (c.favorites || []).filter(place => !query || `${place.name}${place.address}`.includes(query)); const selected = r.selectedPlace;

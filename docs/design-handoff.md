@@ -21,15 +21,15 @@
 
 - 合并页的当前主流程以 `home`、天气、路线与地点选择、计划列表与编辑、日历覆盖、设置、凭据、可靠性诊断、记录、引导和真实基础响铃为准。节点映射见下表。旧 21 个 Figma 页面不是 Android 已实现清单；当前实现范围和路径由下文实施状态及 [`SPEC.md`](../SPEC.md) 第 8 章共同约束。
 - 旧设计中仍有效但尚未接入当前 Android 导航的天气地图、锁屏通知、胶囊摘要／展开详情和单日覆盖，保留在合并页目标区。它们不得从主设置页或当前主流程伪造为已可用功能。
-- 设置页以通勤路线、日历、凭据、隐私四个入口组织；“闹钟可靠性”作为摘要进入诊断。诊断／首次启用引导按设备条件展开标准系统状态、设备条件项、人工确认说明及设置入口结果；标准系统核验与人工确认必须分别显示。全屏提醒的标准可用性以 Android 平台状态为准：https://source.android.com/docs/core/permissions/fsi-limits
+- 设置页以通勤路线、日历、凭据、天气缓冲和隐私入口组织；“权限与诊断”作为摘要进入提醒权限检查。诊断／首次启用引导按设备条件展开标准系统状态、设备条件项、人工确认说明及设置入口结果；标准系统核验与人工确认必须分别显示。全屏提醒的标准可用性以 Android 平台状态为准：https://source.android.com/docs/core/permissions/fsi-limits
 - 当前 Android 的“通知摘要”“锁屏摘要”开关没有已接入的行为消费者。本阶段从 Android 和原型设置页移除界面开关，保留 Android 现有存储字段与历史数据兼容性。
 - “通勤路线”合并地图与常用地点；“隐私”合并隐私说明与地图授权。设置层不平铺每个品牌的专项设置。
 - 计划编辑保留“通勤与提前提醒”折叠组，收纳到达时间、准备时间、最多提前和计划通勤覆盖。字段完整保存到当前计划；未实现的日级通勤覆写继续保留为设计目标，不能写成已有 Android 数据能力。
 
 #### 第一阶段 Android 交接
 
-- 设置：`SettingsScreen.kt` 复用现有主题与导航，四个管理入口独立保留；“闹钟可靠性”汇总真实系统能力，诊断中按设备条件显示人工确认项。
-- 天气缓冲：设置单一折叠组展开工作日、周末、法定休息日，0–60 分钟校验后分别保存；现有 `LocalSettingsStore` 字段及 `EvaluationCoordinatorPolicy.weatherProfile` 消费路径继续使用。合并设置屏 `219:3948` 补入口 `242:3136`，设计及原型证据见 [`原型补齐验收`](../prototype/qa/phase1-android-2026-09-07/README.md)。
+- 设置：`SettingsScreen.kt` 复用现有主题与导航，显示权限与诊断入口、独立天气缓冲入口、App 图标和实际版本数据；诊断中按设备条件显示人工确认项。
+- 天气缓冲：独立页面展示工作日、周末、法定休息日，0–60 分钟校验后分别保存；现有 `LocalSettingsStore` 字段及 `EvaluationCoordinatorPolicy.weatherProfile` 消费路径继续使用。合并设置屏 `219:3948` 补入口 `242:3136`，设计及原型证据见 [`原型补齐验收`](../prototype/qa/phase1-android-2026-09-07/README.md)。
 - 编辑：`AlarmEditorScreen` 默认收起“通勤与提前提醒”，保留全部字段与四周预览。`PLAN_COMMUTE` 绑定当前草稿，子页完成只回填，整份保存才写入；返回、取消与首次启用引导分别验证。
 - 新建使用稳定草稿 ID；计划及通勤覆盖通过原协调器的保存边界同事务提交，已有计划编辑失败保留原配置。数据库表与版本保持现有契约。
 - 状态与权限实现依据：https://developer.android.com/develop/ui/compose/state-hoisting https://developer.android.com/training/permissions/requesting-special
@@ -55,8 +55,8 @@
 | `57:1000` | [`219:3112`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-3112) | 闹钟 |
 | `57:1083` | [`219:3556`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-3556) | 编辑收起 |
 | `176:2139` | [`219:3711`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-3711) | 工作日预览 |
-| `3:49` | [`219:3948`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-3948) | 设置 |
-| `57:1226` | [`219:4138`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-4138) | 诊断 |
+| `3:49` | [`219:3948`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-3948) | 设置；包含版本、构建号与 App 图标 |
+| `57:1226` | [`219:4138`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-4138) | 权限与诊断；承载提醒权限 |
 | `57:1187` | [`220:2769`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=220-2769) | 凭据 |
 | `37:225` | [`220:2907`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=220-2907) | 授权 |
 | `37:273` | [`220:2951`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=220-2951) | 日历 |
@@ -75,7 +75,8 @@
 | [`223:4069`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4069) | 胶囊摘要 |
 | [`223:4183`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4183) | 胶囊展开详情 |
 | [`223:4317`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4317) | 评估失败详情（第二阶段已实现） |
-| [`223:4408`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4408) | 三套天气缓冲视觉参照；当前入口已在设置折叠组补齐。 |
+| [`223:4408`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4408) | 原天气缓冲视觉参照。 |
+| [`253:3146`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=253-3146) | 设置独立天气缓冲页；三套配置分别保存。 |
 | [`223:4501`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4501) | 单日覆盖 |
 | [`228:3078`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3078) | 通知摘要／锁屏摘要设计目标说明板 |
 | [`228:3086`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3086) | 提前响铃详情入口（第二阶段已实现；源节点 `95:763`） |
@@ -172,7 +173,7 @@ Figma 权限状态组为 [`133:632`](https://www.figma.com/design/wN04BlxRelbJyB
 
 | 功能 | Figma 节点 | 交互契约 |
 |---|---|---|
-| 设置权限入口 | [`157:2223`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=157-2223)、[`144:1450`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=144-1450) | 设置页展示统一“闹钟可靠性”摘要并进入诊断；诊断／启用引导按设备条件展开标准 Android 项和厂商条件项。 |
+| 设置权限入口 | [`157:2223`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=157-2223)、[`144:1450`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=144-1450) | 设置页展示统一“权限与诊断”摘要并进入诊断；诊断／启用引导按设备条件展开标准 Android 项和厂商条件项。 |
 | 通用 Android 诊断 | [`133:634`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=133-634) | 展示通知、精确闹钟与全屏提醒的演示状态、授权入口和设置返回后的刷新状态。 |
 | 小米诊断 | [`136:668`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=136-668) | 作为设备条件项示例，展示锁屏显示与后台弹出页面的手工设置说明及用户确认状态；不在设置层单独平铺。 |
 | 首次启用引导 | [`137:899`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=137-899) | 缺失状态说明用途；继续、检查与取消保留各自会话语义。 |
