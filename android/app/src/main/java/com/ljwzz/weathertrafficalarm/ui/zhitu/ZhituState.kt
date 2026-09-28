@@ -477,7 +477,7 @@ class ZhituViewModel @Inject constructor(
             origin = draft.commute?.origin ?: override?.origin ?: effective?.origin,
             destination = draft.commute?.destination ?: override?.destination ?: effective?.destination,
             mode = draft.commute?.mode ?: override?.commuteMode ?: effective?.commuteMode ?: current.commuteMode,
-            useGlobal = draft.commute?.useGlobal ?: (override == null),
+            useGlobal = false,
         )
         refreshPlanCommutePreview()
         }.onFailure {

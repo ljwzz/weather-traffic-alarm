@@ -399,7 +399,6 @@ fun ZhituApp(
                     onSelectRoute = viewModel::selectRoute,
                     onTrafficChange = viewModel::setTrafficEnabled,
                     onPickPlace = { target -> placeTarget = target; viewModel.beginPlaceSelection(); destination = ZhituDestination.PLACE_PICKER },
-                    onConfigurePlan = { destination = ZhituDestination.PLANS },
                 )
                 ZhituDestination.PLACE_PICKER -> PlacePickerScreen(
                     target = placeTarget,
@@ -439,7 +438,6 @@ fun ZhituApp(
                     editor = planCommuteEditor,
                     mapStatus = mapStatus,
                     onBack = { destination = ZhituDestination.EDITOR },
-                    onUseGlobal = viewModel::setPlanCommuteUseGlobal,
                     onModeChange = viewModel::setPlanCommuteMode,
                     onPickPlace = { target -> placeTarget = target; viewModel.beginPlaceSelection(); destination = ZhituDestination.PLACE_PICKER },
                     onRefresh = viewModel::refreshPlanCommutePreview,

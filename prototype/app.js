@@ -12,7 +12,7 @@ import { createPermissionScreens } from './screens-permissions.mjs';
 
 const STORAGE_KEY = 'zhitu-prototype-config-v3';
 const ROUTES = ['home','weather','route','route-edit','plans','plan-edit','why','settings','weather-buffers','lock','island','island-expand','ringing','ringing-basic','history','failure','rest','overtime-select','overtime-active','onboarding','credentials','calendar','diagnostics','place-search'];
-const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['我的通勤','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['本次决策',''], settings:['设置','闹钟与通勤'], 'weather-buffers':['天气缓冲','按日期类型分别保存'], history:['决策与本机记录',''], failure:['评估详情',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['权限与诊断',''], 'place-search':['选择地点',''] };
+const HEADERS = { home:['知途','本地闹钟'], weather:['天气地图',''], route:['通勤路线','地点与出行方式'], 'route-edit':['编辑地点',''], plans:['闹钟计划','本地创建，由 Android 调度'], 'plan-edit':['编辑闹钟',''], why:['本次决策',''], settings:['设置','闹钟与通勤'], 'weather-buffers':['天气缓冲','按日期类型分别保存'], history:['决策与本机记录',''], failure:['评估详情',''], rest:['天气缓冲',''], 'overtime-select':['单日覆盖',''], 'overtime-active':['闹钟计划',''], onboarding:['开始使用知途',''], credentials:['数据与凭据',''], calendar:['工作日日历',''], diagnostics:['权限与诊断',''], 'place-search':['选择地点',''] };
 const BACK = { weather:'home', route:'home', 'route-edit':'route', 'plan-edit':'plans', why:'home', history:'plans', failure:'plans', rest:'plans', 'overtime-select':'plans', 'overtime-active':'plans', onboarding:'home', credentials:'settings', calendar:'plan-edit', diagnostics:'settings', 'weather-buffers':'settings', 'place-search':'route-edit', lock:'settings', island:'settings', 'island-expand':'island', ringing:'plans', 'ringing-basic':'plans' };
 const NAV = [['home','今日','bea94e9a-63d6-46a2-be51-c2a550277636.svg'],['route','路线','91c986c2-5c7e-4908-a9ea-11f77f84ba30.svg'],['plans','闹钟','1ae38d70-e6a0-416f-85d1-71545f1256bf.svg'],['settings','设置','7b9895bd-a3db-41ea-b369-eb67fda8373d.svg']];
 const RINGING_ROUTES = new Set(['ringing', 'ringing-basic']);
@@ -40,7 +40,7 @@ function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults(
 let config = load();
 function createRuntime() {
   const decisionRecords = demoDecisionRecords();
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, timeDraft:null, credentials:{}, credentialStatus:'', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, evaluationSubmitting:false, decisionRecords, selectedDecisionId:null, selectedOccurrenceId:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, commuteSettingsExpanded:false, weatherBufferExpanded:false, weatherBufferDraft:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, ringingDetailOpen:false, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, timeDraft:null, credentials:{}, credentialStatus:'', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, evaluationSubmitting:false, decisionRecords, selectedDecisionId:null, selectedOccurrenceId:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, commuteSettingsExpanded:false, weatherBufferExpanded:false, weatherBufferDraft:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, planCommuteDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, ringingDetailOpen:false, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -49,9 +49,7 @@ function persist() { try { persistSettings(localStorage, STORAGE_KEY, config); }
 function currentConfig() { return runtime.routeDraft && ['route','route-edit','place-search'].includes(runtime.route) ? runtime.routeDraft : config; }
 function activeCommute() {
   if (runtime.routeScope !== 'plan') return currentConfig();
-  const plan = alarmDraft();
-  if (!plan.commuteOverride?.enabled) plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport };
-  return plan.commuteOverride;
+  return runtime.planCommuteDraft;
 }
 function record(type, message, plan) { config.alarmEvents = [{ id:`event-${Date.now()}`, type, message, date:todayIso(), time:plan?.time || '', planId:plan?.id || null }, ...(config.alarmEvents || [])].slice(0, 100); }
 function evaluationPlans() {
@@ -144,7 +142,7 @@ function refreshHomePreview({ force = false, kind = null } = {}) {
   }
 }
 function decisionRecord(decisionId = runtime.selectedDecisionId) { return (runtime.decisionRecords || []).find(item => item.decisionId === decisionId) || null; }
-function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft; const evaluationPlan = selectedEvaluationPlan(); return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null, evaluationPlan:clone(evaluationPlan), evaluationPlans:clone(evaluationPlans()), evaluationRun:runtime.evaluationRun ? clone(runtime.evaluationRun) : null, evaluationHistory:clone(runtime.decisionRecords || []), selectedDecision:clone(decisionRecord()) }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
+function state() { const c = clone(currentConfig()); if (runtime.dateOverridesDraft) c.dateOverrides = clone(runtime.dateOverridesDraft); const plan = runtime.alarmDraft ? { ...runtime.alarmDraft, ...(runtime.routeScope === 'plan' && runtime.planCommuteDraft ? { commuteOverride:runtime.planCommuteDraft } : {}) } : null; const evaluationPlan = selectedEvaluationPlan(); return { config:c, runtime:{ ...runtime, alarmDraft: plan ? clone(plan) : null, evaluationPlan:clone(evaluationPlan), evaluationPlans:clone(evaluationPlans()), evaluationRun:runtime.evaluationRun ? clone(runtime.evaluationRun) : null, evaluationHistory:clone(runtime.decisionRecords || []), selectedDecision:clone(decisionRecord()) }, next: plan ? nextAlarmOccurrence(plan, { override:c.dateOverrides }) : null }; }
 const travel = createTravelScreens({ action, overlayAction, asset, state });
 const alarms = createAlarmScreens({ action, overlayAction, asset, state });
 const settings = createSettingsScreens({ asset, state, overlayAction });
@@ -181,7 +179,8 @@ function navigate(target, { replace = false, fromHistory = false } = {}) {
   if (runtime.locationRequest && route !== runtime.locationRequest.route) runtime.locationRequest = null;
   if (old === 'plan-edit' && !['calendar','route-edit','place-search'].includes(route) && !preservesPermissionFlow) { runtime.alarmDraft = null; runtime.editingAlarmId = null; runtime.dateOverridesDraft = null; }
   if (old === 'route-edit' && route !== 'place-search' && runtime.routeScope !== 'plan') runtime.routeDraft = null;
-  if (old === 'route-edit' && route === 'plan-edit' && runtime.routeScope === 'plan') { runtime.routeScope = 'global'; runtime.routeDraft = null; }
+  if (old === 'route-edit' && route === 'plan-edit' && runtime.routeScope === 'plan') { runtime.routeScope = 'global'; runtime.routeDraft = null; runtime.planCommuteDraft = null; }
+  if (route === 'route') { runtime.routeScope = 'global'; runtime.planCommuteDraft = null; }
   if ((route === 'route-edit' || route === 'place-search') && runtime.routeScope !== 'plan') enterRouteDraft();
   const preservesRingingSession = old === 'ringing' && route === 'why' && runtime.ringingDetailOpen;
   const returnsToRingingSession = old === 'why' && (route === 'ringing' || route === 'ringing-basic') && runtime.ringingDetailOpen;
@@ -382,7 +381,7 @@ function handleClick(event) {
       render();
       return;
     }
-    if (op === 'save-route') { if (runtime.routeScope === 'plan') { runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); config.commuteRevision = (config.commuteRevision || 0) + 1; runtime.routeDraft = null; invalidateHomePreviews(); persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
+    if (op === 'save-route') { if (runtime.routeScope === 'plan') { alarmDraft().commuteOverride = clone(runtime.planCommuteDraft); runtime.planCommuteDraft = null; runtime.routeScope = 'global'; notice('本计划通勤覆盖已保存。'); return navigate('plan-edit', { replace:true }); } config = clone(runtime.routeDraft || config); config.commuteRevision = (config.commuteRevision || 0) + 1; runtime.routeDraft = null; invalidateHomePreviews(); persist(); notice('全局通勤已保存。'); return navigate('route', { replace:true }); }
     if (op === 'mode') { activeCommute().selectedTransport = value; runtime.selectedRouteIndex = 0; render(); return; }
     if (op === 'select-route') { const index = Number(value); if (!Number.isInteger(index) || index < 0 || index > 2) throw Error('路线选择无效。'); runtime.selectedRouteIndex = index; invalidateHomePreviews(); refreshHomePreview({ force:true, kind:'route' }); render(); return; }
     if (op === 'open-place') { runtime.placeTarget = value; runtime.selectedPlace = null; return navigate('place-search'); }
@@ -391,7 +390,7 @@ function handleClick(event) {
     if (op === 'add-favorite') { runtime.favoriteDraft = { id:`place-${Date.now()}`, name:'', address:'', description:'本机文字地点' }; runtime.overlay = 'favorite'; render(); return; }
     if (op === 'save-favorite') { const place = runtime.favoriteDraft; if (!place?.name?.trim() || !place?.address?.trim()) throw Error('请填写名称和地址文字。'); currentConfig().favorites.push(clone(place)); runtime.favoriteDraft = null; closeOverlay(); render(); return; }
     if (op === 'amap-consent') { config.amapConsent = value === 'approved' ? 'approved' : 'basic'; config.onboardingDone = true; persist(); notice(value === 'approved' ? '已同意高德授权；可配置运行时 Key。' : '仅使用基础功能；高德地图保持未初始化。'); return navigate(value === 'approved' ? 'credentials' : 'home', { replace:true }); }
-    if (op === 'edit-plan-commute') { const plan = alarmDraft(); if (!plan.commuteOverride?.enabled) plan.commuteOverride = { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport }; runtime.routeScope = 'plan'; return navigate('route-edit'); }
+    if (op === 'edit-plan-commute') { const plan = alarmDraft(); runtime.planCommuteDraft = plan.commuteOverride?.enabled ? clone(plan.commuteOverride) : { enabled:true, origin:config.origin, originAddress:config.originAddress, destination:config.destination, destinationAddress:config.destinationAddress, selectedTransport:config.selectedTransport }; runtime.routeScope = 'plan'; return navigate('route-edit'); }
     if (op === 'use-global-commute') { alarmDraft().commuteOverride = { enabled:false }; render(); return; }
     if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
     if (op === 'locate-once') return requestCurrentLocation();

@@ -223,7 +223,6 @@ fun LocalRouteScreen(
     onSelectRoute: (String) -> Unit,
     onTrafficChange: (Boolean) -> Unit,
     onPickPlace: ((PlaceSelectionTarget) -> Unit)? = null,
-    onConfigurePlan: (() -> Unit)? = null,
 ) {
     var favorites by remember(settings) { mutableStateOf(settings.favorites) }
     var originId by remember(settings) { mutableStateOf(settings.originId) }
@@ -307,9 +306,6 @@ fun LocalRouteScreen(
                         }
                     }
                 }
-            }
-            onConfigurePlan?.let { configure ->
-                item { LocalCard { Text("已保存计划", fontWeight = FontWeight.Bold, color = ZhituColors.Ink); Spacer(Modifier.height(6.dp)); Text("默认使用全局通勤；可为单个计划设置专属起点、终点和方式。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall); TextButton(onClick = configure) { Text("选择闹钟并配置") } } }
             }
             feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }
         }
@@ -655,7 +651,6 @@ fun PlanCommuteScreen(
     editor: PlanCommuteEditorState,
     mapStatus: MapStatus,
     onBack: () -> Unit,
-    onUseGlobal: (Boolean) -> Unit,
     onModeChange: (CommuteMode) -> Unit,
     onPickPlace: (PlaceSelectionTarget) -> Unit,
     onRefresh: () -> Unit,
@@ -685,10 +680,7 @@ fun PlanCommuteScreen(
                         Column(Modifier.testTag("plan_commute_${editor.planId}")) {
                             Text(planName, fontWeight = FontWeight.Bold, color = ZhituColors.Ink, modifier = Modifier.testTag("plan_commute_selected_plan"))
                         }
-                        Spacer(Modifier.height(10.dp))
-                        FilterChip(selected = editor.useGlobal, onClick = { onUseGlobal(true) }, label = { Text("使用全局通勤") })
-                        Spacer(Modifier.height(8.dp))
-                        FilterChip(selected = !editor.useGlobal, onClick = { onUseGlobal(false) }, label = { Text("使用专属通勤") })
+
                     }
                 }
                 if (!editor.useGlobal) {

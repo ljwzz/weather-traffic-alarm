@@ -469,3 +469,27 @@ test('credential probes use current draft and show replaceable 60-second result 
     assert.doesNotMatch(app.innerHTML, /credential-banner/);
   });
 });
+
+
+test('alarm commute changes stay in a dedicated draft until confirmed', async () => {
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = (action, value) => listeners.get('click')({ target:control(action, value) });
+    window.ZhituPrototype.navigate('plans');
+    click('new-alarm');
+    click('toggle-commute-settings');
+    assert.match(app.innerHTML, /使用全局通勤/);
+    click('edit-plan-commute');
+    assert.match(app.innerHTML, /正在编辑：本计划通勤覆盖/);
+    click('mode', 'walking');
+    click('back');
+    assert.match(app.innerHTML, /使用全局通勤/);
+    click('edit-plan-commute');
+    click('mode', 'walking');
+    click('save-route');
+    assert.match(app.innerHTML, /本计划覆盖/);
+    window.ZhituPrototype.navigate('route');
+    window.ZhituPrototype.navigate('route-edit');
+    assert.match(app.innerHTML, /正在编辑：全局通勤/);
+    assert.match(app.innerHTML, /data-value="driving" class="is-selected"/);
+  });
+});

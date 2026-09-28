@@ -3,6 +3,7 @@ package com.ljwzz.weathertrafficalarm.ui.zhitu
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -74,7 +75,14 @@ class MergedSettingsEditorDeviceTest {
         }
         compose.activityRule.scenario.recreate()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("全部闹钟").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("home_content").fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithText("暂不授权").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (compose.onAllNodesWithText("暂不授权").fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNodeWithText("暂不授权").performClick()
+        }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("home_content").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -149,7 +157,7 @@ class MergedSettingsEditorDeviceTest {
     }
 
     @Test
-    fun secondPlanOverrideCancelsWithoutWritingAndGlobalSaveAppliesToThatPlan() = runBlocking {
+    fun secondPlanOverrideCancelsWithoutWritingAndCustomSaveAppliesToThatPlan() = runBlocking {
         val first = createPlan("UI合并验收-第一计划", "06:10")
         val second = createPlan("UI合并验收-第二计划", "07:20")
         val existingOverride = overrideFor(second.id)
@@ -179,7 +187,8 @@ class MergedSettingsEditorDeviceTest {
         compose.onNodeWithTag("plan_commute_selected_plan").assertTextEquals(second.name)
         screenshot("editor-second-plan-commute.png")
 
-        Espresso.pressBack()
+        compose.onNodeWithText("‹").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("plan_note"))
         compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", second.name)
         Espresso.pressBack()
         compose.waitUntil(10_000) {
@@ -191,11 +200,12 @@ class MergedSettingsEditorDeviceTest {
         compose.onNodeWithTag("alarm_editor_commute_advance").performScrollTo().performClick()
         compose.onNodeWithTag("open_plan_commute_override").performScrollTo().performClick()
         waitForPlanCommute(second.name)
-        compose.onNodeWithText("使用全局通勤").performClick()
+        compose.onNodeWithText("步行").performClick()
         compose.onNodeWithText("完成通勤配置").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("plan_note"))
         compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", second.name)
         saveEditorThroughPermissionGuide()
-        compose.waitUntil(10_000) { runBlocking { dependencies.commuteOverrides().getByPlanId(second.id) == null } }
+        compose.waitUntil(10_000) { runBlocking { dependencies.commuteOverrides().getByPlanId(second.id)?.commuteMode == CommuteMode.WALKING } }
         assertEquals(second.id, dependencies.plans().getById(second.id)?.id)
         assertTrue(dependencies.plans().getById(first.id) != null)
     }
@@ -310,7 +320,6 @@ class MergedSettingsEditorDeviceTest {
     }
 
     private fun selectCustomCommuteUsingGlobalPlaces() {
-        compose.onNodeWithText("使用专属通勤").performClick()
         compose.onNodeWithText("专属起点与终点").assertExists()
         compose.onNodeWithText(globalOrigin.name).assertExists()
         compose.onNodeWithText(globalDestination.name).assertExists()
