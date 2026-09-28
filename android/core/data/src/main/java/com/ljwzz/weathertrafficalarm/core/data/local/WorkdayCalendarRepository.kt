@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -105,9 +106,12 @@ class WorkdayCalendarRepository internal constructor(
     )
 
     /** Compatibility constructor for direct callers that do not create the Hilt graph. */
-    constructor(context: Context) : this(
+    constructor(context: Context, clock: Clock = Clock.systemDefaultZone()) : this(
         context = context,
-        clock = SystemHolidayCalendarClock,
+        clock = object : HolidayCalendarClock {
+            override fun today(): LocalDate = LocalDate.now(clock)
+            override fun currentTimeMillis(): Long = clock.millis()
+        },
         transport = UrlHolidayCalendarTransport,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     )

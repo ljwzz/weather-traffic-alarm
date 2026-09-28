@@ -2,6 +2,7 @@ package com.ljwzz.weathertrafficalarm.evaluation
 
 import android.app.Application
 import android.content.Context
+import android.content.ContextWrapper
 import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
@@ -13,7 +14,9 @@ import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
+import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
+import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
@@ -26,6 +29,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
@@ -36,6 +40,7 @@ import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import com.ljwzz.weathertrafficalarm.core.model.RouteEstimate
 import com.ljwzz.weathertrafficalarm.core.model.RouteProvider
 import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
+import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
 import com.ljwzz.weathertrafficalarm.core.model.WeatherDataSource
 import com.ljwzz.weathertrafficalarm.core.model.WeatherEvaluation
 import com.ljwzz.weathertrafficalarm.core.model.WeatherLocationRole
@@ -44,13 +49,16 @@ import com.ljwzz.weathertrafficalarm.core.model.WeatherProvider
 import com.ljwzz.weathertrafficalarm.core.model.WeatherRequest
 import com.ljwzz.weathertrafficalarm.core.model.WeatherSeverity
 import com.ljwzz.weathertrafficalarm.core.model.WeatherRules
+import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
+import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import kotlinx.coroutines.runBlocking
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -65,8 +73,18 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], manifest = Config.NONE, application = Application::class)
 class EvaluationCoordinatorIntegrationTest {
     private val zone = ZoneId.of("Asia/Shanghai")
-    private val now = Instant.now()
-    private val target = now.atZone(zone).toLocalDate().plusDays(1)
+    private val now = Instant.parse("2026-09-05T04:00:00Z")
+    private val target = LocalDate.of(2026, 9, 7)
+    private val weekend = LocalDate.of(2026, 9, 6)
+    private val holiday = LocalDate.of(2026, 9, 8)
+    private val holidayWeekend = LocalDate.of(2026, 9, 12)
+    private val clock = Clock.fixed(now, zone)
+    private lateinit var context: Context
+    private lateinit var fixtureDir: File
+    private lateinit var settings: LocalSettingsStore
+    private lateinit var previousSettings: LocalSettings
+    private lateinit var calendar: WorkdayCalendarRepository
+    private lateinit var snapshots: NextAlarmSnapshotStore
     private lateinit var db: AppDatabase
     private lateinit var plans: AlarmPlanRepository
     private lateinit var occurrences: OccurrenceRepository
@@ -77,27 +95,48 @@ class EvaluationCoordinatorIntegrationTest {
 
     @Before
     fun setUp() = runBlocking {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val base = ApplicationProvider.getApplicationContext<Context>()
+        fixtureDir = File(base.cacheDir, "evaluation-${UUID.randomUUID()}").apply { mkdirs() }
+        context = object : ContextWrapper(base) {
+            override fun getApplicationContext(): Context = this
+            override fun getFilesDir(): File = File(fixtureDir, "files").apply { mkdirs() }
+            override fun createDeviceProtectedStorageContext(): Context = this
+        }
+        File(context.filesDir, "holiday-calendar/2026.json").apply {
+            parentFile!!.mkdirs()
+            writeText("""{"year":2026,"papers":["https://example.test/fixture"],"days":[{"name":"fixture workday","date":"$target","isOffDay":false},{"name":"fixture holiday","date":"$holiday","isOffDay":true},{"name":"fixture holiday weekend","date":"$holidayWeekend","isOffDay":true}]}""")
+        }
         diagnostics = RedactingEventLogger(context).also { it.clear() }
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         plans = AlarmPlanRepository(db.alarmPlanDao())
         occurrences = OccurrenceRepository(db.alarmOccurrenceDao())
         decisions = DecisionRepository(db.alarmDecisionDao())
         overrides = PlanCommuteOverrideRepository(db.planCommuteOverrideDao())
-        val settings = LocalSettingsStore(context)
-        val calendar = WorkdayCalendarRepository(context)
-        val snapshots = NextAlarmSnapshotStore(context).also { it.clear() }
+        settings = LocalSettingsStore(context)
+        previousSettings = settings.loadInitial()
+        settings.update { LocalSettings() }
+        calendar = WorkdayCalendarRepository(context, clock)
+        snapshots = NextAlarmSnapshotStore(context).also { it.clear() }
         val events = AlarmEventRepository(db.alarmEventDao())
         val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao())
-        val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, events, dayOverrides, calendar, FakeGateway(), snapshots)
+        val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, events, dayOverrides, calendar, FakeGateway(), snapshots, clock = clock)
         coordinator = EvaluationCoordinator(
             plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar,
-            FakeRoute, FakeWeather(now), decisions, alarm, Clock.fixed(now, zone), diagnostics,
+            FakeRoute, FakeWeather(now), decisions, alarm, clock, diagnostics,
         )
+        assertEquals(mapOf(target.toString() to DayStatus.WORKDAY, holiday.toString() to DayStatus.HOLIDAY, holidayWeekend.toString() to DayStatus.HOLIDAY), calendar.statuses())
+        assertFalse(calendar.statuses().containsKey(weekend.toString()))
+        assertEquals(LocalSettings(), settings.loadInitial())
     }
 
     @After
-    fun tearDown() = db.close()
+    fun tearDown() = runBlocking {
+        db.close()
+        snapshots.clear()
+        settings.update { previousSettings }
+        fixtureDir.deleteRecursively()
+        Unit
+    }
 
     @Test
     fun `successful evaluation adds advance and preserves regular occurrence`() = runBlocking {
@@ -121,20 +160,22 @@ class EvaluationCoordinatorIntegrationTest {
 
     @Test
     fun `driving fallback queries once and uses the latest fifteen minute candidate`() = runBlocking {
-        val plan = persistPlan()
-        val regular = regular(plan)
+        val plan = persistPlan(weekend)
+        val regular = regular(plan, weekend)
         val route = RecordingRoute(listOf(RouteAlternative("r", 47 * 60L, 1_000, emptyList())))
         val weather = RecordingWeather(now)
         coordinator = coordinatorWith(route, weather)
 
-        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "driving-grid")
+        val result = coordinator.evaluate(plan.id, targetDate = weekend, evaluationId = "driving-grid")
 
-        val expectedDeparture = target.atTime(9, 0).atZone(zone).toInstant()
-        val expectedWake = target.atTime(8, 20).atZone(zone).toInstant().toEpochMilli()
+        val expectedDeparture = weekend.atTime(9, 0).atZone(zone).toInstant()
+        val expectedWake = weekend.atTime(8, 20).atZone(zone).toInstant().toEpochMilli()
         assertEquals(EvaluationOutcome.SUCCESS, result.decision?.evaluationOutcome)
         assertEquals(FallbackReason.CURRENT_TRAFFIC_FALLBACK, result.decision?.fallbackReason)
         assertEquals(expectedDeparture.toString(), result.decision?.estimatedDepartureAt)
         assertEquals(60 * 60L, result.decision?.commuteSeconds)
+        assertEquals(10, result.decision?.weatherBufferMinutes)
+        assertEquals(10, weather.lastProfile?.moderateMinutes)
         assertEquals(expectedWake, result.decision?.recommendedWakeAt?.let(Instant::parse)?.toEpochMilli())
         assertEquals(1, route.requests.size)
         assertEquals(null, route.requests.single().departureAt)
@@ -142,6 +183,62 @@ class EvaluationCoordinatorIntegrationTest {
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
         val advance = occurrences.getByPlanId(plan.id).single { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED }
         assertEquals(expectedWake, advance.scheduledWakeAt)
+    }
+
+    @Test
+    fun `workday profile schedules at 0810`() = runBlocking {
+        assertProfile(target, 20, LocalTime.of(8, 10))
+    }
+
+    @Test
+    fun `official holiday profile schedules at 0815`() = runBlocking {
+        assertProfile(holiday, 15, LocalTime.of(8, 15))
+    }
+
+    @Test
+    fun `official holiday on weekend takes holiday profile`() = runBlocking {
+        assertProfile(holidayWeekend, 15, LocalTime.of(8, 15))
+    }
+
+    @Test
+    fun `custom workday profile changes both decision and schedule`() = runBlocking {
+        settings.update { it.copy(workdayWeatherBuffers = WeatherBuffers(1, 23, 30)) }
+        assertProfile(target, 23, LocalTime.of(8, 7))
+    }
+
+    @Test
+    fun `exact fifteen minute duration selects boundary candidate`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 45 * 60L, 1_000, emptyList())))
+        coordinator = coordinatorWith(route, RecordingWeather(now))
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "exact-grid")
+
+        assertEquals(target.atTime(9, 15).atZone(zone).toInstant().toString(), result.decision?.estimatedDepartureAt)
+        assertEquals(45 * 60L, result.decision?.commuteSeconds)
+        assertEquals(target.atTime(8, 25).atZone(zone).toInstant().toString(), result.decision?.recommendedWakeAt)
+        assertEquals(1, route.requests.size)
+    }
+
+    @Test
+    fun `cross midnight candidate is clamped to maximum advance`() = runBlocking {
+        val plan = persistPlan(arrival = "01:00", defaultWake = "00:30")
+        val regular = regular(plan)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 180 * 60L, 1_000, emptyList())))
+        coordinator = coordinatorWith(route, RecordingWeather(now))
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "cross-midnight")
+
+        val expectedWake = target.minusDays(1).atTime(23, 30).atZone(zone).toInstant()
+        assertEquals(target.minusDays(1).atTime(22, 0).atZone(zone).toInstant().toString(), result.decision?.estimatedDepartureAt)
+        assertEquals(expectedWake.toString(), result.decision?.recommendedWakeAt)
+        assertEquals(expectedWake.toString(), result.decision?.actualWakeAt)
+        assertTrue(result.decision?.insufficientAdvance == true)
+        assertEquals("APPLIED", result.decision?.applicationOutcome)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertEquals(expectedWake.toEpochMilli(), occurrences.getByPlanId(plan.id).single { it.kind == OccurrenceKind.ADVANCE }.scheduledWakeAt)
+        assertEquals(1, route.requests.size)
     }
 
     @Test
@@ -281,6 +378,42 @@ class EvaluationCoordinatorIntegrationTest {
     }
 
     @Test
+    fun `settings changed while provider is running never apply advance`() = runBlocking {
+        val plan = persistPlan()
+        val regular = regular(plan)
+        coordinator = coordinatorWith(FakeRoute, EditingWeather(now) {
+            settings.update { it.copy(workdayWeatherBuffers = WeatherBuffers(1, 22, 30)) }
+        })
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "settings-during-run")
+
+        assertEquals(EvaluationOutcome.STALE, result.decision?.evaluationOutcome)
+        assertEquals("EVALUATION_INPUTS_CHANGED", result.decision?.failureReason)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    @Test
+    fun `input change and expiry preserve an existing advance`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        val first = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "before-stale")
+        assertEquals("APPLIED", first.decision?.applicationOutcome)
+        val before = occurrences.getByPlanId(plan.id)
+        coordinator = coordinatorWith(FakeRoute, EditingWeather(now) {
+            settings.update { it.copy(workdayWeatherBuffers = WeatherBuffers(1, 22, 30)) }
+        })
+
+        val changed = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "inputs-stale")
+        val expired = coordinator.evaluate(plan.id, targetDate = target, deadline = now, evaluationId = "deadline-stale")
+
+        assertEquals(EvaluationOutcome.STALE, changed.decision?.evaluationOutcome)
+        assertEquals("EVALUATION_INPUTS_CHANGED", changed.decision?.failureReason)
+        assertEquals(EvaluationOutcome.STALE, expired.decision?.evaluationOutcome)
+        assertEquals(before, occurrences.getByPlanId(plan.id))
+    }
+
+    @Test
     fun `inapplicable and missing plans record skipped without calling providers`() = runBlocking {
         val plan = persistPlan()
         val route = RecordingRoute(emptyList())
@@ -316,28 +449,54 @@ class EvaluationCoordinatorIntegrationTest {
         }
     }
 
-    private suspend fun persistPlan(): AlarmPlan {
+    private suspend fun assertProfile(date: LocalDate, buffer: Int, wake: LocalTime) {
+        val plan = persistPlan(date)
+        val regular = regular(plan, date)
+        val route = RecordingRoute(listOf(RouteAlternative("r", 47 * 60L, 1_000, emptyList())))
+        val weather = RecordingWeather(now)
+        coordinator = coordinatorWith(route, weather)
+
+        val result = coordinator.evaluate(plan.id, targetDate = date, evaluationId = "profile-$date")
+
+        val expectedDeparture = date.atTime(9, 0).atZone(zone).toInstant().toString()
+        val expectedWake = date.atTime(wake).atZone(zone).toInstant()
+        assertEquals(EvaluationOutcome.SUCCESS, result.decision?.evaluationOutcome)
+        assertEquals("APPLIED", result.decision?.applicationOutcome)
+        assertEquals(if (date == target) WorkdayStatus.WORKDAY else WorkdayStatus.HOLIDAY, result.decision?.workdayStatus)
+        assertEquals(FallbackReason.CURRENT_TRAFFIC_FALLBACK, result.decision?.fallbackReason)
+        assertEquals(expectedDeparture, result.decision?.estimatedDepartureAt)
+        assertEquals(60 * 60L, result.decision?.commuteSeconds)
+        assertEquals(buffer, weather.lastProfile?.moderateMinutes)
+        assertEquals(buffer, result.decision?.weatherBufferMinutes)
+        assertEquals(expectedWake.toString(), result.decision?.recommendedWakeAt)
+        assertEquals(expectedWake.toString(), result.decision?.actualWakeAt)
+        assertEquals(1, route.requests.size)
+        assertEquals(1, weather.requests)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        val advance = occurrences.getByPlanId(plan.id).single { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED }
+        assertEquals(expectedWake.toEpochMilli(), advance.scheduledWakeAt)
+    }
+
+    private suspend fun persistPlan(date: LocalDate = target, arrival: String = "10:00", defaultWake: String = "09:00"): AlarmPlan {
         val plan = AlarmPlan(
             id = "p", revision = 0, name = "通勤", enabled = true, zoneId = zone.id,
-            defaultWakeLocalTime = "09:00", arrivalLocalTime = "10:00", preparationMinutes = 30,
-            maxAdvanceMinutes = 60, commuteMode = CommuteMode.DRIVING, schedule = AlarmSchedule.Once(target.toString()),
+            defaultWakeLocalTime = defaultWake, arrivalLocalTime = arrival, preparationMinutes = 30,
+            maxAdvanceMinutes = 60, commuteMode = CommuteMode.DRIVING, schedule = AlarmSchedule.Once(date.toString()),
         )
         val saved = plans.save(plan)
         overrides.save(PlanCommuteOverride(saved.id, home, work, CommuteMode.DRIVING, now.toEpochMilli()))
         return saved
     }
 
-    private suspend fun regular(plan: AlarmPlan): AlarmOccurrence {
-        val wake = target.atTime(LocalTime.parse(plan.defaultWakeLocalTime)).atZone(zone).toInstant().toEpochMilli()
-        return AlarmOccurrence("regular", plan.id, plan.revision, target.toString(), wake, OccurrenceState.SCHEDULED).also { occurrences.save(it) }
+    private suspend fun regular(plan: AlarmPlan, date: LocalDate = target): AlarmOccurrence {
+        val wake = date.atTime(LocalTime.parse(plan.defaultWakeLocalTime)).atZone(zone).toInstant().toEpochMilli()
+        return AlarmOccurrence("regular", plan.id, plan.revision, date.toString(), wake, OccurrenceState.SCHEDULED).also { occurrences.save(it) }
     }
 
     private fun coordinatorWith(route: RouteProvider, weather: WeatherProvider): EvaluationCoordinator {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val calendar = WorkdayCalendarRepository(context)
         val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao())
-        val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides, calendar, FakeGateway(), NextAlarmSnapshotStore(context))
-        return EvaluationCoordinator(plans, LocalSettingsStore(context), EffectiveCommuteResolver(overrides), dayOverrides, calendar, route, weather, decisions, alarm, Clock.fixed(now, zone), diagnostics)
+        val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides, calendar, FakeGateway(), snapshots, clock = clock)
+        return EvaluationCoordinator(plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar, route, weather, decisions, alarm, clock, diagnostics)
     }
 
     private object FakeRoute : RouteProvider {
@@ -366,9 +525,12 @@ class EvaluationCoordinatorIntegrationTest {
     private class RecordingWeather(private val report: Instant) : WeatherProvider {
         var requests = 0
             private set
+        var lastProfile: WeatherBufferProfile? = null
+            private set
 
         override suspend fun evaluate(request: WeatherRequest): WeatherEvaluation {
             requests += 1
+            lastProfile = request.weatherBufferProfile
             fun location(role: WeatherLocationRole) = WeatherLocationEvaluation(role, WeatherSeverity.MODERATE, report, request.window.start, request.window.end, WeatherDataSource.NETWORK)
             return WeatherRules.combine(location(WeatherLocationRole.HOME), location(WeatherLocationRole.WORK), request.weatherBufferProfile, request.weatherRuleVersion)
         }

@@ -30,6 +30,7 @@ import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -57,6 +58,7 @@ class LocalAlarmCoordinator @Inject constructor(
     private val scheduler: AlarmSchedulingGateway,
     private val snapshotStore: NextAlarmSnapshotStore,
     private val diagnosticLogger: RedactingEventLogger? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) {
     private val mutex = Mutex()
     val plans: Flow<List<AlarmPlan>> = planRepository.observeAll()
@@ -69,7 +71,7 @@ class LocalAlarmCoordinator @Inject constructor(
      * path as regular and snooze occurrences.
      */
     suspend fun applyEvaluation(decision: AlarmDecision): ApplyEvaluationResult = mutex.withLock {
-        val now = System.currentTimeMillis()
+        val now = clock.millis()
         val plan = planRepository.getById(decision.planId)
         if (plan == null || !plan.enabled || plan.revision != decision.planRevision) {
             return@withLock persistEvaluationResult(decision, OUTCOME_STALE, null, EvaluationOutcome.STALE)
