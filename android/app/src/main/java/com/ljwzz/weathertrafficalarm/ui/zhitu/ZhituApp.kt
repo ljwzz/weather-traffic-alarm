@@ -427,7 +427,7 @@ fun ZhituApp(
                     onBack = { destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE },
                 )
                 ZhituDestination.PLAN_COMMUTE -> PlanCommuteScreen(
-                    planName = editorDraft.name,
+                    planName = editorDraft.name.ifBlank { "闹钟" },
                     editor = planCommuteEditor,
                     mapStatus = mapStatus,
                     onBack = { destination = ZhituDestination.EDITOR },
@@ -660,7 +660,7 @@ private fun HomeLatestEvaluationCard(decision: AlarmDecision?, schedulingError: 
         Text("尚无真实评估结果。已启用且配置通勤的闹钟将在后台评估路线、天气和工作日。", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
     } else {
         val summary = decision.toDecisionDetailUi()
-        Text("${summary.planName} · ${summary.targetDate}", color = ZhituColors.Ink)
+        Text("${summary.planName.ifBlank { "闹钟" }} · ${summary.targetDate}", color = ZhituColors.Ink)
         Text(summary.title, color = ZhituColors.Brand, style = MaterialTheme.typography.bodyMedium)
         Text(summary.applicationLabel, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
         Text("基础 ${summary.baseWake} · 建议 ${summary.recommendedWake}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
@@ -684,7 +684,7 @@ private fun HomePlanCard(
 ) {
     Column(modifier = Modifier.padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(item.plan.name, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(item.plan.name.ifBlank { "闹钟" }, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             StatusBadge(planStateLabel(item.plan), bright = true)
         }
         Spacer(Modifier.height(9.dp))
@@ -758,7 +758,7 @@ private fun PlanRow(plan: AlarmPlan, onClick: () -> Unit, onEnabled: (Boolean) -
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(plan.defaultWakeLocalTime, style = MaterialTheme.typography.displaySmall, color = ZhituColors.Ink)
-            Text(plan.name, fontWeight = FontWeight.Medium, color = ZhituColors.Ink)
+            Text(plan.name.ifBlank { "闹钟" }, fontWeight = FontWeight.Medium, color = ZhituColors.Ink)
             Text(scheduleLabel(plan), style = MaterialTheme.typography.bodySmall, color = ZhituColors.Muted)
         }
         Column(horizontalAlignment = Alignment.End) {

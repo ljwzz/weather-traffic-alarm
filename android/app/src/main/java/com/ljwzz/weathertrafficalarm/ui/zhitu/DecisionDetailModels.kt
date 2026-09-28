@@ -82,7 +82,7 @@ fun AlarmDecision.toDecisionDetailUi(
     return DecisionDetailUi(
         available = true,
         decisionId = decisionId,
-        planName = planName?.takeIf(String::isNotBlank) ?: "本次未提供",
+        planName = planName?.ifBlank { "闹钟" } ?: "本次未提供",
         title = toDecisionTitle(),
         targetDate = targetDate.ifBlank { "本次未提供" },
         evaluatedAt = generatedAt.formatDecisionTime(zone),

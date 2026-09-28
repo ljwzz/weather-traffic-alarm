@@ -146,7 +146,7 @@ fun LocalCalendarScreen(
                             FilterChip(
                                 selected = plan.id == activePlanId,
                                 onClick = { selectedPlanId = plan.id },
-                                label = { Text(plan.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                label = { Text(plan.name.ifBlank { "闹钟" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             )
                         }
                     }
@@ -169,7 +169,7 @@ fun LocalCalendarScreen(
                         ?: fallbackStatus(selectedDate)
                     val source = if (calendarState.days.containsKey(selectedDate.toString())) "年度日历" else "星期回退"
                     LocalCard {
-                        Text("${activePlan.name} · ${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))}", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                        Text("${activePlan.name.ifBlank { "闹钟" }} · ${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))}", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             if (draftStatus == null) "自动：${statusLabel(automatic)} · $source" else "手动：${statusLabel(draftStatus!!)}",

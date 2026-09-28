@@ -675,7 +675,7 @@ class LocalAlarmCoordinator @Inject constructor(
         vibrationEnabled = plan.vibration.enabled,
         vibrationPatternMillis = plan.vibration.patternMillis.toList(),
         snoozeMinutes = plan.snoozeMinutes,
-        alarmLabel = plan.name,
+        alarmLabel = plan.name.ifBlank { "闹钟" },
         occurrenceKind = occurrence.kind.name,
         decisionId = occurrence.decisionId,
         parentOccurrenceId = occurrence.parentOccurrenceId,

@@ -180,7 +180,7 @@ class MergedSettingsEditorDeviceTest {
         screenshot("editor-second-plan-commute.png")
 
         Espresso.pressBack()
-        compose.onNodeWithTag("plan_name").assertTextEquals("名称", second.name)
+        compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", second.name)
         Espresso.pressBack()
         compose.waitUntil(10_000) {
             compose.onAllNodesWithText("本机闹钟").fetchSemanticsNodes().isNotEmpty()
@@ -193,7 +193,7 @@ class MergedSettingsEditorDeviceTest {
         waitForPlanCommute(second.name)
         compose.onNodeWithText("使用全局通勤").performClick()
         compose.onNodeWithText("完成通勤配置").performClick()
-        compose.onNodeWithTag("plan_name").assertTextEquals("名称", second.name)
+        compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", second.name)
         saveEditorThroughPermissionGuide()
         compose.waitUntil(10_000) { runBlocking { dependencies.commuteOverrides().getByPlanId(second.id) == null } }
         assertEquals(second.id, dependencies.plans().getById(second.id)?.id)
@@ -208,16 +208,16 @@ class MergedSettingsEditorDeviceTest {
         val emptyAdd = compose.onAllNodesWithText("添加闹钟")
         if (emptyAdd.fetchSemanticsNodes().isNotEmpty()) emptyAdd.onFirst().performClick()
         else compose.onNodeWithText("＋").performClick()
-        compose.onNodeWithTag("plan_name").performScrollTo().performTextReplacement(draftName)
+        compose.onNodeWithTag("plan_note").performScrollTo().performTextReplacement(draftName)
         compose.onNodeWithTag("alarm_editor_commute_advance").performScrollTo().performClick()
         compose.onNodeWithTag("arrival_time").assertExists()
-        compose.onNodeWithTag("plan_name").assertTextEquals("名称", draftName)
+        compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", draftName)
         compose.onNodeWithTag("open_plan_commute_override").performScrollTo().performClick()
         val draftPlanId = waitForPlanCommute(draftName)
         compose.onNodeWithTag("plan_commute_selected_plan").assertTextEquals(draftName)
         selectCustomCommuteUsingGlobalPlaces()
         compose.onNodeWithText("完成通勤配置").performClick()
-        compose.onNodeWithTag("plan_name").assertTextEquals("名称", draftName)
+        compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", draftName)
         screenshot("editor-new-plan-draft.png")
 
         saveEditorThroughPermissionGuide()
@@ -238,13 +238,13 @@ class MergedSettingsEditorDeviceTest {
         val emptyAdd = compose.onAllNodesWithText("添加闹钟")
         if (emptyAdd.fetchSemanticsNodes().isNotEmpty()) emptyAdd.onFirst().performClick()
         else compose.onNodeWithText("＋").performClick()
-        compose.onNodeWithTag("plan_name").performScrollTo().performTextReplacement(draftName)
+        compose.onNodeWithTag("plan_note").performScrollTo().performTextReplacement(draftName)
         compose.onNodeWithTag("alarm_editor_commute_advance").performScrollTo().performClick()
         compose.onNodeWithTag("open_plan_commute_override").performScrollTo().performClick()
         val draftPlanId = waitForPlanCommute(draftName)
         selectCustomCommuteUsingGlobalPlaces()
         compose.onNodeWithText("完成通勤配置").performClick()
-        compose.onNodeWithTag("plan_name").assertTextEquals("名称", draftName)
+        compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", draftName)
 
         Espresso.pressBack()
         compose.waitUntil(10_000) {

@@ -42,32 +42,32 @@ class AlarmUiDeviceTest {
 
     @Test fun createsWeeklyAlarmAndCancelsUncommittedEdit() {
         openEditor()
-        compose.onNodeWithTag("plan_name").performTextReplacement("UI验证-每周")
+        compose.onNodeWithTag("plan_note").performTextReplacement("UI验证-每周")
         compose.onNodeWithTag("repeat_weekly").performClick()
         compose.onNodeWithTag("save_alarm").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithTag("plan_name").fetchSemanticsNodes().isEmpty() &&
+            compose.onAllNodesWithTag("plan_note").fetchSemanticsNodes().isEmpty() &&
                 compose.onAllNodesWithText("UI验证-每周").fetchSemanticsNodes().isNotEmpty()
         }
         val saved = runBlocking { deps.plans().observeAll().first().single { it.name == "UI验证-每周" } }
         assertTrue(saved.schedule is AlarmSchedule.Weekly)
         compose.onNodeWithText("UI验证-每周").performClick()
         compose.onNodeWithTag("repeat_weekly").assertIsSelected()
-        compose.onNodeWithTag("plan_name").performTextReplacement("UI验证-不保存")
+        compose.onNodeWithTag("plan_note").performTextReplacement("UI验证-不保存")
         Espresso.pressBack()
         compose.waitForIdle()
         assertEquals("UI验证-每周", runBlocking { deps.plans().getById(saved.id) }?.name)
     }
 
-    @Test fun defaultSingleDateIsFutureAndBlankNameCannotSave() {
+    @Test fun defaultSingleDateIsFutureAndBlankNoteCanSave() {
         openEditor()
         compose.onNodeWithTag("repeat_once").assertIsSelected()
-        compose.onNodeWithTag("plan_name").performTextReplacement("")
-        compose.onNodeWithTag("save_alarm").assertIsNotEnabled()
-        compose.onNodeWithTag("plan_name").performTextReplacement("UI验证-单次")
+        compose.onNodeWithTag("plan_note").performTextReplacement("")
+        compose.onNodeWithTag("save_alarm").assertIsEnabled()
+        compose.onNodeWithTag("plan_note").performTextReplacement("UI验证-单次")
         compose.onNodeWithTag("save_alarm").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithTag("plan_name").fetchSemanticsNodes().isEmpty() &&
+            compose.onAllNodesWithTag("plan_note").fetchSemanticsNodes().isEmpty() &&
                 compose.onAllNodesWithText("UI验证-单次").fetchSemanticsNodes().isNotEmpty()
         }
         val saved = runBlocking { deps.plans().observeAll().first().single { it.name == "UI验证-单次" } }
@@ -82,7 +82,7 @@ class AlarmUiDeviceTest {
         val emptyAdd = compose.onAllNodesWithText("添加闹钟").fetchSemanticsNodes()
         if (emptyAdd.isNotEmpty()) compose.onAllNodesWithText("添加闹钟").onFirst().performClick()
         else compose.onNodeWithText("＋").performClick()
-        compose.onNodeWithTag("plan_name").assertExists()
+        compose.onNodeWithTag("plan_note").assertExists()
     }
 
     private suspend fun cleanupPlans() {

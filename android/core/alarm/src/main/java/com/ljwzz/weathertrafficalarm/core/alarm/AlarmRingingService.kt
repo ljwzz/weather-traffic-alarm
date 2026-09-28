@@ -142,7 +142,7 @@ class AlarmRingingService : Service() {
         val snooze = factory.snoozePendingIntent(snapshot.occurrenceId, AlarmReceiver::class.java)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(snapshot.alarmLabel)
+            .setContentTitle(snapshot.alarmLabel.ifBlank { "闹钟" })
             .setContentText("闹钟正在响铃")
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -309,7 +309,7 @@ class AlarmRingingService : Service() {
                 vibrationPatternMillis = getLongArrayExtra(EXTRA_VIBRATION_PATTERN)?.toList()
                     ?: listOf(0, 500, 500, 500),
                 snoozeMinutes = getIntExtra(EXTRA_SNOOZE, 10),
-                alarmLabel = getStringExtra(EXTRA_LABEL) ?: "闹钟",
+                alarmLabel = getStringExtra(EXTRA_LABEL)?.ifBlank { "闹钟" } ?: "闹钟",
                 occurrenceKind = getStringExtra(EXTRA_KIND) ?: "REGULAR",
                 targetDate = getStringExtra(EXTRA_TARGET_DATE),
                 defaultWakeAtMillis = if (hasExtra(EXTRA_DEFAULT_WAKE_AT)) {

@@ -926,7 +926,7 @@ data class PlanCommuteEditorState(
 data class EditorDraft(
     val id: String? = null,
     val zoneId: String = ZoneId.systemDefault().id,
-    val name: String = "本地闹钟",
+    val name: String = "",
     val time: String = "06:00",
     val date: String = java.time.LocalDate.now().let { if (java.time.LocalTime.now().isBefore(java.time.LocalTime.of(6, 0))) it else it.plusDays(1) }.toString(),
     val repeat: RepeatChoice = RepeatChoice.ONCE,

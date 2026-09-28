@@ -86,6 +86,13 @@ import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
+import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
+import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
+import com.ljwzz.weathertrafficalarm.core.model.AlarmScheduleResolver
+import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import java.time.Duration
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,17 +118,19 @@ fun AlarmEditorScreen(
     var preparationDialog by remember { mutableStateOf(false) }
     var maxAdvanceDialog by remember { mutableStateOf(false) }
     var commuteAdvanceExpanded by remember(draft.id) { mutableStateOf(false) }
+    var clock by remember { mutableStateOf(Instant.now()) }
+    LaunchedEffect(Unit) { while (true) { delay(1_000); clock = Instant.now() } }
     LaunchedEffect(draft.repeat) {
         if (draft.repeat == RepeatChoice.WORKDAYS) onCalendarPreviewRefresh()
     }
-    val valid = draft.name.isNotBlank() && when (draft.repeat) {
+    val valid = when (draft.repeat) {
         RepeatChoice.ONCE -> draft.date.isNotBlank()
         RepeatChoice.WEEKLY -> draft.weekdays.isNotEmpty()
         RepeatChoice.WORKDAYS -> true
     }
     Scaffold(
         containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar(if (draft.id == null) "添加闹钟" else "编辑闹钟", navigation = onCancel) },
+        topBar = { ZhituTopBar(if (draft.id == null) "添加闹钟" else "编辑闹钟", alarmCountdown(draft, draft.time, clock, calendarState, calendarOverrides), onCancel) },
         bottomBar = {
             Row(Modifier.fillMaxWidth().background(Color.White).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (draft.id != null) TonalButton("删除", { deleteDialog = true }, Modifier.weight(1f))
@@ -137,8 +146,6 @@ fun AlarmEditorScreen(
                 FormCard {
                     Text("基础闹钟", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
                     Spacer(Modifier.height(14.dp))
-                    OutlinedTextField(draft.name, { update(draft.copy(name = it)) }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth().testTag("plan_name"), singleLine = true)
-                    Spacer(Modifier.height(8.dp))
                     SettingRow("响铃时间", draft.time, { timeDialog = true }, "alarm_time")
                 }
             }
@@ -236,10 +243,15 @@ fun AlarmEditorScreen(
                     }
                 }
             }
+            item {
+                FormCard {
+                    OutlinedTextField(draft.name, { update(draft.copy(name = it)) }, label = { Text("备注（可选）") }, placeholder = { Text("输入备注") }, modifier = Modifier.fillMaxWidth().testTag("plan_note"), singleLine = true)
+                }
+            }
             item { NoticeCard("保存后才会写入计划；取消或返回不会修改已有闹钟。", ZhituColors.Sky, ZhituColors.Blue) }
         }
     }
-    if (timeDialog) TimePickerSheet(draft.time, { update(draft.copy(time = it)); timeDialog = false }, { timeDialog = false })
+    if (timeDialog) AlarmTimeWheelSheet(draft.time, if (draft.id == null) "添加闹钟" else "编辑闹钟", { time -> alarmCountdown(draft, time, clock, calendarState, calendarOverrides) }, { update(draft.copy(time = it)); timeDialog = false }, { timeDialog = false })
     if (dateDialog) DatePickerSheet({ date -> update(draft.copy(date = date)); dateDialog = false }, { dateDialog = false })
     if (arrivalDialog) TimePickerSheet(draft.arrivalLocalTime, { update(draft.copy(arrivalLocalTime = it)); arrivalDialog = false }, { arrivalDialog = false })
     if (soundDialog) { val uris = listOf(android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI, android.provider.Settings.System.DEFAULT_RINGTONE_URI, android.provider.Settings.System.DEFAULT_NOTIFICATION_URI); AlertDialog(onDismissRequest = { soundDialog = false }, title = { Text("选择系统铃声") }, text = { Column { uris.forEach { uri -> val title = android.media.RingtoneManager.getRingtone(context, uri)?.getTitle(context) ?: "系统铃声"; Row(Modifier.fillMaxWidth().clickable { android.media.RingtoneManager.getRingtone(context, uri)?.play(); update(draft.copy(ringtone = title, soundUri = uri.toString())); soundDialog = false }, verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = uri.toString() == draft.soundUri, onClick = null); Text(title) } } } }, confirmButton = {}) }
@@ -337,7 +349,7 @@ private fun HistoryItemCard(item: HistoryItem, onDecision: (String) -> Unit) = F
             val decision = item.decision
             val summary = decision.toDecisionDetailUi()
             Text(summary.title, color = if (summary.evaluationTone == DecisionDetailTone.WARNING) ZhituColors.Amber else item.effectiveOutcome.toColor(), fontWeight = FontWeight.Medium)
-            Text("${summary.planName} · ${summary.targetDate}", color = ZhituColors.Ink)
+            Text("${summary.planName.ifBlank { "闹钟" }} · ${summary.targetDate}", color = ZhituColors.Ink)
             Text(summary.applicationLabel, color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
             Text("基础 ${summary.baseWake} · 建议 ${summary.recommendedWake}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
             Text("评估于 ${summary.evaluatedAt}", color = ZhituColors.Muted, style = MaterialTheme.typography.bodySmall)
@@ -509,6 +521,46 @@ private fun MinutesPickerDialog(
     },
     confirmButton = {},
 )
+
+private fun alarmCountdown(
+    draft: EditorDraft,
+    time: String,
+    now: Instant,
+    calendar: CalendarUiState,
+    calendarOverrides: Map<String, DayStatus>,
+): String {
+    if (draft.repeat == RepeatChoice.ONCE && draft.date.isBlank()) return "请选择响铃日期"
+    if (draft.repeat == RepeatChoice.WEEKLY && draft.weekdays.isEmpty()) return "请选择重复日期"
+    return runCatching {
+        val schedule = when (draft.repeat) {
+            RepeatChoice.ONCE -> AlarmSchedule.Once(draft.date)
+            RepeatChoice.WEEKLY -> AlarmSchedule.Weekly(draft.weekdays)
+            RepeatChoice.WORKDAYS -> AlarmSchedule.Workdays
+        }
+        val plan = AlarmPlan(
+            id = draft.planId, revision = 0, name = draft.name, enabled = true,
+            zoneId = draft.zoneId, defaultWakeLocalTime = time,
+            arrivalLocalTime = draft.arrivalLocalTime,
+            preparationMinutes = draft.preparationMinutes,
+            maxAdvanceMinutes = draft.maxAdvanceMinutes,
+            commuteMode = CommuteMode.DRIVING, schedule = schedule,
+        )
+        val overrides = calendarOverrides.map { (date, status) -> WorkdayOverride(draft.planId, date, status) }
+        val next = AlarmScheduleResolver.next(plan, now, calendar.days, overrides)
+            ?: return "暂无下一次响铃"
+        val minutes = (Duration.between(now, next).seconds + 59) / 60
+        if (minutes <= 0) "不到 1 分钟后响铃"
+        else {
+            val hours = minutes / 60
+            val remainder = minutes % 60
+            buildString {
+                if (hours > 0) append("${hours} 小时")
+                if (remainder > 0) { if (hours > 0) append(' '); append("${remainder} 分钟") }
+                append("后响铃")
+            }
+        }
+    }.getOrDefault("暂无下一次响铃")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
