@@ -49,14 +49,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialEditorKeys
-import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
 import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityCheck
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEvent
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
+
+private enum class CredentialTestProvider { AMAP, CAIYUN }
 
 @Composable
 fun CredentialSettingsScreen(
@@ -64,8 +63,9 @@ fun CredentialSettingsScreen(
     onLoadKeys: suspend () -> CredentialEditorKeys,
     onSave: (CredentialInput, onComplete: (String?) -> Unit) -> Unit,
     onClear: (onComplete: (String?) -> Unit) -> Unit,
-    onTestAmapWebKey: (((String?) -> Unit) -> Unit)? = null,
+    onTestAmapWebKey: ((String, (String?) -> Unit) -> Unit)? = null,
     onTestCaiyun: ((CaiyunCredentialInput?, (String?) -> Unit) -> Unit)? = null,
+    onSaveCaiyun: ((CaiyunCredentialInput?, (String?) -> Unit) -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -77,7 +77,13 @@ fun CredentialSettingsScreen(
     var savedCaiyunAppKey by remember { mutableStateOf("") }
     var caiyunSecret by remember { mutableStateOf("") }
     var pending by remember { mutableStateOf(false) }
+    var testingProvider by remember { mutableStateOf<CredentialTestProvider?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var messageSuccess by remember { mutableStateOf(false) }
+    var messageRevision by remember { mutableStateOf(0) }
+    LaunchedEffect(message, messageRevision) {
+        if (message != null) { delay(60_000); message = null }
+    }
     var clearConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(status.loaded, status.storageError, status.amapWebVersion, status.amapSdkVersion, status.caiyunVersion) {
@@ -106,6 +112,7 @@ fun CredentialSettingsScreen(
 
     fun complete(successMessage: String) = { error: String? ->
         pending = false
+        messageSuccess = error == null
         message = error ?: successMessage
         if (error == null) {
             caiyunSecret = ""
@@ -113,17 +120,22 @@ fun CredentialSettingsScreen(
         }
     }
 
-    fun testCaiyun(candidate: CaiyunCredentialInput?) {
-        if (onTestCaiyun == null) {
+    fun testCaiyun(candidate: CaiyunCredentialInput?, save: Boolean = false) {
+        val action = if (save) onSaveCaiyun else onTestCaiyun
+        messageSuccess = false
+        if (action == null) {
             message = "天气服务正在初始化，请稍后重试。"
             return
         }
         pending = true
         message = null
-        onTestCaiyun(candidate) { error ->
+        testingProvider = if (save) null else CredentialTestProvider.CAIYUN
+        action(candidate) { error ->
+            testingProvider = null
             pending = false
-            message = error ?: if (candidate == null) "已保存的彩云凭据可用" else "连接成功，彩云凭据已加密保存"
-            if (error == null && candidate != null) {
+            messageSuccess = error == null
+            message = error ?: if (save) "彩云凭据已保存" else "彩云连接测试成功"
+            if (error == null && save && candidate != null) {
                 caiyunSecret = ""
             }
             if (error == null) focusManager.clearFocus()
@@ -131,6 +143,8 @@ fun CredentialSettingsScreen(
     }
 
     fun saveAll() {
+        messageRevision++
+        messageSuccess = false
         val appKey = caiyunAppKey.trim()
         val secret = caiyunSecret.trim()
         val appKeyChanged = appKey != savedCaiyunAppKey
@@ -147,32 +161,35 @@ fun CredentialSettingsScreen(
             } else if (secret.isEmpty()) {
                 complete("凭据已加密保存")(null)
             } else {
-                testCaiyun(CaiyunCredentialInput(appKey, secret))
+                testCaiyun(CaiyunCredentialInput(appKey, secret), save = true)
             }
         }
     }
 
     ScaffoldWithCredentialFooter(
         onSave = ::saveAll,
-        onClear = { clearConfirmation = true },
+        onClear = { if (!pending) clearConfirmation = true },
         pending = pending,
         onBack = onBack,
+        notice = {
+            message?.let { result ->
+                Column(Modifier.fillMaxWidth().padding(24.dp)) {
+                    AdvancedNoticeCard(
+                        text = result,
+                        background = if (messageSuccess) ZhituColors.Mint else ZhituColors.AmberBackground,
+                        foreground = if (messageSuccess) ZhituColors.Brand else ZhituColors.Amber,
+                    )
+                }
+            }
+        },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
-                AdvancedNoticeCard(
-                    text = if (status.storageError) {
-                        "本机凭据无法读取，请清空后重新输入。"
-                    } else {
-                        "凭据仅加密保存在本机。高德 Web Key 可在保存后单独测试；Android SDK Key 用于地图与定位。"
-                    },
-                    background = if (status.storageError) ZhituColors.AmberBackground else ZhituColors.Sky,
-                    foreground = if (status.storageError) ZhituColors.Amber else ZhituColors.Blue,
-                )
+            if (status.storageError) {
+                item { AdvancedNoticeCard("本机凭据无法读取，请清空后重新输入。", ZhituColors.AmberBackground, ZhituColors.Amber) }
             }
             item {
                 AdvancedCard {
@@ -180,7 +197,7 @@ fun CredentialSettingsScreen(
                     Spacer(Modifier.height(14.dp))
                     CredentialField(
                         value = amapWebKey,
-                        onValueChange = { amapWebKey = it; message = null },
+                        onValueChange = { if (!pending) { amapWebKey = it; message = null } },
                         label = "高德 Web 服务 Key",
                         placeholder = "未配置",
                         supporting = "用于地点搜索、逆地理和路线规划",
@@ -188,7 +205,7 @@ fun CredentialSettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     CredentialField(
                         value = amapSdkKey,
-                        onValueChange = { amapSdkKey = it; message = null },
+                        onValueChange = { if (!pending) { amapSdkKey = it; message = null } },
                         label = "高德 Android SDK Key",
                         placeholder = "未配置",
                         supporting = "用于地图展示和单次定位",
@@ -196,48 +213,50 @@ fun CredentialSettingsScreen(
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = {
+                            messageRevision++
                             message = null
-                            if (!status.hasAmapWebKey) {
-                                message = "请先保存高德 Web Key，再测试已保存的凭据。"
+                            messageSuccess = false
+                            if (amapWebKey.isBlank()) {
+                                message = "请填写高德 Web Key。"
                             } else if (onTestAmapWebKey == null) {
                                 message = "地图服务正在初始化，请完成专项授权后重试。"
                             } else {
                                 pending = true
-                                onTestAmapWebKey { error ->
+                                testingProvider = CredentialTestProvider.AMAP
+                                onTestAmapWebKey(amapWebKey.trim()) { error ->
+                                    testingProvider = null
                                     pending = false
-                                    message = error ?: "高德 Web Key 可用"
+                                    messageSuccess = error == null
+                                    message = error ?: "高德连接测试成功"
                                 }
                             }
                         },
                         enabled = !pending,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                    ) { Text(if (pending) "处理中" else "测试已保存的高德 Web Key") }
+                    ) { Text(if (testingProvider == CredentialTestProvider.AMAP) "处理中" else "测试连接") }
                     Spacer(Modifier.height(18.dp))
                     Text("天气评估 · 彩云", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
                     Spacer(Modifier.height(14.dp))
                     CredentialField(
                         value = caiyunAppKey,
-                        onValueChange = { caiyunAppKey = it; message = null },
+                        onValueChange = { if (!pending) { caiyunAppKey = it; message = null } },
                         label = "彩云 App Key",
                         placeholder = "未配置",
                     )
                     Spacer(Modifier.height(10.dp))
                     SecretField(
                         value = caiyunSecret,
-                        onValueChange = { caiyunSecret = it; message = null },
+                        onValueChange = { if (!pending) { caiyunSecret = it; message = null } },
                         label = "彩云 Secret",
                         configured = status.hasCaiyunSecret,
                     )
                     Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = status.caiyunTestStateLabel(),
-                        color = ZhituColors.Muted,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.height(10.dp))
                     Button(
                         onClick = {
+                            messageRevision++
+                            message = null
+                            messageSuccess = false
                             val appKey = caiyunAppKey.trim()
                             val secret = caiyunSecret.trim()
                             val appKeyChanged = appKey != savedCaiyunAppKey
@@ -245,7 +264,7 @@ fun CredentialSettingsScreen(
                                 message = "彩云 App Key 和 Secret 必须同时填写。"
                             } else if (secret.isEmpty()) {
                                 if (!status.hasCaiyunAppKey || !status.hasCaiyunSecret) {
-                                    message = "请先填写并保存彩云 App Key 和 Secret。"
+                                    message = "请填写彩云 App Key 和 Secret。"
                                 } else {
                                     testCaiyun(null)
                                 }
@@ -257,18 +276,8 @@ fun CredentialSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                     ) {
-                        val hasCandidate = caiyunAppKey.trim() != savedCaiyunAppKey || caiyunSecret.isNotBlank()
-                        Text(if (pending) "处理中" else if (hasCandidate) "测试并保存彩云凭据" else "测试已保存的彩云凭据")
+                        Text(if (testingProvider == CredentialTestProvider.CAIYUN) "处理中" else "测试连接")
                     }
-                }
-            }
-            message?.let { result ->
-                item {
-                    AdvancedNoticeCard(
-                        text = result,
-                        background = if (result == "凭据已加密保存" || result == "凭据已清空") ZhituColors.Mint else ZhituColors.AmberBackground,
-                        foreground = if (result == "凭据已加密保存" || result == "凭据已清空") ZhituColors.Brand else ZhituColors.Amber,
-                    )
                 }
             }
         }
@@ -308,8 +317,10 @@ private fun ScaffoldWithCredentialFooter(
     onClear: () -> Unit,
     pending: Boolean,
     onBack: () -> Unit,
+    notice: @Composable () -> Unit,
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) = androidx.compose.material3.Scaffold(
+    snackbarHost = notice,
     containerColor = ZhituColors.Background,
     topBar = { ZhituTopBar("数据与凭据", subtitle = "本机加密保存，状态清晰可见", navigation = onBack) },
     bottomBar = {
@@ -438,17 +449,4 @@ private fun AdvancedNoticeCard(text: String, background: Color, foreground: Colo
     colors = CardDefaults.cardColors(containerColor = background),
 ) {
     Text(text, Modifier.fillMaxWidth().padding(20.dp), color = foreground)
-}
-
-
-private fun CredentialStatus.caiyunTestStateLabel(): String {
-    val result = when (caiyunTestResult) {
-        CaiyunConnectionTestResult.PASSED -> "连接测试通过"
-        CaiyunConnectionTestResult.FAILED -> "最近连接测试失败"
-        CaiyunConnectionTestResult.NEVER_TESTED -> "尚未连接测试"
-    }
-    val testedAt = caiyunLastTestedAtEpochMillis?.let {
-        Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-    }
-    return if (testedAt == null) result else "$result · $testedAt"
 }

@@ -49,6 +49,13 @@ class AmapWebProvider(
 
     private val cache = ConcurrentHashMap<String, CacheEntry>()
 
+    suspend fun testConnection(candidateKey: String) {
+        requireConsent()
+        val candidate = candidateKey.trim().takeIf(String::isNotEmpty)
+            ?: throw ProviderError(ProviderError.Category.MISSING_KEY, message = "Amap Web key is not configured")
+        call { api.inputTips(candidate, "解放碑", "重庆", null) }.bodyOrError()
+    }
+
     override suspend fun inputTips(keywords: String, city: String?, location: GeoPoint?): List<PlaceRef> {
         requireConsent()
         requireKeywords(keywords)

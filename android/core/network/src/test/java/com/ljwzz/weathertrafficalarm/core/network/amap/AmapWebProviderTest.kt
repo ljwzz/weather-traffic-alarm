@@ -54,6 +54,23 @@ class AmapWebProviderTest {
     }
 
     @Test
+    fun connectionTestUsesDraftKeyWithoutChangingSavedKey() = runTest {
+        server.enqueue(success("""{"tips":[]}"""))
+        server.enqueue(success("""{"tips":[]}"""))
+        provider.testConnection("  draft-key  ")
+        provider.inputTips("解放碑", null, null)
+        assertEquals("draft-key", server.takeRequest().requestUrl!!.queryParameter("key"))
+        assertEquals("test-key", server.takeRequest().requestUrl!!.queryParameter("key"))
+    }
+
+    @Test
+    fun emptyDraftDoesNotFallBackToSavedKey() = runTest {
+        val failure = runCatching { provider.testConnection("  ") }.exceptionOrNull()
+        assertTrue(failure is ProviderError)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun inputTipsMapsPlacesWithoutCachingQueriesOrCoordinates() = runTest {
         server.enqueue(success("""{"tips":[{"id":"B000A","name":"天安门","district":"东城区","location":"116.397428,39.90923","adcode":"110101","citycode":"010"}]}"""))
         server.enqueue(success("""{"tips":[{"id":"B000A","name":"天安门","district":"东城区","location":"116.397428,39.90923","adcode":"110101","citycode":"010"}]}"""))

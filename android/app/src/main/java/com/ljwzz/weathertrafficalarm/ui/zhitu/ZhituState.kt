@@ -556,20 +556,21 @@ class ZhituViewModel @Inject constructor(
         }.onFailure { _error.value = it.message ?: "保存计划通勤失败" }
     }
 
-    fun testAmapWebKey(onComplete: (String?) -> Unit) = viewModelScope.launch {
+    fun testAmapWebKey(candidateKey: String, onComplete: (String?) -> Unit) = viewModelScope.launch {
         if (!settings.value.amapConsentGranted) { onComplete("请先完成高德地图专项授权"); return@launch }
-        runCatching { amapProvider.inputTips("北京") }.onSuccess { onComplete(null) }.onFailure { onComplete(providerMessage(it)) }
+        runCatching { amapProvider.testConnection(candidateKey) }.onSuccess { onComplete(null) }.onFailure { onComplete(providerMessage(it)) }
     }
 
-    /** Tests a candidate without persisting it; the store changes only after a successful request. */
-    fun testCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) = viewModelScope.launch {
-        val location = weatherLocations().firstOrNull()
-        if (location == null) {
-            onComplete("请先配置带坐标的起点或终点")
-            return@launch
-        }
+    fun testCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) =
+        checkCaiyun(candidate, false, onComplete)
+
+    fun saveCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) =
+        checkCaiyun(candidate, true, onComplete)
+
+    private fun checkCaiyun(candidate: CaiyunCredentialInput?, save: Boolean, onComplete: (String?) -> Unit) = viewModelScope.launch {
         val requestedAt = Instant.now()
-        val weatherLocation = WeatherLocation(location.role, location.point)
+        // Fixed connectivity probe near Jiefangbei; independent of commute configuration.
+        val weatherLocation = WeatherLocation(WeatherLocationRole.HOME, GeoPoint(106.574, 29.561))
         val test = if (candidate == null) {
             runCatching { caiyunWeatherProvider.testConnection(weatherLocation, requestedAt) }
         } else {
@@ -586,8 +587,9 @@ class ZhituViewModel @Inject constructor(
             return@launch
         }
         val persistence = runCatching {
-            if (candidate != null) credentials.saveVerifiedCaiyun(candidate)
-            else credentials.recordStoredCaiyunTestSuccess()
+            if (candidate != null) {
+                if (save) credentials.saveVerifiedCaiyun(candidate)
+            } else credentials.recordStoredCaiyunTestSuccess()
         }
         if (persistence.isFailure) {
             onComplete("凭据保存失败")
@@ -777,7 +779,11 @@ class ZhituViewModel @Inject constructor(
     private fun weatherProviderMessage(failure: Throwable): String = when (failure) {
         is ProviderError -> when (failure.category) {
             ProviderError.Category.MISSING_KEY -> "请先配置彩云 App Key 和 Secret"
-            ProviderError.Category.INVALID_KEY -> "彩云凭据无效或未授权"
+            ProviderError.Category.INVALID_KEY -> if (failure.providerCode == "HTTP_400") {
+                "彩云请求被拒绝（HTTP 400），请检查设备时间及 App Key/Secret"
+            } else {
+                "彩云凭据无效或未授权"
+            }
             ProviderError.Category.QUOTA_EXCEEDED, ProviderError.Category.RATE_LIMITED -> "彩云服务额度或频率限制"
             ProviderError.Category.NETWORK -> "网络不可用，请检查连接"
             ProviderError.Category.INVALID_REQUEST -> "天气请求参数无效"

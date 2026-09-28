@@ -481,6 +481,7 @@ fun ZhituApp(
                     onClear = viewModel::clearCredentialsWithCompletion,
                     onTestAmapWebKey = viewModel::testAmapWebKey,
                     onTestCaiyun = viewModel::testCaiyun,
+                    onSaveCaiyun = viewModel::saveCaiyun,
                     onBack = { returnFromRecovery(ZhituDestination.SETTINGS) },
                 )
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen(
