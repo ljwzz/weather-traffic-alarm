@@ -82,7 +82,7 @@ test('date override only affects its matching plan and date', () => {
   const plan = { id: 'a', time: '07:00', enabled: true, repeat: { kind: REPEAT_KINDS.WORKDAYS } };
   const first = nextAlarmOccurrence(plan, { now: at('2026-08-31T06:00:00+08:00'), override: { 'a:2026-08-31': { enabled: false }, 'b:2026-08-31': { time: '05:30' } } });
   assert.deepEqual(first, { date: '2026-09-01', time: '07:00' });
-  const replacement = nextAlarmOccurrence(plan, { now: at('2026-08-31T06:00:00+08:00'), override: { 'a:2026-08-31': { enabled: true, time: '05:30' } } });
+  const replacement = nextAlarmOccurrence(plan, { now: at('2026-08-31T05:00:00+08:00'), override: { 'a:2026-08-31': { enabled: true, time: '05:30' } } });
   assert.deepEqual(replacement, { date: '2026-08-31', time: '05:30', overridden: true });
 });
 

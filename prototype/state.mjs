@@ -395,7 +395,7 @@ export function createEvaluationFixture({
   const inputs = {
     targetDate,
     planId: plan.id || 'fixture-work',
-    planName: plan.name || '上班闹钟（fixture）',
+    planName: plan.name || '闹钟',
     baseWake,
     route: { transport, minutes: routeMinutes, source:'高德路线 fixture' },
     weather: { condition:'小雨', severity:3, bufferMinutes:weatherBufferFor({ dayKind:DAY_KINDS.WORKDAY, severity:3, buffers:weatherBuffers }), source:'彩云天气 fixture', observedAt:'20:45' },
@@ -674,7 +674,7 @@ export function normalizeAlarmPlan(plan = {}) {
   const weekdays = [...new Set((repeat.weekdays || []).map(Number).filter(day => Number.isInteger(day) && day >= 1 && day <= 7))].sort();
   const normalized = {
     id: typeof plan.id === 'string' && plan.id ? plan.id : `alarm-${Date.now().toString(36)}`,
-    name: String(plan.name || '闹钟').trim() || '闹钟',
+    name: String(plan.name ?? '').trim(),
     time: typeof plan.time === 'string' ? plan.time : '06:00',
     arrivalTime: typeof plan.arrivalTime === 'string' ? plan.arrivalTime : '09:00',
     preparationMinutes: Number.isInteger(plan.preparationMinutes) ? plan.preparationMinutes : 30,
@@ -720,7 +720,7 @@ export function defaultAlarmDraft(now = new Date()) {
   const nextDate = candidate.getTime() <= now.getTime()
     ? todayIso(new Date(now.getTime() + 86_400_000))
     : date;
-  return normalizeAlarmPlan({ name: '闹钟', time: '06:00', repeat: { kind: REPEAT_KINDS.ONCE, date: nextDate }, enabled: true });
+  return normalizeAlarmPlan({ name: '', time: '06:00', repeat: { kind: REPEAT_KINDS.ONCE, date: nextDate }, enabled: true });
 }
 
 export function validateAlarmPlan(plan, { now = new Date() } = {}) {
@@ -750,18 +750,21 @@ export function nextAlarmOccurrence(plan, { now = new Date(), isWorkday = isLega
   const item = normalizeAlarmPlan(plan);
   if (!item.enabled || item.scheduleStatus === 'completed') return null;
   if (item.repeat.kind === REPEAT_KINDS.ONCE) {
-    const instant = new Date(`${item.repeat.date}T${item.time}:00`);
-    return instant.getTime() > now.getTime() ? { date: item.repeat.date, time: item.time } : null;
+    const overridden = override?.[`${item.id}:${item.repeat.date}`];
+    if (overridden?.enabled === false) return null;
+    const time = overridden?.time || item.time;
+    const instant = new Date(`${item.repeat.date}T${time}:00`);
+    return instant.getTime() > now.getTime() ? { date: item.repeat.date, time, ...(overridden?.time ? { overridden:true } : {}) } : null;
   }
   for (let offset = 0; offset <= 370; offset += 1) {
     const date = addDays(todayIso(now), offset);
-    const occurrence = new Date(`${date}T${item.time}:00`);
-    if (occurrence.getTime() <= now.getTime()) continue;
     const overridden = override?.[`${item.id}:${date}`];
     if (overridden?.enabled === false) continue;
-    if (overridden?.time) return { date, time: overridden.time, overridden: true };
-    if (item.repeat.kind === REPEAT_KINDS.WEEKLY && item.repeat.weekdays.includes(weekdayNumber(date))) return { date, time: item.time };
-    if (item.repeat.kind === REPEAT_KINDS.WORKDAYS && isWorkday(date)) return { date, time: item.time };
+    const eligible = overridden?.enabled === true || (item.repeat.kind === REPEAT_KINDS.WEEKLY && item.repeat.weekdays.includes(weekdayNumber(date))) || (item.repeat.kind === REPEAT_KINDS.WORKDAYS && isWorkday(date));
+    if (!eligible) continue;
+    const time = overridden?.time || item.time;
+    if (new Date(`${date}T${time}:00`).getTime() <= now.getTime()) continue;
+    return { date, time, ...(overridden?.time ? { overridden:true } : {}) };
   }
   return null;
 }
