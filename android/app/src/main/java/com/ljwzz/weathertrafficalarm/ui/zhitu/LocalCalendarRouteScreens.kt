@@ -34,6 +34,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -495,6 +496,14 @@ fun PlacePickerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("搜索地点") },
                     singleLine = true,
+                    trailingIcon = {
+                        if (loading && query.isNotBlank()) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp).testTag("place_search_loading"),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    },
                 )
             }
             item {
