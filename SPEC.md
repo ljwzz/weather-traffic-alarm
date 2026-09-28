@@ -15,6 +15,8 @@
 >
 > 当前 Figma 设计稿决定页面级需求；开发和界面验收参照本地 [`prototype/`](./prototype/) 的页面结构、布局、组件、文案与交互。除非用户明确要求修改，不得自行调整原型或另行设计。非视觉业务与安全规则以本规格为准；两者冲突时先向用户确认。页面和节点见 [`docs/design-handoff.md`](./docs/design-handoff.md)。
 
+> 2026-09-28 当前设计页为 [`知途 · 完整设计`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。主流程、交互状态及扩展页面以该页为页面级参照；组件基础也位于该页。旧版节点映射仅供历史追溯，当前交接以 [`docs/design-handoff.md`](./docs/design-handoff.md) 开头的基线为准。
+
 > 2026-09-07 设计／原型合并基线：Figma 保留 `01 · 知途设计提案`（[`0:1`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=0-1)）、`02 · 可点击原型`（[`16:180`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=16-180)）和 `03 · 通勤路线方案`（[`79:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=79-600)）作为来源；新增 [`04 · 项目合并版 · 2026-09-07`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) 为本轮可审阅基线。合并页的当前主流程对齐已实现 Android，旧设计的有效未实现目标与必要状态继续保留。节点映射见 [`docs/design-handoff.md`](./docs/design-handoff.md)。第一阶段同步设置与闹钟编辑的 Android 信息组织、计划草稿及必要导航；执行结果与设备证据见 [`设置与编辑验收`](./android/qa/settings-editor-2026-09-07/README.md)。
 
 ## 0. 当前本地闹钟实施基线

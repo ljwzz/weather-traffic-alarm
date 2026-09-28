@@ -3,6 +3,7 @@
 ## 交接基线
 
 - Figma 文件：`wN04BlxRelbJyBVF35DyXE`。节点是当前设计追溯依据，不声明已保存命名版本历史。
+- 当前设计页：[`知途 · 完整设计 · 2026-09-28`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。主流程、交互状态和扩展页面集中在此页；页面内的「组件 / 知途基础」保留导航、工作日日历和路线选项组件。天气缓冲以 `253:3146` 为当前页面节点。
 - 当前设计稿决定页面级需求；`SPEC.md` 决定领域、安全、调度和验收约束。
 - 本地原型位于 [`prototype/`](../prototype/)。开发和界面验收必须参照其页面结构、布局、组件、文案与交互；除非用户明确要求修改，不得自行改动原型或另行设计。
 - 原型路由以 `prototype/app.js` 的 `ROUTES` 为准：主页是 `home`，地点选择是 `place-search`，基础／提前响铃离线演示分别为 `ringing-basic`／`ringing`。Web 响铃交互见 [`原型验收`](../prototype/qa/ringing-2026-09-02/README.md)，Android 真实响铃与动作确认见 [`原生验收`](../android/qa/native-ringing-2026-09-02/README.md)；两类结果不互相替代。
@@ -17,7 +18,7 @@
 | `01 · 知途设计提案` | [`0:1`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=0-1) | 保留为源页面，提供主流程与交互状态的既有设计来源。 |
 | `02 · 可点击原型` | [`16:180`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=16-180) | 保留为源页面，提供尚未接入 Android 的有效产品目标、状态和概念页面。 |
 | `03 · 通勤路线方案` | [`79:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=79-600) | 保留为源页面，提供现有路线主方案。 |
-| `04 · 项目合并版 · 2026-09-07` | [`218:2464`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) | 本轮可审阅基线：整合当前 Android 主流程、原型优化和保留目标。 |
+| `知途 · 完整设计 · 2026-09-28` | [`218:2464`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) | 当前可审阅基线：整合 Android 主流程、原型状态和保留目标。 |
 
 - 合并页的当前主流程以 `home`、天气、路线与地点选择、计划列表与编辑、日历覆盖、设置、凭据、可靠性诊断、记录、引导和真实基础响铃为准。节点映射见下表。旧 21 个 Figma 页面不是 Android 已实现清单；当前实现范围和路径由下文实施状态及 [`SPEC.md`](../SPEC.md) 第 8 章共同约束。
 - 旧设计中仍有效但尚未接入当前 Android 导航的天气地图、锁屏通知、胶囊摘要／展开详情和单日覆盖，保留在合并页目标区。它们不得从主设置页或当前主流程伪造为已可用功能。
@@ -78,7 +79,6 @@
 | [`223:4069`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4069) | 胶囊摘要 |
 | [`223:4183`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4183) | 胶囊展开详情 |
 | [`223:4317`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4317) | 评估失败详情（第二阶段已实现） |
-| [`223:4408`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4408) | 原天气缓冲视觉参照。 |
 | [`253:3146`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=253-3146) | 设置独立天气缓冲页；三套配置分别保存。 |
 | [`223:4501`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=223-4501) | 单日覆盖 |
 | [`228:3078`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3078) | 通知摘要／锁屏摘要设计目标说明板 |

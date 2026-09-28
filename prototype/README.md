@@ -1,5 +1,7 @@
 # 知途本地原型
 
+当前 Figma 页面级参照：[`知途 · 完整设计`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。原型页面与交互仍以本目录可运行内容为准。
+
 ## 运行
 
 在仓库根目录执行：
