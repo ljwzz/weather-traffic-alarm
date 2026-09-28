@@ -62,6 +62,7 @@
 | `37:273` | [`220:2951`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=220-2951) | 日历 |
 | `64:554` | [`220:3101`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=220-3101) | 记录 |
 | `42:281` | [`222:2787`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=222-2787) | 地点 |
+| 当前新增 | [`277:670`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=277-670) | 地点搜索中；输入框右侧显示加载图标 |
 | `171:2437` | [`222:2857`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=222-2857) | 通勤与提前提醒展开 |
 | `95:601` | [`222:3022`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=222-3022) | 基础响铃 |
 

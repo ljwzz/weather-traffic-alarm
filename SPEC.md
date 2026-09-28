@@ -775,6 +775,7 @@ ProviderError(
 
 - 当前支持全局通勤、计划覆盖和驾车、公交、步行、骑行、电动车的选择；保存后不自动切换方式。
 - 同意授权并配置相应运行时 Key 后，地点页显示 POI 搜索／输入提示，路线编辑页显示地图选点和单次当前位置。用户点击“使用当前位置”后先展示定位用途说明，再触发前台定位申请；拒绝或仅粗略定位时以对应结果继续页面流程。小米要求在对应功能场景以自定义说明或蒙层告知申请用途。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1793
+- 地点搜索框在输入非空关键词且搜索请求进行中时，于框内右侧显示加载指示；搜索结束后隐藏。
 - Android 原生定位请求将 `ACCESS_FINE_LOCATION` 与 `ACCESS_COARSE_LOCATION` 同次发起；粗略授权可继续单次定位。拒绝、定位服务关闭和授权设置返回均重新评估前台定位、服务、Provider 同意与 SDK 就绪状态；待续单次操作只消费一次。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime
 
 ### 8.5 工作日日历与单日加班（页面 15–17、20）
