@@ -31,6 +31,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.res.painterResource
+import com.ljwzz.weathertrafficalarm.R
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +42,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -229,11 +234,6 @@ fun LocalRouteScreen(
     var destinationId by remember(settings) { mutableStateOf(settings.destinationId) }
     var mode by remember(settings) { mutableStateOf(settings.commuteMode) }
     var feedback by remember { mutableStateOf<String?>(null) }
-    fun deleteFavorite(id: String) {
-        favorites = favorites.filterNot { it.id == id }
-        if (originId == id) originId = null
-        if (destinationId == id) destinationId = null
-    }
 
     Scaffold(
         containerColor = ZhituColors.Background,
@@ -291,22 +291,6 @@ fun LocalRouteScreen(
                     }
                 }
             }
-            item {
-                LocalCard {
-                    Text("常用地点", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    if (favorites.isEmpty()) {
-                        Spacer(Modifier.height(8.dp)); Text("暂无常用地点，请选择起点或终点添加。", color = ZhituColors.Muted)
-                    } else favorites.forEach { favorite ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f).clickable { onPickPlace?.invoke(PlaceSelectionTarget.FAVORITE) }) {
-                                Text(favorite.name, color = ZhituColors.Ink)
-                                Text(favorite.address, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            TextButton({ deleteFavorite(favorite.id) }) { Text("删除") }
-                        }
-                    }
-                }
-            }
             feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }
         }
     }
@@ -344,6 +328,8 @@ fun PlacePickerScreen(
     onMapClick: (GeoPoint) -> Unit,
     onConfirm: (PlaceCandidateUi) -> Unit,
     onBack: () -> Unit,
+    favorites: List<FavoritePlace> = emptyList(),
+    onDeleteFavorite: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -503,13 +489,33 @@ fun PlacePickerScreen(
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.horizontalScroll(rememberScrollState())) {
                     FilterChip(
                         selected = false,
                         onClick = ::requestCurrentLocation,
+                        colors = FilterChipDefaults.filterChipColors(containerColor = ZhituColors.Mint, labelColor = ZhituColors.Brand),
+                        border = null,
+                        modifier = Modifier.height(48.dp),
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_location), contentDescription = null, modifier = Modifier.size(18.dp)) },
                         enabled = !permissionFlowState.locateInFlight,
                         label = { Text(if (permissionFlowState.locateInFlight) "正在获取当前位置" else "使用当前位置") },
                     )
+                    favorites.forEach { favorite ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(8.dp)).background(ZhituColors.Mint),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = {
+                                if (favorite.placeRef == null) onQueryChanged(favorite.name)
+                                else selected = PlaceCandidateUi(favorite.id, favorite.name, favorite.address, placeRef = favorite.placeRef)
+                            }) { Text(favorite.name, color = ZhituColors.Brand) }
+                            Spacer(Modifier.width(1.dp).height(18.dp).background(ZhituColors.Brand.copy(alpha = 0.25f)))
+                            IconButton(onClick = {
+                                if (selected?.id == favorite.id) selected = null
+                                onDeleteFavorite(favorite.id)
+                            }) { Icon(painterResource(R.drawable.ic_delete), contentDescription = "删除${favorite.name}", tint = ZhituColors.Brand, modifier = Modifier.size(18.dp)) }
+                        }
+                    }
                 }
             }
             item {

@@ -173,3 +173,14 @@ img {max-width:100%}
 .caiyun-weather-fixture .home-weather-grade{font-size:32px;line-height:1.4}
 
 .settings-about{display:flex;align-items:center;gap:14px}.settings-about img{width:56px;height:56px;border-radius:14px;flex:none}.settings-about h2{margin:0}.settings-about p{margin:3px 0;font-size:13px}.settings-about small{color:var(--muted);font-size:11px}.settings-buffer-profiles{padding:0;border:0}.settings-buffer-profile{padding:14px 16px;border-radius:20px;background:white}
+
+.place-candidates {display:flex;align-items:center;gap:8px;overflow-x:auto;padding-bottom:4px}
+.place-candidates .place-locate,.place-favorite {flex-shrink:0;white-space:nowrap;height:44px;border-radius:12px;background:var(--mint);color:var(--brand)}
+.place-candidates svg {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.place-favorite {display:flex;align-items:center}
+.place-favorite button {border:0;background:transparent;color:inherit;padding:0 14px;height:44px;font:inherit;font-size:13px;display:flex;align-items:center}
+.place-favorite .place-favorite-delete {position:relative;padding:0 12px}
+.place-favorite-delete::before {content:"";position:absolute;left:0;height:18px;width:1px;background:currentColor;opacity:.25}
+
+.route-locate {display:inline-flex;align-items:center;gap:8px}
+.route-locate svg {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}

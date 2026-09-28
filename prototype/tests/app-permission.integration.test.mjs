@@ -493,3 +493,24 @@ test('alarm commute changes stay in a dedicated draft until confirmed', async ()
     assert.match(app.innerHTML, /data-value="driving" class="is-selected"/);
   });
 });
+
+test('favorite deletion clears the candidate without selecting or applying it', async () => {
+  await withBrowserStub(async ({ app, listeners, window }) => {
+    const click = (action, value) => listeners.get('click')({ target:control(action, value) });
+    window.ZhituPrototype.navigate('route-edit');
+    click('open-place', 'destination');
+    click('add-favorite');
+    for (const [field, value] of [['name','家'],['address','示例地址']]) {
+      listeners.get('input')({ target:{ dataset:{ favoriteField:field }, value } });
+    }
+    click('save-favorite');
+    const id = app.innerHTML.match(/data-action="delete-favorite" data-value="([^"]+)"/)[1];
+    assert.match(app.innerHTML, /locate-once[\s\S]*place-favorite[\s\S]*aria-label="删除家"/);
+    click('choose-place', id);
+    assert.match(app.innerHTML, /已选 · 家 · 示例地址/);
+    click('delete-favorite', id);
+    assert.match(app.innerHTML, /已选 · 未选择/);
+    click('use-place');
+    assert.match(app.innerHTML, /请先选择一个地点/);
+  });
+});

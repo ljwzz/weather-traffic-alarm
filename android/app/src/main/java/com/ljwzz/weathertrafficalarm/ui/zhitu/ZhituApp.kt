@@ -402,6 +402,16 @@ fun ZhituApp(
                 )
                 ZhituDestination.PLACE_PICKER -> PlacePickerScreen(
                     target = placeTarget,
+                    favorites = localSettings.favorites,
+                    onDeleteFavorite = { id ->
+                        viewModel.updateSettings { current ->
+                            current.copy(
+                                favorites = current.favorites.filterNot { it.id == id },
+                                originId = current.originId.takeUnless { it == id },
+                                destinationId = current.destinationId.takeUnless { it == id },
+                            )
+                        }
+                    },
                     query = placePickerState.query,
                     candidates = placePickerState.candidates.map { place -> PlaceCandidateUi(place.poiId ?: "${place.longitudeGcj02},${place.latitudeGcj02}", place.name, place.displayAddress, placeRef = place) },
                     loading = placePickerState.loading,
@@ -417,7 +427,8 @@ fun ZhituApp(
                         when (placeTarget) {
                             PlaceSelectionTarget.PLAN_ORIGIN, PlaceSelectionTarget.PLAN_DESTINATION -> viewModel.setPlanCommutePlace(placeTarget, place)
                             else -> {
-                                val favorite = FavoritePlace(UUID.randomUUID().toString(), candidate.name, candidate.address, place)
+                                val favorite = localSettings.favorites.firstOrNull { it.placeRef == place }
+                                    ?: FavoritePlace(UUID.randomUUID().toString(), candidate.name, candidate.address, place)
                                 viewModel.updateSettings { current ->
                                     val updatedFavorites = current.favorites.filterNot { it.name == favorite.name && it.address == favorite.address } + favorite
                                     when (placeTarget) {
