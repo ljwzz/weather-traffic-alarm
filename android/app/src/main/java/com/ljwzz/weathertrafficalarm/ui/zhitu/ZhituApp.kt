@@ -139,6 +139,7 @@ fun ZhituApp(
         permissionViewModel.cancel()
     }
     var destination by permissionViewModel::destination
+    var weatherReturn by rememberSaveable { mutableStateOf(ZhituDestination.HOME) }
     val externalDetailKey = initialDecisionId?.let { "decision:$it" } ?: initialDecisionOccurrenceId?.let { "occurrence:$it" }
         ?: if (initialDestination == ZhituDestination.DECISION_DETAIL) "invalid-detail" else null
     var consumedDetailKey by rememberSaveable { mutableStateOf(externalDetailKey) }
@@ -175,6 +176,13 @@ fun ZhituApp(
             detailRecoveryReturn = false
             destination = ZhituDestination.DECISION_DETAIL
         } else destination = fallback
+    }
+    fun openWeather() {
+        weatherReturn = destination
+        destination = ZhituDestination.WEATHER
+    }
+    fun returnFromWeather() {
+        destination = weatherReturn
     }
 
     LaunchedEffect(destination, detailDecisionId, detailOccurrenceId) {
@@ -296,7 +304,8 @@ fun ZhituApp(
             ZhituDestination.DIAGNOSTICS -> returnFromDiagnostics()
             ZhituDestination.PLAN_COMMUTE -> destination = ZhituDestination.EDITOR
             ZhituDestination.PLACE_PICKER -> destination = if (placeTarget == PlaceSelectionTarget.PLAN_ORIGIN || placeTarget == PlaceSelectionTarget.PLAN_DESTINATION) ZhituDestination.PLAN_COMMUTE else ZhituDestination.ROUTE
-            ZhituDestination.CALENDAR, ZhituDestination.CREDENTIALS, ZhituDestination.HISTORY, ZhituDestination.WEATHER, ZhituDestination.WEATHER_BUFFERS -> destination = ZhituDestination.SETTINGS
+            ZhituDestination.WEATHER -> returnFromWeather()
+            ZhituDestination.CALENDAR, ZhituDestination.CREDENTIALS, ZhituDestination.HISTORY, ZhituDestination.WEATHER_BUFFERS -> destination = ZhituDestination.SETTINGS
             else -> {
             permissionViewModel.cancel()
             destination = if (destination == ZhituDestination.EDITOR) ZhituDestination.PLANS else ZhituDestination.HOME
@@ -347,7 +356,7 @@ fun ZhituApp(
                     onEvaluate = viewModel::evaluateNow,
                     onDecision = ::openDecision,
                     onRoute = { navigatePrimary(ZhituDestination.ROUTE) },
-                    onWeather = { destination = ZhituDestination.WEATHER },
+                    onWeather = ::openWeather,
                     onCredentials = { destination = ZhituDestination.CREDENTIALS },
                     onAmapConsent = { destination = ZhituDestination.ONBOARDING },
                     onRefreshPreviews = { suppressHomePreviewRefresh = false; viewModel.refreshHomePreviews(forceRefresh = true) },
@@ -452,7 +461,7 @@ fun ZhituApp(
                     onCredentials = { destination = ZhituDestination.CREDENTIALS },
                     onDiagnostics = { destination = ZhituDestination.DIAGNOSTICS },
                     onHistory = { destination = ZhituDestination.HISTORY },
-                    onWeather = { destination = ZhituDestination.WEATHER },
+                    onWeather = ::openWeather,
                     onOnboarding = { destination = ZhituDestination.ONBOARDING },
                 )
                 ZhituDestination.WEATHER_BUFFERS -> WeatherBuffersScreen(
@@ -503,7 +512,7 @@ fun ZhituApp(
                 ZhituDestination.WEATHER -> WeatherScreen(
                     state = weatherState,
                     onRefresh = viewModel::refreshWeather,
-                    onBack = { destination = ZhituDestination.SETTINGS },
+                    onBack = ::returnFromWeather,
                 )
                 ZhituDestination.RINGING -> {
                     LaunchedEffect(ringingOccurrenceId) {
