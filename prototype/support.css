@@ -44,3 +44,7 @@
 .support-sheet-clear { min-height: 400px; }.support-clear-warning { display: grid; gap: 6px; margin-top: 20px; padding: 16px; border-radius: 16px; background: #fff1da; }.support-clear-warning strong { color: var(--amber); font-size: 13px; line-height: 19px; }.support-clear-warning p { margin: 0; color: var(--muted); font-size: 11px; line-height: 16px; }
 
 @media (max-width: 420px) { .support-overlay { position: fixed; }.support-screen { padding-right: 0; padding-left: 0; } }
+
+.credential-banner { padding: 16px; border-radius: 16px; margin-top: 16px; }
+.credential-banner.is-success { background: #dcf5ec; color: #007e78; }
+.credential-banner.is-error { background: #fff2d9; color: #ad5c13; }

@@ -39,7 +39,7 @@ function load() { try { return loadSettings(localStorage, STORAGE_KEY, defaults(
 let config = load();
 function createRuntime() {
   const decisionRecords = demoDecisionRecords();
-  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'未验证', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, evaluationSubmitting:false, decisionRecords, selectedDecisionId:null, selectedOccurrenceId:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, commuteSettingsExpanded:false, weatherBufferExpanded:false, weatherBufferDraft:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, ringingDetailOpen:false, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
+  return { route:config.onboardingDone ? 'home' : 'onboarding', history:[], notice:'', overlay:null, credentials:{}, credentialStatus:'', amapFixture:'success', caiyunFixture:'success', routeFixture:'success', homeConfigurationState:'ready', weatherCredentialConfigured:false, caiyunConnectionState:'pending', weatherForecastWindowValid:true, weatherObservedAt:'09-05 07:00', fixtureNow:null, amapCredentialRevision:0, weatherCredentialRevision:0, homePreview:createHomePreviewState(), evaluationFixture:EVALUATION_FIXTURE_STATES.PENDING, evaluationRun:null, evaluationSubmitting:false, decisionRecords, selectedDecisionId:null, selectedOccurrenceId:null, selectedEvaluationPlanId:null, calendarMonth:todayIso().slice(0, 7), selectedDate:todayIso(), selectedRouteIndex:0, alarmDraft:null, editingAlarmId:null, commuteSettingsExpanded:false, weatherBufferExpanded:false, weatherBufferDraft:null, calendarPlanId:null, dateOverridesDraft:null, routeDraft:null, routeScope:'global', placeTarget:'origin', placeQuery:'', selectedPlace:null, historyFilter:'all', overrideDraftTime:'', ringingSession:null, ringingDetailOpen:false, diagnosticFixture:'records', permissionState:createPermissionState(), permissionFlow:null, permissionPrompted:[], permissionSettingsTarget:null, locationRequest:null };
 }
 let runtime = createRuntime();
 let noticeTimer;
@@ -151,6 +151,13 @@ const support = createSupportScreens({ escapeHTML:esc, action, overlayAction });
 const system = createSystemScreens({ asset, state });
 const permissions = createPermissionScreens({ state, overlayAction });
 
+let credentialNoticeTimer;
+function credentialNotice(message, success) {
+  clearTimeout(credentialNoticeTimer);
+  runtime.credentialStatus = message;
+  runtime.credentialSuccess = success;
+  credentialNoticeTimer = setTimeout(() => { runtime.credentialStatus = ''; render(); }, 60_000);
+}
 function notice(message) { runtime.notice = message; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { runtime.notice = ''; render(); }, 3200); }
 function closeOverlay() { runtime.overlay = null; runtime.overrideDraftTime = ''; }
 function enterRouteDraft() { if (!runtime.routeDraft) runtime.routeDraft = clone(config); }
@@ -386,11 +393,11 @@ function handleClick(event) {
     if (op === 'pick-map') { if (config.amapConsent !== 'approved') throw Error('请先在首次启动页同意高德授权。'); if (!runtime.credentials.amapSdkKey) throw Error('请先配置运行时 Android SDK Key。'); const c = activeCommute(); c[runtime.placeTarget] = '地图选点（演示）'; c[`${runtime.placeTarget}Address`] = '离线 fixture · 不含坐标'; notice('已应用地图选点 fixture。'); render(); return; }
     if (op === 'locate-once') return requestCurrentLocation();
     if (op === 'refresh-home-preview') { refreshHomePreview({ force:true, kind:value || null }); render(); return; }
-    if (op === 'save-credentials') { runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); runtime.credentialStatus = '模拟配置已更新；原型未保存真实凭证'; render(); return; }
-    if (op === 'test-credentials') { runtime.credentialStatus = '高德离线 fixture 已验证；未发送网络请求'; render(); return; }
-    if (op === 'test-caiyun-credentials') { runtime.caiyunConnectionState = runtime.weatherCredentialConfigured ? 'passed' : 'pending'; invalidateHomePreviews(); runtime.credentialStatus = runtime.weatherCredentialConfigured ? '彩云天气 fixture 连接测试通过；未发送网络请求' : '请先启用天气凭据 fixture，再测试连接'; render(); return; }
+    if (op === 'save-credentials') { runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); credentialNotice('模拟配置已更新', true); render(); return; }
+    if (op === 'test-credentials') { credentialNotice(runtime.credentials.amapWebKey?.trim() ? '高德连接测试成功（离线演示）' : '请填写高德 Web Key。', Boolean(runtime.credentials.amapWebKey?.trim())); render(); return; }
+    if (op === 'test-caiyun-credentials') { runtime.caiyunConnectionState = runtime.weatherCredentialConfigured ? 'passed' : 'pending'; invalidateHomePreviews(); credentialNotice(runtime.weatherCredentialConfigured ? '彩云连接测试成功（离线演示）' : '请先启用天气凭据 fixture，再测试连接', runtime.weatherCredentialConfigured); render(); return; }
     if (op === 'clear-credentials') return openOverlay('clear-credentials');
-    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.weatherCredentialConfigured = false; runtime.caiyunConnectionState = 'pending'; runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); runtime.credentialStatus = '当前会话模拟状态已清空'; closeOverlay(); render(); return; }
+    if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.weatherCredentialConfigured = false; runtime.caiyunConnectionState = 'pending'; runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); credentialNotice('当前会话模拟状态已清空', true); closeOverlay(); render(); return; }
     if (op === 'preview-sound') { notice('浏览器原型不播放声音；Android 应用可试听。'); return; }
     if (op === 'open-permission-diagnostics') return navigate('diagnostics');
     if (op === 'return-permission-flow') {

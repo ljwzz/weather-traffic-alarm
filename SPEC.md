@@ -797,6 +797,10 @@ ProviderError(
 
 ### 8.6 凭证配置（页面 19）
 
+- 高德和彩云按钮统一为“测试连接”，读取当前输入；请求期间仅当前测试按钮显示“处理中”，另一项测试按钮禁用并保留“测试连接”文案；测试成功不保存候选凭据。彩云未修改 Secret 时可测试当前已保存的完整凭据，修改 App Key 必须同时输入 Secret；保存由底部“保存凭据”执行，彩云候选值通过连接验证后写入。
+- 彩云连接测试固定使用重庆渝中区解放碑附近测试点（经度 106.574、纬度 29.561），不依赖通勤配置。参考区政府公布的解放碑步行街坐标：https://www.cqyz.gov.cn/zwxx_229/gggs/202501/P020250124353352402531.pdf 。请求经纬度顺序依据：https://docs.caiyunapp.com/weather-api/v2/v2.6/1-realtime.html 。
+- 验证、保存和清空结果通过横幅通知：成功使用浅绿背景，失败使用浅橙背景；出现 60 秒后自动关闭，新结果重新计时。
+
 - 高德区块提供 Web Service Key、Android SDK Key和 fixture 状态；原型仅会话保存，Android 已实现加密持久化。彩云区块提供凭据配置、连接测试与天气页入口；Android 验证记录见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)。
 - 数据与凭据页在输入框内显示已保存的高德 Web Key、Android SDK Key 和彩云 App Key；彩云 Secret 在框内保持圆点遮罩。编辑页关闭后不保留用于显示的 Key 明文。高德 Web Key 测试入口位于高德区块内、两项 Key 下方。
 - 页面 `FLAG_SECURE`。

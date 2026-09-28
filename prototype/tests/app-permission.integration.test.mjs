@@ -445,3 +445,27 @@ test('popstate leaving the permission origin clears an otherwise stale continuat
     assert.doesNotMatch(app.innerHTML, /返回继续启用/);
   });
 });
+
+
+test('credential probes use current draft and show replaceable 60-second result banners', async () => {
+  await withBrowserStub(async ({ app, listeners, saved, window }, initial) => {
+    const timers = new Map(); let nextTimer = 0;
+    globalThis.setTimeout = (callback, delay) => { timers.set(++nextTimer, { callback, delay }); return nextTimer; };
+    globalThis.clearTimeout = id => timers.delete(id);
+    window.ZhituPrototype.navigate('credentials');
+    const click = listeners.get('click');
+    click({ target:control('test-credentials') });
+    assert.match(app.innerHTML, /credential-banner is-error/);
+    assert.equal([...timers.values()].at(-1).delay, 60_000);
+    listeners.get('input')({ target:{ dataset:{ credential:'amapWebKey' }, value:'draft-key' } });
+    click({ target:control('test-credentials') });
+    assert.match(app.innerHTML, /credential-banner is-success/);
+    assert.equal(timers.size, 1);
+    window.ZhituPrototype.setHomePreviewFixture({ weatherCredentialConfigured:true });
+    click({ target:control('test-caiyun-credentials') });
+    assert.match(app.innerHTML, /彩云连接测试成功/);
+    assert.equal(saved.get(STORAGE_KEY), initial);
+    [...timers.values()].at(-1).callback();
+    assert.doesNotMatch(app.innerHTML, /credential-banner/);
+  });
+});
