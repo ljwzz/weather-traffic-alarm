@@ -282,7 +282,6 @@ fun ZhituApp(
         credentialStatus.hasCaiyunSecret,
         credentialStatus.amapWebVersion,
         credentialStatus.caiyunVersion,
-        credentialStatus.caiyunTestResult,
     ) {
         if (destination == ZhituDestination.HOME) {
             if (suppressHomePreviewRefresh) suppressHomePreviewRefresh = false
@@ -481,7 +480,6 @@ fun ZhituApp(
                     onClear = viewModel::clearCredentialsWithCompletion,
                     onTestAmapWebKey = viewModel::testAmapWebKey,
                     onTestCaiyun = viewModel::testCaiyun,
-                    onSaveCaiyun = viewModel::saveCaiyun,
                     onBack = { returnFromRecovery(ZhituDestination.SETTINGS) },
                 )
                 ZhituDestination.DIAGNOSTICS -> AlarmDiagnosticsScreen(

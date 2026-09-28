@@ -45,7 +45,7 @@ Android 已接入真实基础／贪睡响铃页面，验收与 APK 见 [`原生�
 
 - 本原型不会注册系统闹钟、播放音频、振动、读取权限或实际打开系统设置；所有系统设置跳转均为离线状态演示。基础／提前响铃仅为离线交互 fixture。演示不写入 `alarmPlans`、`alarmEvents` 或 `dateOverrides`，也不发网络请求。Android 基础本地闹钟的注册、响铃、停止与贪睡由 `LocalAlarmCoordinator`、Receiver 和响铃服务实现及验收；提前 fixture 不代表自动提前已启用。
 - 凭据页面只用于本地 fixture 测试：不进行网络连接测试；彩云 App Key 和 App Secret 不在原型中采集或保存。高德演示输入仅保留当前页面会话，刷新即清空。
-- 首页 fixture 操作：在“数据与凭据”将天气凭据 fixture 设为已配置、连接测试设为通过，并填写任意高德 Web 演示值；保存全局起点和终点后返回首页，展示成功摘要。把天气 fixture 设为“缓存数据”展示本地缓存来源；把路线 Web fixture 设为“请求失败”或天气 fixture 设为“服务错误”，再返回首页或刷新，可展示各自失败状态和有效旧摘要。浏览器控制台也可调用 `window.ZhituPrototype.setHomePreviewFixture(...)` 与 `window.ZhituPrototype.refreshHomePreview()` 进行离线验收。
+- 首页 fixture 操作：在“数据与凭据”将天气凭据 fixture 设为已配置，并填写任意高德 Web 演示值；保存全局起点和终点后返回首页，展示成功摘要。把天气 fixture 设为“缓存数据”展示本地缓存来源；把路线 Web fixture 设为“请求失败”或天气 fixture 设为“服务错误”，再返回首页或刷新，可展示各自失败状态和有效旧摘要。浏览器控制台也可调用 `window.ZhituPrototype.setHomePreviewFixture(...)` 与 `window.ZhituPrototype.refreshHomePreview()` 进行离线验收。
 - 日历和工作日闹钟在 2026 年使用离线节假日与调休 fixture；其他年份按星期判定。节假日数据接入、缓存和校验由 Android 实现。
 
 ## 开发与验收约束

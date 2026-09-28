@@ -99,9 +99,9 @@ test('home status cards expose recovery controls and preserve cached data on an 
     action:(label, route) => `<button data-route="${route}">${label}</button>`,
     overlayAction:(label, name, value) => `<button data-action="${name}" data-value="${value}">${label}</button>`,
     asset:() => '',
-    state: { config:{}, runtime:{ homePreview:{ weather:{ state:'connection-failed', result:null }, route:{ state:'error', result:{ transport:'驾车', distance:'12.4 km', duration:'18 分钟', endpoints:'家 → 公司', observedAt:'09-05 07:00', source:'数据来自高德路线服务' } }, evaluationPlans:[] } } },
+    state: { config:{}, runtime:{ homePreview:{ weather:{ state:'credential-missing', result:null }, route:{ state:'error', result:{ transport:'驾车', distance:'12.4 km', duration:'18 分钟', endpoints:'家 → 公司', observedAt:'09-05 07:00', source:'数据来自高德路线服务' } }, evaluationPlans:[] } } },
   }).home();
-  assert.match(html, /彩云凭据连接测试失败/);
+  assert.match(html, /尚未配置彩云凭据/);
   assert.match(html, /配置凭据/);
   assert.match(html, /无法获取路线/);
   assert.match(html, /更新失败，保留上次结果/);

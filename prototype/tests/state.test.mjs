@@ -216,11 +216,11 @@ test('plan commute override replaces only that plan effective commute', () => {
   assert.deepEqual(commute, { enabled:true, origin:'计划起点', originAddress:'', destination:'计划终点', destinationAddress:'', selectedTransport:'walking' });
 });
 
-test('home preview prerequisites separately expose weather credentials, connection and route authorization', () => {
+test('home preview prerequisites use configured weather credentials and route authorization', () => {
   const configured = { amapConsent:'approved', origin:'家', destination:'公司' };
   assert.equal(homePreviewPrerequisite('weather', configured, {}), HOME_PREVIEW_STATES.CREDENTIAL_MISSING);
-  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'pending' }), HOME_PREVIEW_STATES.CONNECTION_PENDING);
-  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'failed' }), HOME_PREVIEW_STATES.CONNECTION_FAILED);
+  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'pending' }), null);
+  assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'failed' }), null);
   assert.equal(homePreviewPrerequisite('weather', configured, { homeConfigurationState:'error' }), HOME_PREVIEW_STATES.CONFIG_ERROR);
   assert.equal(homePreviewPrerequisite('weather', configured, { weatherCredentialConfigured:true, caiyunConnectionState:'passed' }), null);
   assert.equal(homePreviewPrerequisite('route', { ...configured, amapConsent:'pending' }, { credentials:{ amapWebKey:'fixture' } }), HOME_PREVIEW_STATES.AUTHORIZATION_MISSING);

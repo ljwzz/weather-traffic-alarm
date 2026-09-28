@@ -398,7 +398,7 @@ function handleClick(event) {
     if (op === 'refresh-home-preview') { refreshHomePreview({ force:true, kind:value || null }); render(); return; }
     if (op === 'save-credentials') { runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); credentialNotice('模拟配置已更新', true); render(); return; }
     if (op === 'test-credentials') { credentialNotice(runtime.credentials.amapWebKey?.trim() ? '高德连接测试成功（离线演示）' : '请填写高德 Web Key。', Boolean(runtime.credentials.amapWebKey?.trim())); render(); return; }
-    if (op === 'test-caiyun-credentials') { runtime.caiyunConnectionState = runtime.weatherCredentialConfigured ? 'passed' : 'pending'; invalidateHomePreviews(); credentialNotice(runtime.weatherCredentialConfigured ? '彩云连接测试成功（离线演示）' : '请先启用天气凭据 fixture，再测试连接', runtime.weatherCredentialConfigured); render(); return; }
+    if (op === 'test-caiyun-credentials') { runtime.caiyunConnectionState = runtime.weatherCredentialConfigured ? 'passed' : 'pending'; credentialNotice(runtime.weatherCredentialConfigured ? '彩云连接测试成功（离线演示）' : '请先启用天气凭据 fixture，再测试连接', runtime.weatherCredentialConfigured); render(); return; }
     if (op === 'clear-credentials') return openOverlay('clear-credentials');
     if (op === 'confirm-clear-credentials') { runtime.credentials = {}; runtime.weatherCredentialConfigured = false; runtime.caiyunConnectionState = 'pending'; runtime.amapCredentialRevision += 1; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); credentialNotice('当前会话模拟状态已清空', true); closeOverlay(); render(); return; }
     if (op === 'preview-sound') { notice('浏览器原型不播放声音；Android 应用可试听。'); return; }
@@ -478,7 +478,7 @@ function handleChange(event) {
   if (target.dataset.routeFixture) { runtime.routeFixture = target.value; invalidateHomePreviews(); render(); }
   if (target.dataset.homeConfigurationState) { runtime.homeConfigurationState = target.value; invalidateHomePreviews(); render(); }
   if (target.dataset.weatherCredentialConfigured) { runtime.weatherCredentialConfigured = target.checked; runtime.caiyunConnectionState = target.checked ? 'pending' : 'pending'; runtime.weatherCredentialRevision += 1; invalidateHomePreviews(); render(); }
-  if (target.dataset.caiyunConnectionState) { runtime.caiyunConnectionState = target.value; invalidateHomePreviews(); render(); }
+  if (target.dataset.caiyunConnectionState) { runtime.caiyunConnectionState = target.value; render(); }
   if (target.dataset.overlayField === 'vibration') handleInput(event);
 }
 function reset() { config = defaults(); persist(); runtime = createRuntime(); runtime.route = 'onboarding'; notice('本地演示数据已重置。'); navigate('onboarding', { replace:true }); }

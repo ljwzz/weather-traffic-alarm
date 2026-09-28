@@ -45,8 +45,6 @@ internal fun HomeWeatherCard(
         HomeWeatherCardState.ReadingConfiguration -> HomeCardBody("正在读取天气配置")
         HomeWeatherCardState.CredentialStorageError -> HomeCardBody("无法读取天气凭据", action = "配置凭据", onAction = onCredentials, warning = true)
         HomeWeatherCardState.MissingCredentials -> HomeCardBody("尚未配置彩云凭据", action = "配置凭据", onAction = onCredentials)
-        HomeWeatherCardState.AwaitingConnectionTest -> HomeCardBody("彩云凭据等待连接测试", action = "测试凭据", onAction = onCredentials)
-        HomeWeatherCardState.FailedConnectionTest -> HomeCardBody("彩云凭据连接测试失败", action = "配置凭据", onAction = onCredentials)
         HomeWeatherCardState.MissingPlaces -> HomeCardBody("尚未配置通勤地点", action = "完善地点", onAction = onRoute)
         is HomeWeatherCardState.Loading -> HomeCardBody("正在获取天气", state.route)
         is HomeWeatherCardState.Success -> {

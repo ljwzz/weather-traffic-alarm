@@ -68,7 +68,7 @@ export function createTravelScreens({ action, overlayAction, asset, state }) {
   const preview = kind => read().runtime?.homePreview?.[kind] || { state:'config-loading', result:null, refreshing:false };
   const previewAction = (kind, state) => {
     if (kind === 'weather') {
-      if (['config-error', 'credential-missing', 'connection-pending', 'connection-failed'].includes(state)) return link('配置凭据', 'credentials');
+      if (['config-error', 'credential-missing'].includes(state)) return link('配置凭据', 'credentials');
       if (state === 'location-missing') return link('完善地点', 'route-edit');
     } else {
       if (state === 'authorization-missing') return link('完成授权', 'onboarding');
@@ -80,7 +80,7 @@ export function createTravelScreens({ action, overlayAction, asset, state }) {
   const previewStatus = (kind, card) => {
     const labels = kind === 'weather'
       ? {
-        'config-loading':'正在读取天气配置', 'config-error':'无法读取凭据配置', 'credential-missing':'尚未配置彩云凭据', 'connection-pending':'彩云凭据等待连接测试', 'connection-failed':'彩云凭据连接测试失败', 'location-missing':'尚未配置通勤地点', loading:'正在获取天气', cached:'晴好天气', empty:'没有可用天气', error:'无法获取天气', success:'晴好天气',
+        'config-loading':'正在读取天气配置', 'config-error':'无法读取凭据配置', 'credential-missing':'尚未配置彩云凭据', 'location-missing':'尚未配置通勤地点', loading:'正在获取天气', cached:'晴好天气', empty:'没有可用天气', error:'无法获取天气', success:'晴好天气',
       }
       : {
         'config-loading':'正在读取路线配置', 'config-error':'无法读取凭据配置', 'authorization-missing':'等待高德地图专项授权', 'web-key-missing':'尚未配置高德 Web Key', 'location-missing':'尚未配置通勤地点', loading:'正在查询驾车路线', cached:'展示缓存路线', empty:'未找到可用驾车路线', error:'无法获取路线', success:'路线已更新',

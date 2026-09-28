@@ -43,7 +43,7 @@ class CredentialInput(
     override fun toString(): String = "CredentialInput(redacted)"
 }
 
-/** A complete Caiyun credential candidate that has passed a connection test. */
+/** A complete Caiyun credential candidate for an optional connection test. */
 class CaiyunCredentialInput(
     val appKey: String,
     val secret: String,

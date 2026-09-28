@@ -65,7 +65,6 @@ fun CredentialSettingsScreen(
     onClear: (onComplete: (String?) -> Unit) -> Unit,
     onTestAmapWebKey: ((String, (String?) -> Unit) -> Unit)? = null,
     onTestCaiyun: ((CaiyunCredentialInput?, (String?) -> Unit) -> Unit)? = null,
-    onSaveCaiyun: ((CaiyunCredentialInput?, (String?) -> Unit) -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -120,8 +119,8 @@ fun CredentialSettingsScreen(
         }
     }
 
-    fun testCaiyun(candidate: CaiyunCredentialInput?, save: Boolean = false) {
-        val action = if (save) onSaveCaiyun else onTestCaiyun
+    fun testCaiyun(candidate: CaiyunCredentialInput?) {
+        val action = onTestCaiyun
         messageSuccess = false
         if (action == null) {
             message = "天气服务正在初始化，请稍后重试。"
@@ -129,15 +128,12 @@ fun CredentialSettingsScreen(
         }
         pending = true
         message = null
-        testingProvider = if (save) null else CredentialTestProvider.CAIYUN
+        testingProvider = CredentialTestProvider.CAIYUN
         action(candidate) { error ->
             testingProvider = null
             pending = false
             messageSuccess = error == null
-            message = error ?: if (save) "彩云凭据已保存" else "彩云连接测试成功"
-            if (error == null && save && candidate != null) {
-                caiyunSecret = ""
-            }
+            message = error ?: "彩云连接测试成功"
             if (error == null) focusManager.clearFocus()
         }
     }
@@ -154,14 +150,13 @@ fun CredentialSettingsScreen(
         }
         pending = true
         message = null
-        onSave(CredentialInput(amapWebKey, amapSdkKey)) { saveError ->
+        onSave(CredentialInput(amapWebKey, amapSdkKey, appKey, secret)) { saveError ->
             if (saveError != null) {
                 pending = false
                 message = saveError
-            } else if (secret.isEmpty()) {
-                complete("凭据已加密保存")(null)
             } else {
-                testCaiyun(CaiyunCredentialInput(appKey, secret), save = true)
+                savedCaiyunAppKey = appKey
+                complete("凭据已加密保存")(null)
             }
         }
     }

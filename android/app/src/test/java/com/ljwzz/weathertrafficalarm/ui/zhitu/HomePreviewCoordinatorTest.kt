@@ -41,14 +41,15 @@ class HomePreviewCoordinatorTest {
     }
 
     @Test
-    fun credentialReplacementAndConnectionStatusInvalidateTheRelevantPreview() {
+    fun credentialReplacementInvalidatesTheRelevantPreview() {
         val settings = settings()
         val initial = readyCredentials()
         val replacement = initial.copy(amapWebVersion = initial.amapWebVersion + 1)
-        val failedTest = initial.copy(caiyunTestResult = CaiyunConnectionTestResult.FAILED)
+        val changedWeatherKey = initial.copy(caiyunVersion = initial.caiyunVersion + 1)
 
         assertFalse(homePreviewInputs(settings, initial, now).routeKey == homePreviewInputs(settings, replacement, now).routeKey)
-        assertFalse(homePreviewInputs(settings, initial, now).weatherKey == homePreviewInputs(settings, failedTest, now).weatherKey)
+        assertFalse(homePreviewInputs(settings, initial, now).weatherKey == homePreviewInputs(settings, changedWeatherKey, now).weatherKey)
+        assertEquals(homePreviewInputs(settings, initial, now).weatherKey, homePreviewInputs(settings, initial.copy(caiyunTestResult = CaiyunConnectionTestResult.FAILED), now).weatherKey)
     }
 
     @Test
@@ -127,6 +128,16 @@ class HomePreviewCoordinatorTest {
 
         assertEquals(HomeWeatherCardState.MissingCredentials, homeWeatherCard(empty, inputs, WeatherUiState.Idle))
         assertEquals(HomeRouteCardState.ConsentRequired, homeRouteCard(empty, settings, inputs, RouteUiState()))
+    }
+
+    @Test
+    fun savedWeatherCredentialsCanPreviewRegardlessOfDiagnosticTestResult() {
+        val settings = settings()
+        for (result in CaiyunConnectionTestResult.entries) {
+            val credentials = readyCredentials().copy(caiyunTestResult = result)
+            val inputs = homePreviewInputs(settings, credentials, now)
+            assertEquals(HomeWeatherCardState.Ready, homeWeatherCard(credentials, inputs, WeatherUiState.Idle))
+        }
     }
 
     @Test

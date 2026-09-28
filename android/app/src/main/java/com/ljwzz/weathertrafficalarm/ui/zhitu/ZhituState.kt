@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
-import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
@@ -562,12 +561,9 @@ class ZhituViewModel @Inject constructor(
     }
 
     fun testCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) =
-        checkCaiyun(candidate, false, onComplete)
+        checkCaiyun(candidate, onComplete)
 
-    fun saveCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) =
-        checkCaiyun(candidate, true, onComplete)
-
-    private fun checkCaiyun(candidate: CaiyunCredentialInput?, save: Boolean, onComplete: (String?) -> Unit) = viewModelScope.launch {
+    private fun checkCaiyun(candidate: CaiyunCredentialInput?, onComplete: (String?) -> Unit) = viewModelScope.launch {
         val requestedAt = Instant.now()
         // Fixed connectivity probe near Jiefangbei; independent of commute configuration.
         val weatherLocation = WeatherLocation(WeatherLocationRole.HOME, GeoPoint(106.574, 29.561))
@@ -587,9 +583,7 @@ class ZhituViewModel @Inject constructor(
             return@launch
         }
         val persistence = runCatching {
-            if (candidate != null) {
-                if (save) credentials.saveVerifiedCaiyun(candidate)
-            } else credentials.recordStoredCaiyunTestSuccess()
+            if (candidate == null) credentials.recordStoredCaiyunTestSuccess()
         }
         if (persistence.isFailure) {
             onComplete("凭据保存失败")
@@ -628,10 +622,6 @@ class ZhituViewModel @Inject constructor(
         }
         if (!credentialStatus.value.hasCaiyunAppKey || !credentialStatus.value.hasCaiyunSecret) {
             _weatherState.value = WeatherUiState.Error("请先配置彩云 App Key 和 Secret", locations[0].name, locations[1].name, inputKey)
-            return
-        }
-        if (credentialStatus.value.caiyunTestResult != CaiyunConnectionTestResult.PASSED) {
-            _weatherState.value = WeatherUiState.Error("请先完成彩云凭据连接测试", locations[0].name, locations[1].name, inputKey)
             return
         }
         val currentSettings = settings.value

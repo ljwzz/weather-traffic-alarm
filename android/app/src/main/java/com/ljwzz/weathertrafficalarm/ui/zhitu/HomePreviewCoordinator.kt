@@ -1,6 +1,5 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
@@ -40,7 +39,7 @@ internal fun homePreviewInputs(
     val hour = now.atZone(ZoneId.systemDefault()).truncatedTo(ChronoUnit.HOURS)
     return HomePreviewInputs(
         routeKey = coordinateKey?.let { "$it:${settings.commuteMode}:${settings.amapConsentGranted}:${credentials.amapWebVersion}:${credentials.loaded}:${credentials.storageError}:${credentials.hasAmapWebKey}" },
-        weatherKey = coordinateKey?.let { "$it:${credentials.caiyunVersion}:${credentials.caiyunTestResult}:${credentials.loaded}:${credentials.storageError}:${credentials.hasCaiyunAppKey}:${credentials.hasCaiyunSecret}:${hour.toInstant()}" },
+        weatherKey = coordinateKey?.let { "$it:${credentials.caiyunVersion}:${credentials.loaded}:${credentials.storageError}:${credentials.hasCaiyunAppKey}:${credentials.hasCaiyunSecret}:${hour.toInstant()}" },
         originName = origin?.name,
         destinationName = destination?.name,
         mode = settings.commuteMode,
@@ -59,8 +58,6 @@ internal sealed interface HomeWeatherCardState {
     data object ReadingConfiguration : HomeWeatherCardState
     data object CredentialStorageError : HomeWeatherCardState
     data object MissingCredentials : HomeWeatherCardState
-    data object AwaitingConnectionTest : HomeWeatherCardState
-    data object FailedConnectionTest : HomeWeatherCardState
     data object MissingPlaces : HomeWeatherCardState
     data class Loading(val route: String) : HomeWeatherCardState
     data class Success(
@@ -150,8 +147,6 @@ internal fun homeWeatherCard(
     if (!credentials.loaded) return HomeWeatherCardState.ReadingConfiguration
     if (credentials.storageError) return HomeWeatherCardState.CredentialStorageError
     if (!credentials.hasCaiyunAppKey || !credentials.hasCaiyunSecret) return HomeWeatherCardState.MissingCredentials
-    if (credentials.caiyunTestResult == CaiyunConnectionTestResult.NEVER_TESTED) return HomeWeatherCardState.AwaitingConnectionTest
-    if (credentials.caiyunTestResult == CaiyunConnectionTestResult.FAILED) return HomeWeatherCardState.FailedConnectionTest
     if (inputs.weatherKey == null || route == null) return HomeWeatherCardState.MissingPlaces
     return when (state) {
         is WeatherUiState.Loading -> if (state.inputKey == inputs.weatherKey) HomeWeatherCardState.Loading(route) else HomeWeatherCardState.Ready

@@ -39,8 +39,6 @@ export const HOME_PREVIEW_STATES = Object.freeze({
   CONFIG_LOADING: 'config-loading',
   CONFIG_ERROR: 'config-error',
   CREDENTIAL_MISSING: 'credential-missing',
-  CONNECTION_PENDING: 'connection-pending',
-  CONNECTION_FAILED: 'connection-failed',
   AUTHORIZATION_MISSING: 'authorization-missing',
   WEB_KEY_MISSING: 'web-key-missing',
   LOCATION_MISSING: 'location-missing',
@@ -77,7 +75,6 @@ export function homePreviewInputSignature(config = {}, runtime = {}) {
     amapCredentialRevision: runtime.amapCredentialRevision || 0,
     weatherConfigured: Boolean(runtime.weatherCredentialConfigured),
     weatherCredentialRevision: runtime.weatherCredentialRevision || 0,
-    weatherConnection: runtime.caiyunConnectionState || 'pending',
     weatherFixtureClock: runtime.fixtureNow || 0,
     weatherForecastWindowValid: runtime.weatherForecastWindowValid !== false,
     origin: config.origin || '',
@@ -119,8 +116,6 @@ export function homePreviewPrerequisite(kind, config = {}, runtime = {}) {
   const placesReady = Boolean(config.origin && config.destination);
   if (kind === 'weather') {
     if (!runtime.weatherCredentialConfigured) return HOME_PREVIEW_STATES.CREDENTIAL_MISSING;
-    if (runtime.caiyunConnectionState === 'pending') return HOME_PREVIEW_STATES.CONNECTION_PENDING;
-    if (runtime.caiyunConnectionState === 'failed') return HOME_PREVIEW_STATES.CONNECTION_FAILED;
     return placesReady ? null : HOME_PREVIEW_STATES.LOCATION_MISSING;
   }
   if (config.amapConsent !== 'approved') return HOME_PREVIEW_STATES.AUTHORIZATION_MISSING;
