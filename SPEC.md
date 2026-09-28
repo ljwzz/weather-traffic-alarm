@@ -13,9 +13,9 @@
 
 > 2026-09-01 高德已接入：Android 已实现首次专项授权、Web Service Key／Android SDK Key的加密运行时存储、输入提示、POI 搜索、地图选点、单次定位、五种路线、最多三条备选、当前路况和计划覆盖。待用户提供两项真实 Key 后完成设备实网验收。`prototype/` 继续使用确定性离线 fixture，不发送请求、不使用真实 Key、不显示坐标。彩云天气的 Android 实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动评估由统一协调器接通路线、工作日和天气，仅在有效成功结果下调整独立提前提醒。
 >
-> 当前 Figma 设计稿决定页面级需求；开发和界面验收参照本地 [`prototype/`](./prototype/) 的页面结构、布局、组件、文案与交互。除非用户明确要求修改，不得自行调整原型或另行设计。非视觉业务与安全规则以本规格为准；两者冲突时先向用户确认。页面和节点见 [`docs/design-handoff.md`](./docs/design-handoff.md)。
+> 自 2026-09-28 起，本规格承载产品、交互、页面和安全契约；后续直接修改 Android，使用构建、测试及设备记录验收。现有 Figma 和 [`prototype/`](./prototype/) 原位冻结为历史参考；需求、用例与素材交接见 [`N001 交接记录`](./docs/plans/N001-handoff.md)。以下早期设计和原型叙述保留当时事实，不能作为新的同步要求。
 
-> 2026-09-28 当前设计页为 [`知途 · 完整设计`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。主流程、交互状态及扩展页面以该页为页面级参照；组件基础也位于该页。旧版节点映射仅供历史追溯，当前交接以 [`docs/design-handoff.md`](./docs/design-handoff.md) 开头的基线为准。
+> 2026-09-28 冻结的设计页为 [`知途 · 完整设计`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。该页保留当时的主流程、交互状态、扩展目标和组件；交接结果见 [`N001 交接记录`](./docs/plans/N001-handoff.md)。
 
 > 2026-09-07 设计／原型合并基线：Figma 保留 `01 · 知途设计提案`（[`0:1`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=0-1)）、`02 · 可点击原型`（[`16:180`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=16-180)）和 `03 · 通勤路线方案`（[`79:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=79-600)）作为来源；新增 [`04 · 项目合并版 · 2026-09-07`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) 为本轮可审阅基线。合并页的当前主流程对齐已实现 Android，旧设计的有效未实现目标与必要状态继续保留。节点映射见 [`docs/design-handoff.md`](./docs/design-handoff.md)。第一阶段同步设置与闹钟编辑的 Android 信息组织、计划草稿及必要导航；执行结果与设备证据见 [`设置与编辑验收`](./android/qa/settings-editor-2026-09-07/README.md)。
 
@@ -586,7 +586,7 @@ android.permission.ACCESS_FINE_LOCATION
 - 高德能力在同意授权后初始化：输入提示与 POI 搜索使用 Web Service Key；地图选点与单次定位使用 Android SDK Key。定位只在点击“使用当前位置”时请求前台权限，禁止后台持续定位。
 - 路线支持驾车、公交、步行、骑行和电动车；每次最多显示三条候选路线并显示当前路况。候选卡和地图折线都可选择路线，二者更新同一个 `selectedRouteId`，并同步候选卡选中态与地图高亮折线。
 - Android 模拟器使用 `goldfish`／`ranchu` 等虚拟图形栈时不得创建高德原生地图容器；页面显示渲染不可用状态，地点搜索与路线结果继续可用。真机仍使用 `TextureMapView` 并执行完整生命周期。容器规则：https://lbs.amap.com/api/maps-sdk-for-android/guide/create-map/show-map ；模拟器图形配置：https://developer.android.com/studio/run/emulator-acceleration
-- 原型必须展示成功、加载、无 Key、定位拒绝和服务错误 fixture，不得发送请求、使用真实 Key 或输出坐标。
+- 冻结的原型提供成功、加载、无 Key、定位拒绝和服务错误 fixture，且不发送请求、使用真实 Key 或输出坐标；后续 Android 状态按本节及原生验收检查。
 
 ### FR-012 凭证配置与连接测试
 
@@ -595,7 +595,7 @@ android.permission.ACCESS_FINE_LOCATION
 1. **高德**：
    - Web 服务 Key（必填，用于路线、POI、输入提示）。
    - Android SDK Key（可选，用于地图选点与定位；若未配置，FR-011 相关功能隐藏）。
-   - 原型“验证 fixture”显示离线状态且不发送请求；Android 连接测试使用固定用例且不记录输入值。
+   - 冻结的原型“验证 fixture”显示离线状态且不发送请求；Android 连接测试使用固定用例且不记录输入值。
 2. **彩云天气**：
    - App Key（必填）与 App Secret（必填，HMAC 签名用）。
    - 连接测试优先使用已配置的家庭地，缺失时使用工作地；两者均无有效坐标时提示先配置地点，不发送请求。
@@ -711,11 +711,11 @@ ProviderError(
 
 ## 8. UI 规格
 
-### 8.0 设计与原型参照
+### 8.0 当前页面契约与历史设计参照
 
-- Figma 旧 21 个页面是视觉素材基线；当前 Android 实现范围以设计交接中的主页面及路线／日历、决策详情清单为准，不得据此声称 21 个原生页面已实现。当前有效的 Figma 页面组织及主流程／目标分界以 `docs/design-handoff.md` 开头的 2026-09-07 基线为准。
-- 页面级需求和当前状态以 `docs/design-handoff.md` 的当前有效基线、稳定追溯状态组及本地 `prototype/` 为准。
-- 开发和界面验收必须参照本地 `prototype/`；未经用户明确要求不得调整原型或另行设计。修改获得确认后，同步更新设计、规格和原型。
+- Figma 旧 21 个页面是历史视觉素材；Android 实现范围以代码、原生验收和后续计划交接为准，不得据此声称 21 个原生页面已实现。2026-09-07 的 Figma 页面组织及主流程／目标分界保存在 `docs/design-handoff.md`。
+- 后续页面行为以本规格及对应 N 计划的已确认增量为准；Android 代码和原生验收记录给出实际交付状态。`docs/design-handoff.md` 中的节点及 `prototype/` 只用于历史设计、离线用例和素材追溯。
+- 修改页面或交互时更新本规格、Android 实现及相应测试；涉及设备或系统能力时记录实际设备结果。复杂新交互按需另用设计稿，确认后的行为进入本规格。
 
 #### 8.0A 本轮设置与计划编辑的信息架构
 
@@ -729,7 +729,7 @@ ProviderError(
 - 整份保存继续由 `LocalAlarmCoordinator` 执行。计划及本次通勤覆盖变更在同一数据库事务中提交，不改持久化 schema；未修改覆盖、明确沿用全局、保存专属覆盖分别处理。系统设置跳转不代表授权成功，返回后重新读取真实状态。状态与权限依据：https://developer.android.com/develop/ui/compose/state-hoisting https://developer.android.com/training/permissions/requesting-special
 
 - Android 与原型计划编辑以“通勤与提前提醒”折叠组保留期望到达时间、准备时间、最多提前和计划通勤覆盖。默认收起，以摘要区分全局通勤和本计划覆盖；基础字段与工作日四周预览直接可见。折叠状态仅属于界面状态。日级通勤覆写尚未具备当前 Android 数据模型，保留为设计目标，不能标为已实现。
-- 决策详情、评估失败详情及提前响铃进入本次决策已接入 Android，契约见 8.7C。锁屏通知与胶囊摘要／展开详情继续以设计交接中的目标清单为准。
+- 决策详情、评估失败详情及提前响铃进入本次决策已接入 Android，契约见 8.7C。通勤锁屏通知与胶囊摘要／展开详情的增量目标由 [`N005`](./docs/plans/N005.md) 承接。
 - 路线主方案使用合并页节点 [`219:2898`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=219-2898)，由源节点 [`81:808`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=81-808) 合并；备选和公交方案分别见 [`230:3205`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=230-3205) 与 [`230:3308`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=230-3308)。提前响铃目标见 [`228:3086`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3086)。
 
 ### 8.1 首次启动与隐私引导（页面 18）
@@ -857,7 +857,7 @@ ProviderError(
 - 凭证配置状态只显示已配置／未配置；服务未接入时不显示测试成功。
 - 强制停止不可自动恢复本 App 本地闹钟的限制必须明示。
 - “重新检查”只刷新能力、配置状态与本机诊断展示；不创建或改变闹钟。异常页可进入诊断，诊断页返回设置。
-- 通知摘要页只展示实际能力与回退说明；锁屏、胶囊等系统概念页面不定义额外厂商接口、常驻提醒或上传行为。小米的锁屏显示与后台弹出页面状态在诊断页显示为“待用户确认”或“已由用户确认”，并附手工设置说明。
+- 当前诊断只展示实际能力与回退说明；通勤通知和胶囊能力的后续实施范围见 [`N005`](./docs/plans/N005.md)。小米的锁屏显示与后台弹出页面状态在诊断页显示为“待用户确认”或“已由用户确认”，并附手工设置说明。
 
 ## 9. 隐私与安全
 

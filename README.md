@@ -2,7 +2,7 @@
 
 一个纯 Android、本地优先的闹钟应用。本 App 创建、注册和响铃本地闹钟，支持单次、每周和工作日规则，以及铃声、振动和贪睡。首次安装没有预置闹钟或记录。
 
-页面级需求以当前 Figma 设计稿为主；开发和界面验收必须参照本地 [`prototype/`](./prototype/)。非视觉业务与安全规则以 [`SPEC.md`](./SPEC.md) 为准，冲突时先向用户确认。
+产品及交互契约以 [`SPEC.md`](./SPEC.md) 为准。后续直接开发 Android，使用构建、测试及设备记录验收；历史 Figma 与 [`prototype/`](./prototype/) 的冻结范围和需求交接见 [`N001 交接记录`](./docs/plans/N001-handoff.md)。
 
 **包名 / applicationId：** `com.ljwzz.weathertrafficalarm`
 
@@ -11,7 +11,7 @@
 - **纯 Android 本地优先**：无后端；计划、实例、记录、设置和日历覆盖只存本机。
 - **本地响铃**：通过系统闹钟能力注册下一次实例，Receiver 与前台响铃服务按实例 ID 处理停止和贪睡。
 - **高德已接入**：Android 已实现专项授权、加密运行时 Web Service Key／Android SDK Key、地图、单次定位、POI／输入提示、五种路线、最多三条候选、路况与计划覆盖。待用户提供两项真实 Key 后完成设备实网验收。
-- **高德接入契约**：原型覆盖地图、输入提示／POI、地图选点、单次定位、五种路线、最多三条备选与当前路况的成功、加载、无 Key、拒绝、错误 fixture；不会发送请求、使用真实 Key 或输出坐标。
+- **高德归档演示**：原型含地图、输入提示／POI、地图选点、单次定位、五种路线、最多三条备选与当前路况的离线 fixture；真实能力按 Android 实现及设备记录验收。
 - **彩云天气已接入**：Android 已实现候选凭证连接测试、双地点小时天气评估、15 分钟故障缓存和手动天气预览；设备实网与界面验证结果见 [2026-09-02 验证记录](./android/qa/caiyun-device-2026-09-02.md)。天气 Provider 只返回天气结果；统一评估协调器接通工作日、路线、天气和独立提前提醒。v2.6 鉴权契约见 https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html 。
 
 ## 目录结构
@@ -73,6 +73,7 @@ Debug APK、测试明细和截图见 [`android/qa/README.md`](./android/qa/READM
 
 - 产品与技术规格：[`SPEC.md`](./SPEC.md)
 - 可执行实施任务：[`IMPLEMENTATION_TASKS.md`](./IMPLEMENTATION_TASKS.md)
-- 设计与原型交接：[`docs/design-handoff.md`](./docs/design-handoff.md)
+- 历史设计交接：[`docs/design-handoff.md`](./docs/design-handoff.md)
+- 后续迭代与原型冻结交接：[`docs/plans/README.md`](./docs/plans/README.md)、[`docs/plans/N001-handoff.md`](./docs/plans/N001-handoff.md)
 - 安全策略：[`SECURITY.md`](./SECURITY.md)
-- 本地原型：[`prototype/README.md`](./prototype/README.md)
+- 归档原型：[`prototype/README.md`](./prototype/README.md)

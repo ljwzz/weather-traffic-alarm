@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Copy local design fonts and convert supported exported SVG paths without redrawing."""
+"""On-demand maintenance: copy archived design fonts and convert exported SVG paths.
+
+Sources stay in prototype/assets for traceability; this tool is not a routine
+part of Android builds or UI acceptance. See docs/plans/N001-handoff.md.
+"""
 from pathlib import Path
 import shutil
 import xml.etree.ElementTree as ET

@@ -1,6 +1,6 @@
 # 知途本地原型
 
-当前 Figma 页面级参照：[`知途 · 完整设计`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。原型页面与交互仍以本目录可运行内容为准。
+> 冻结说明（2026-09-28，代码基线 `48ed778`）：本目录原位保存 Web 演示、测试、Figma 导出素材及历史 QA。关联设计页为 [`知途 · 完整设计 · 2026-09-28`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)，目标节点和 Android 交接见 [`N001 交接记录`](../docs/plans/N001-handoff.md)。下文交互描述是冻结时的离线样例；后续产品行为依据 [`SPEC.md`](../SPEC.md) 与 Android 原生验收。
 
 ## 运行
 
@@ -51,4 +51,4 @@ Android 已接入真实基础／贪睡响铃页面，验收与 APK 见 [`原生�
 
 ## 开发与验收约束
 
-后续开发和界面验收必须参照本地原型，包括页面结构、布局、组件、文案及交互。除非用户明确要求修改，不得自行调整原型或另行设计。非视觉业务与安全规则以 `SPEC.md` 为准；发现冲突时先向用户确认。
+本目录命令用于按需检查归档完整性。日常 Android 开发及验收流程见 [`AGENTS.md`](../AGENTS.md)；素材导入工具见 [`scripts/import-prototype-assets.py`](../scripts/import-prototype-assets.py)，仅在 Android 资源需维护时按需运行。
