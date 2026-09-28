@@ -471,6 +471,7 @@ fun ZhituApp(
                 )
                 ZhituDestination.CREDENTIALS -> CredentialSettingsScreen(
                     status = credentialStatus,
+                    onLoadKeys = viewModel::credentialEditorKeys,
                     onSave = { input, onComplete ->
                         viewModel.saveCredentialsWithCompletion(input) { failure ->
                             if (failure == null) viewModel.initializeAmap(context)

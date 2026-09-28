@@ -797,6 +797,7 @@ ProviderError(
 ### 8.6 凭证配置（页面 19）
 
 - 高德区块提供 Web Service Key、Android SDK Key和 fixture 状态；原型仅会话保存，Android 已实现加密持久化。彩云区块提供凭据配置、连接测试与天气页入口；Android 验证记录见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)。
+- 数据与凭据页在输入框内显示已保存的高德 Web Key、Android SDK Key 和彩云 App Key；彩云 Secret 在框内保持圆点遮罩。编辑页关闭后不保留用于显示的 Key 明文。高德 Web Key 测试入口位于高德区块内、两项 Key 下方。
 - 页面 `FLAG_SECURE`。
 - 高德原型验证固定不发送请求；“清空凭据”先进入确认覆盖层，取消不改变输入，确认只清除凭据且不得修改闹钟、日期覆盖、地点或出行方式。
 

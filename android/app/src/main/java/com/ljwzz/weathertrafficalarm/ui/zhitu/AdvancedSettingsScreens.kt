@@ -27,23 +27,28 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
+import com.ljwzz.weathertrafficalarm.core.data.local.CredentialEditorKeys
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunConnectionTestResult
 import com.ljwzz.weathertrafficalarm.core.data.local.CaiyunCredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshDiagnostic
@@ -56,6 +61,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun CredentialSettingsScreen(
     status: CredentialStatus,
+    onLoadKeys: suspend () -> CredentialEditorKeys,
     onSave: (CredentialInput, onComplete: (String?) -> Unit) -> Unit,
     onClear: (onComplete: (String?) -> Unit) -> Unit,
     onTestAmapWebKey: (((String?) -> Unit) -> Unit)? = null,
@@ -63,14 +69,29 @@ fun CredentialSettingsScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val view = LocalView.current
     var amapWebKey by remember { mutableStateOf("") }
     var amapSdkKey by remember { mutableStateOf("") }
     var caiyunAppKey by remember { mutableStateOf("") }
+    var savedCaiyunAppKey by remember { mutableStateOf("") }
     var caiyunSecret by remember { mutableStateOf("") }
     var pending by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var clearConfirmation by remember { mutableStateOf(false) }
+
+    LaunchedEffect(status.loaded, status.storageError, status.amapWebVersion, status.amapSdkVersion, status.caiyunVersion) {
+        if (status.loaded && !status.storageError) {
+            runCatching { onLoadKeys() }
+                .onSuccess { keys ->
+                    amapWebKey = keys.amapWebKey
+                    amapSdkKey = keys.amapSdkKey
+                    caiyunAppKey = keys.caiyunAppKey
+                    savedCaiyunAppKey = keys.caiyunAppKey
+                }
+                .onFailure { message = "凭据读取失败，请重试。" }
+        }
+    }
 
     DisposableEffect(view) {
         val window = context.findActivity()?.window
@@ -87,10 +108,8 @@ fun CredentialSettingsScreen(
         pending = false
         message = error ?: successMessage
         if (error == null) {
-            amapWebKey = ""
-            amapSdkKey = ""
-            caiyunAppKey = ""
             caiyunSecret = ""
+            focusManager.clearFocus()
         }
     }
 
@@ -105,16 +124,17 @@ fun CredentialSettingsScreen(
             pending = false
             message = error ?: if (candidate == null) "已保存的彩云凭据可用" else "连接成功，彩云凭据已加密保存"
             if (error == null && candidate != null) {
-                caiyunAppKey = ""
                 caiyunSecret = ""
             }
+            if (error == null) focusManager.clearFocus()
         }
     }
 
     fun saveAll() {
         val appKey = caiyunAppKey.trim()
         val secret = caiyunSecret.trim()
-        if ((appKey.isEmpty()) != (secret.isEmpty())) {
+        val appKeyChanged = appKey != savedCaiyunAppKey
+        if ((appKeyChanged && secret.isEmpty()) || (secret.isNotEmpty() && appKey.isEmpty())) {
             message = "彩云 App Key 和 Secret 必须同时填写。"
             return
         }
@@ -124,7 +144,7 @@ fun CredentialSettingsScreen(
             if (saveError != null) {
                 pending = false
                 message = saveError
-            } else if (appKey.isEmpty()) {
+            } else if (secret.isEmpty()) {
                 complete("凭据已加密保存")(null)
             } else {
                 testCaiyun(CaiyunCredentialInput(appKey, secret))
@@ -162,7 +182,7 @@ fun CredentialSettingsScreen(
                         value = amapWebKey,
                         onValueChange = { amapWebKey = it; message = null },
                         label = "高德 Web 服务 Key",
-                        placeholder = status.amapWebKeyMask ?: "未配置",
+                        placeholder = "未配置",
                         supporting = "用于地点搜索、逆地理和路线规划",
                     )
                     Spacer(Modifier.height(10.dp))
@@ -170,55 +190,9 @@ fun CredentialSettingsScreen(
                         value = amapSdkKey,
                         onValueChange = { amapSdkKey = it; message = null },
                         label = "高德 Android SDK Key",
-                        placeholder = status.amapSdkKeyMask ?: "未配置",
+                        placeholder = "未配置",
                         supporting = "用于地图展示和单次定位",
                     )
-                    Spacer(Modifier.height(18.dp))
-                    Text("天气评估 · 彩云", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                    Spacer(Modifier.height(14.dp))
-                    CredentialField(
-                        value = caiyunAppKey,
-                        onValueChange = { caiyunAppKey = it; message = null },
-                        label = "彩云 App Key",
-                        placeholder = status.caiyunAppKeyMask ?: "未配置",
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    CredentialField(
-                        value = caiyunSecret,
-                        onValueChange = { caiyunSecret = it; message = null },
-                        label = "彩云 Secret",
-                        placeholder = status.caiyunSecretMask ?: "未配置",
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = status.caiyunTestStateLabel(),
-                        color = ZhituColors.Muted,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        onClick = {
-                            val appKey = caiyunAppKey.trim()
-                            val secret = caiyunSecret.trim()
-                            if ((appKey.isEmpty()) != (secret.isEmpty())) {
-                                message = "彩云 App Key 和 Secret 必须同时填写。"
-                            } else if (appKey.isEmpty()) {
-                                if (!status.hasCaiyunAppKey || !status.hasCaiyunSecret) {
-                                    message = "请先填写并保存彩云 App Key 和 Secret。"
-                                } else {
-                                    testCaiyun(null)
-                                }
-                            } else {
-                                testCaiyun(CaiyunCredentialInput(appKey, secret))
-                            }
-                        },
-                        enabled = !pending,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                    ) {
-                        val hasCandidate = caiyunAppKey.isNotBlank() || caiyunSecret.isNotBlank()
-                        Text(if (pending) "处理中" else if (hasCandidate) "测试并保存彩云凭据" else "测试已保存的彩云凭据")
-                    }
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = {
@@ -239,6 +213,53 @@ fun CredentialSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                     ) { Text(if (pending) "处理中" else "测试已保存的高德 Web Key") }
+                    Spacer(Modifier.height(18.dp))
+                    Text("天气评估 · 彩云", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+                    Spacer(Modifier.height(14.dp))
+                    CredentialField(
+                        value = caiyunAppKey,
+                        onValueChange = { caiyunAppKey = it; message = null },
+                        label = "彩云 App Key",
+                        placeholder = "未配置",
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    SecretField(
+                        value = caiyunSecret,
+                        onValueChange = { caiyunSecret = it; message = null },
+                        label = "彩云 Secret",
+                        configured = status.hasCaiyunSecret,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = status.caiyunTestStateLabel(),
+                        color = ZhituColors.Muted,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            val appKey = caiyunAppKey.trim()
+                            val secret = caiyunSecret.trim()
+                            val appKeyChanged = appKey != savedCaiyunAppKey
+                            if ((appKeyChanged && secret.isEmpty()) || (secret.isNotEmpty() && appKey.isEmpty())) {
+                                message = "彩云 App Key 和 Secret 必须同时填写。"
+                            } else if (secret.isEmpty()) {
+                                if (!status.hasCaiyunAppKey || !status.hasCaiyunSecret) {
+                                    message = "请先填写并保存彩云 App Key 和 Secret。"
+                                } else {
+                                    testCaiyun(null)
+                                }
+                            } else {
+                                testCaiyun(CaiyunCredentialInput(appKey, secret))
+                            }
+                        },
+                        enabled = !pending,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        val hasCandidate = caiyunAppKey.trim() != savedCaiyunAppKey || caiyunSecret.isNotBlank()
+                        Text(if (pending) "处理中" else if (hasCandidate) "测试并保存彩云凭据" else "测试已保存的彩云凭据")
+                    }
                 }
             }
             message?.let { result ->
@@ -264,7 +285,15 @@ fun CredentialSettingsScreen(
                         clearConfirmation = false
                         pending = true
                         message = null
-                        onClear(complete("凭据已清空"))
+                        onClear { error ->
+                            if (error == null) {
+                                amapWebKey = ""
+                                amapSdkKey = ""
+                                caiyunAppKey = ""
+                                savedCaiyunAppKey = ""
+                            }
+                            complete("凭据已清空")(error)
+                        }
                     },
                 ) { Text("清空") }
             },
@@ -316,8 +345,27 @@ private fun CredentialField(
     label = { Text(label) },
     placeholder = { Text(placeholder) },
     supportingText = supporting?.let { { Text(it) } },
-    visualTransformation = PasswordVisualTransformation(),
+    visualTransformation = VisualTransformation.None,
 )
+
+@Composable
+private fun SecretField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    configured: Boolean,
+) {
+    var editing by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = if (!editing && value.isEmpty() && configured) "••••••••" else value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth().onFocusChanged { editing = it.isFocused },
+        singleLine = true,
+        label = { Text(label) },
+        placeholder = { Text(if (configured) "输入新 Secret" else "未配置") },
+        visualTransformation = PasswordVisualTransformation(),
+    )
+}
 
 @Composable
 fun AlarmDiagnosticsScreen(

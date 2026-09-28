@@ -138,6 +138,7 @@ class ZhituViewModel @Inject constructor(
     val calendarState = calendar.state
     val settings = settingsStore.settings
     val credentialStatus = credentials.state
+    suspend fun credentialEditorKeys() = credentials.editorKeys()
     private val _mapStatus = MutableStateFlow<MapStatus>(MapStatus.NotInitialized)
     val mapStatus: StateFlow<MapStatus> = _mapStatus
     private val _routeState = MutableStateFlow(RouteUiState())

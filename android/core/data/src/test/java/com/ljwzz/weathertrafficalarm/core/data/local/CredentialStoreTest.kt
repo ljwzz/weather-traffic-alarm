@@ -13,6 +13,22 @@ import org.junit.Test
 class CredentialStoreTest {
 
     @Test
+    fun editorReadsOnlyKeysAndClearingRemovesThem() = runTest {
+        val store = CredentialStore(MemoryStorage(), PlaintextCipher, backgroundScope)
+        store.save(CredentialInput("web-key", "sdk-key", "app-key", "secret-value"))
+
+        val keys = store.editorKeys()
+        assertEquals("web-key", keys.amapWebKey)
+        assertEquals("sdk-key", keys.amapSdkKey)
+        assertEquals("app-key", keys.caiyunAppKey)
+        assertFalse(keys.toString().contains("secret-value"))
+
+        store.clear()
+        assertEquals("", store.editorKeys().amapWebKey)
+        assertEquals("", store.editorKeys().caiyunAppKey)
+    }
+
+    @Test
     fun concurrentPartialSavesRetainBothProviders() = runTest {
         val storage = MemoryStorage()
         val store = CredentialStore(storage, PlaintextCipher, backgroundScope)

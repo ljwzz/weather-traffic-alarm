@@ -82,6 +82,15 @@ data class CredentialStatus(
     val hasCaiyunSecret: Boolean get() = caiyunSecretMask != null
 }
 
+/** Key values for the active credential editor only; excludes the Caiyun secret. */
+class CredentialEditorKeys internal constructor(
+    val amapWebKey: String,
+    val amapSdkKey: String,
+    val caiyunAppKey: String,
+) {
+    override fun toString(): String = "CredentialEditorKeys(redacted)"
+}
+
 /** Values returned only for the future API adapter; never expose these to Compose UI. */
 class ServiceCredentials internal constructor(
     val amapWebKey: String?,
@@ -273,6 +282,18 @@ class CredentialStore internal constructor(
                 reloadLocked()
                 state.value
             }
+        }
+    }
+
+    /** Decrypts keys only while the credential editor is open. */
+    suspend fun editorKeys(): CredentialEditorKeys = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val stored = readStored()
+            CredentialEditorKeys(
+                stored?.amapWebKey.orEmpty(),
+                stored?.amapSdkKey.orEmpty(),
+                stored?.caiyunAppKey.orEmpty(),
+            )
         }
     }
 
