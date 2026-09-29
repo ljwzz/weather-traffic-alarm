@@ -215,11 +215,20 @@ class AmapWebProvider(
         return RouteAlternative(id, duration, distance, objectValue.polylines().flatMap(::parsePolyline))
     }
 
+    /**
+     * AMap returns a plain string for driving, walking, bicycling and electrobike paths, but wraps
+     * transit step and busline polylines in an object with a nested `polyline` field, so both
+     * shapes must be collected for every mode.
+     */
     private fun JsonObject.polylines(): List<String> = buildList {
         fun visit(value: JsonElement) {
             when (value) {
                 is JsonObject -> value.forEach { (name, child) ->
-                    if (name == "polyline") (child as? JsonPrimitive)?.contentOrNull?.let(::add) else visit(child)
+                    when {
+                        name != "polyline" -> visit(child)
+                        child is JsonPrimitive -> child.contentOrNull?.let(::add)
+                        else -> visit(child)
+                    }
                 }
                 is JsonArray -> value.forEach(::visit)
                 else -> Unit

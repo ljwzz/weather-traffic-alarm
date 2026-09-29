@@ -127,7 +127,9 @@ class AmapWebProviderTest {
             assertEquals(3, estimate.alternatives.size)
             assertEquals("${mode.name}:0", estimate.alternatives.first().id)
             assertEquals(100L, estimate.alternatives.first().durationSeconds)
-            assertEquals(2, estimate.alternatives.first().polyline.size)
+            // Transit concatenates the walking step and busline polylines of every segment.
+            val expectedPolylinePoints = if (mode == CommuteMode.TRANSIT) 4 else 2
+            assertEquals(expectedPolylinePoints, estimate.alternatives.first().polyline.size)
             val received = server.takeRequest().requestUrl!!
             assertEquals(path, received.encodedPath)
             assertEquals("cost,polyline", received.queryParameter("show_fields"))
@@ -151,6 +153,20 @@ class AmapWebProviderTest {
 
         assertEquals(600L, estimate.alternatives.single().durationSeconds)
         assertEquals("cost,polyline", server.takeRequest().requestUrl!!.queryParameter("show_fields"))
+    }
+
+    @Test
+    fun transitCollectsPolylinesWrappedInStepAndBuslineObjects() = runTest {
+        server.enqueue(success(transitBody(transits = 1)))
+
+        val estimate = provider.estimate(
+            RouteRequest(point(), GeoPoint(116.407428, 39.91923), CommuteMode.TRANSIT, originCity = "010", destinationCity = "010"),
+        )
+
+        val polyline = estimate.alternatives.single().polyline
+        assertEquals(4, polyline.size)
+        assertEquals(116.397428, polyline.first().longitudeGcj02, 0.0)
+        assertEquals(39.92923, polyline.last().latitudeGcj02, 0.0)
     }
 
     @Test
@@ -375,7 +391,11 @@ class AmapWebProviderTest {
         append("{\"route\":{\"transits\":[")
         repeat(transits) { index ->
             if (index > 0) append(',')
-            append("{\"distance\":\"${200 + index}\",\"cost\":{\"duration\":\"${100 + index}\"},\"segments\":[{\"walking\":{\"polyline\":\"116.397428,39.90923;116.407428,39.91923\"}}]}")
+            append(
+                "{\"distance\":\"${200 + index}\",\"cost\":{\"duration\":\"${100 + index}\"},\"segments\":[" +
+                    "{\"walking\":{\"steps\":[{\"polyline\":{\"polyline\":\"116.397428,39.90923;116.407428,39.91923\"}}]}}," +
+                    "{\"bus\":{\"buslines\":[{\"polyline\":{\"polyline\":\"116.407428,39.91923;116.417428,39.92923\"}}]}}]}",
+            )
         }
         append("]}}")
     }
