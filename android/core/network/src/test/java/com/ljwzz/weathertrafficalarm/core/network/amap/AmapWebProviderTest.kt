@@ -358,6 +358,67 @@ class AmapWebProviderTest {
     }
 
     @Test
+    fun routeFailureCodesAreClassifiedAndSuccessfulRetryIsCached() = runTest {
+        val cases = listOf("20800", "20801", "20802", "20803").map { it to ProviderError.Category.ROUTE_NOT_FOUND } +
+            listOf("10019", "10020", "10021").map { it to ProviderError.Category.RATE_LIMITED }
+        cases.forEachIndexed { index, (code, category) ->
+            val request = RouteRequest(point(), GeoPoint(116.41 + index * 0.01, 39.92), CommuteMode.DRIVING)
+            server.enqueue(MockResponse().setBody("""{"status":"0","info":"controlled failure","infocode":"$code"}"""))
+            val error = runCatching { provider.estimate(request) }.exceptionOrNull() as ProviderError
+            assertEquals(code, category, error.category)
+            assertEquals(code, error.providerCode)
+            assertEquals(index, routeCacheSize())
+
+            server.enqueue(success(routeBody(paths = 1)))
+            val recovered = provider.estimate(request)
+            val cached = provider.estimate(request)
+            assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.NETWORK, recovered.source)
+            assertEquals(com.ljwzz.weathertrafficalarm.core.model.RouteDataSource.CACHE, cached.source)
+            assertEquals(recovered.alternatives, cached.alternatives)
+            assertEquals((index + 1) * 2, server.requestCount)
+        }
+    }
+
+    @Test
+    fun httpRateLimitDoesNotCacheFailureAndRetryRecovers() = runTest {
+        val request = RouteRequest(point(), GeoPoint(116.41, 39.92), CommuteMode.DRIVING)
+        server.enqueue(MockResponse().setResponseCode(429))
+        val error = runCatching { provider.estimate(request) }.exceptionOrNull() as ProviderError
+        assertEquals(ProviderError.Category.RATE_LIMITED, error.category)
+        assertEquals("429", error.providerCode)
+        assertEquals(0, routeCacheSize())
+        server.enqueue(success(routeBody(paths = 1)))
+        assertEquals(1, provider.estimate(request).alternatives.size)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun allRouteModesClassifyEmptyResultsAndRecover() = runTest {
+        CommuteMode.entries.forEach { mode ->
+            val request = RouteRequest(point(), GeoPoint(116.41, 39.92), mode, originCity = "010", destinationCity = "010")
+            val body = if (mode == CommuteMode.TRANSIT) transitBody(0) else routeBody(0)
+            server.enqueue(success(body))
+            val error = runCatching { provider.estimate(request) }.exceptionOrNull() as ProviderError
+            assertEquals(mode.name, ProviderError.Category.ROUTE_NOT_FOUND, error.category)
+            server.enqueue(success(if (mode == CommuteMode.TRANSIT) transitBody(1) else routeBody(1)))
+            assertEquals(mode.name, 1, provider.estimate(request).alternatives.size)
+        }
+        assertEquals(CommuteMode.entries.size * 2, server.requestCount)
+    }
+
+    @Test
+    fun everyCandidatePreservesPolylinePointOrderForBothShapes() = runTest {
+        listOf(CommuteMode.DRIVING, CommuteMode.TRANSIT).forEach { mode ->
+            server.enqueue(success(if (mode == CommuteMode.TRANSIT) transitBody(3) else routeBody(3)))
+            val estimate = provider.estimate(RouteRequest(point(), GeoPoint(116.41, 39.92), mode, originCity = "010", destinationCity = "010"))
+            val walking = listOf(point(), GeoPoint(116.407428, 39.91923))
+            val expected = if (mode == CommuteMode.TRANSIT) walking + listOf(GeoPoint(116.407428, 39.91923), GeoPoint(116.417428, 39.92923)) else walking
+            assertEquals(3, estimate.alternatives.size)
+            estimate.alternatives.forEach { assertEquals(it.id, expected, it.polyline) }
+        }
+    }
+
+    @Test
     fun credentialSnapshotToStringNeverRevealsKey() {
         val key = "test-key"
 

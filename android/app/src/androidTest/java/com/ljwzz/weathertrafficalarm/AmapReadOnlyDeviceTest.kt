@@ -209,7 +209,7 @@ class AmapReadOnlyDeviceTest {
         check(failures, "$category:OVER_THREE_ALTERNATIVES", alternatives.size <= MAX_DISPLAYED_ROUTES)
         check(failures, "$category:NON_POSITIVE_DURATION", alternatives.all { it.durationSeconds > 0 })
         check(failures, "$category:NON_POSITIVE_DISTANCE", alternatives.all { it.distanceMeters > 0 })
-        check(failures, "$category:MISSING_POLYLINE", alternatives.any { it.polyline.isNotEmpty() })
+        check(failures, "$category:MISSING_POLYLINE", alternatives.all { it.polyline.size >= 2 })
         check(failures, "$category:NOT_FROM_NETWORK", estimate.source == RouteDataSource.NETWORK)
     }
 
