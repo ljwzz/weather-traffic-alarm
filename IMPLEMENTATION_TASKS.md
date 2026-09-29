@@ -1192,7 +1192,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 后续设备矩阵、步骤和验收条件由 [N003](./docs/plans/N003.md) 承接；新计划执行状态见 [计划总览](./docs/plans/README.md)，此处状态保留为交接时记录。
 
-2026-09-29 已在 Xiaomi `25019PNF3C`（Android 16 / API 36）完成实网验收：授权、地图渲染、单次定位（精确／粗略／拒绝／定位关闭／设置返回）、POI 与输入提示、五种路线、三条候选与路况、计划覆盖与断网恢复均已实测；公交折线缺陷已修复。遗留项为无效 Android SDK Key 在应用内不可区分。证据见 [N003 验收记录](./android/qa/amap-device-2026-09-29/README.md)。
+2026-09-29 已在 Xiaomi `25019PNF3C`（Android 16 / API 36）完成实网验收：授权、地图渲染、单次定位（精确／粗略／拒绝／定位关闭／设置返回）、POI 与输入提示、五种路线、三条候选与路况、计划覆盖与断网恢复均已实测；公交折线缺陷已修复。SDK Key 的可判定边界经判定实验写入 SPEC FR-012（只有“未配置”可由应用判定）。证据见 [N003 验收记录](./android/qa/amap-device-2026-09-29/README.md)。
 
 ## 10. P8：彩云天气 Provider
 
