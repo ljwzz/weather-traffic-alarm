@@ -289,6 +289,13 @@ fun LocalRouteScreen(
                         }
                         else -> RouteEmptyState(routeState.message ?: "选择起点和终点后显示最多三条路线、距离和预计时间。")
                     }
+                    routeState.refreshError?.let { message ->
+                        Text(
+                            "更新失败，保留上次结果：$message",
+                            color = ZhituColors.Amber,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
             feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }

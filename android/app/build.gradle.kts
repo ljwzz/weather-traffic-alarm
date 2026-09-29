@@ -87,4 +87,8 @@ dependencies {
     androidTestImplementation(libs.room.runtime)
     androidTestImplementation(composeBom)
     androidTestImplementation(libs.compose.ui.test)
+    androidTestImplementation(libs.okhttp)
+    androidTestImplementation(libs.retrofit)
+    androidTestImplementation(libs.retrofit.kotlin.serialization)
+    androidTestImplementation(libs.kotlinx.serialization.json)
 }
