@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -152,6 +153,7 @@ class ZhituViewModel @Inject constructor(
     private var homeRefreshJob: Job? = null
     private val homeRefreshGate = HomeRefreshGate()
     private var routeRefreshJob: Job? = null
+    private var routeModeJob: Job? = null
     private var routeRefreshInputKey: String? = null
     private var routeRefreshForce = false
     private var weatherRefreshJob: Job? = null
@@ -305,9 +307,14 @@ class ZhituViewModel @Inject constructor(
         if (initialization == AmapSdkInitialization.Ready) refreshRoute()
     }
 
-    fun setRouteMode(mode: CommuteMode) = viewModelScope.launch {
-        settingsStore.update { it.copy(commuteMode = mode) }
-        refreshRoute()
+    fun setRouteMode(mode: CommuteMode): Job {
+        routeModeJob?.cancel()
+        return viewModelScope.launch {
+            settingsStore.update { it.copy(commuteMode = mode) }
+            // DataStore persistence may finish before its StateFlow publishes the new mode.
+            settings.first { it.commuteMode == mode }
+            refreshRoute()
+        }.also { routeModeJob = it }
     }
 
     /** Refreshes the global route, or the persisted effective commute for [planId]. */

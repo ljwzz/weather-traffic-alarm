@@ -212,6 +212,55 @@ class AmapRouteContractDeviceTest {
         screenshot("cached-recovered.png")
     }
 
+    @Test
+    fun sameNameMovedCoordinatesAndModeSwitchRejectLateResponses() {
+        val oldCoordinates = success(600, delayed = true)
+        transport.enqueue(oldCoordinates)
+        refresh()
+        awaitStarted(oldCoordinates)
+        val original = viewModel.settings.value
+        val moved = original.copy(favorites = original.favorites.map {
+            if (it.id == "destination") it.copy(placeRef = it.placeRef!!.copy(longitudeGcj02 = 116.42)) else it
+        })
+        runBlocking { stores.settings.update { moved } }
+        compose.waitUntil(10_000) { viewModel.settings.value == moved && !viewModel.routeState.value.loading }
+        assertEquals(original.favorites.map { it.id to it.name }, moved.favorites.map { it.id to it.name })
+        assertTrue(viewModel.routeState.value.alternatives.isEmpty())
+        transport.enqueue(success(900))
+        refresh()
+        awaitDuration(900)
+        oldCoordinates.release.countDown()
+        awaitFinished(oldCoordinates)
+        compose.waitForIdle()
+        assertEquals(900L, viewModel.routeState.value.alternatives.single().durationSeconds)
+        assertEquals("116.41,39.92", transport.requests[0].destination)
+        assertEquals("116.42,39.92", transport.requests[1].destination)
+        screenshot("same-name-coordinate-change.png")
+
+        val delayedDriving = success(1200, delayed = true)
+        transport.enqueue(delayedDriving)
+        refresh()
+        awaitStarted(delayedDriving)
+        val delayedBicycle = success(1500, delayed = true)
+        transport.enqueue(delayedBicycle)
+        compose.onNodeWithText("骑行").performScrollTo().performClick()
+        awaitStarted(delayedBicycle)
+        transport.enqueue(success(1800))
+        compose.onNodeWithText("电动车").performScrollTo().performClick()
+        awaitDuration(1800)
+        delayedDriving.release.countDown()
+        delayedBicycle.release.countDown()
+        awaitFinished(delayedDriving)
+        awaitFinished(delayedBicycle)
+        compose.waitForIdle()
+        assertEquals(1800L, viewModel.routeState.value.alternatives.single().durationSeconds)
+        assertEquals("ELECTRIC_BICYCLE:0", viewModel.routeState.value.selectedRouteId)
+        assertTrue(transport.requests.last().path.endsWith("electrobike"))
+        compose.onNodeWithText("电动车").assertIsSelected()
+        compose.onNodeWithText("30 分钟").performScrollTo().assertIsDisplayed()
+        screenshot("final-mode-after-late-responses.png")
+    }
+
     private fun refresh() { compose.onNodeWithText("刷新").performScrollTo().performClick() }
     private fun awaitDuration(seconds: Long) {
         compose.waitUntil(10_000) {
