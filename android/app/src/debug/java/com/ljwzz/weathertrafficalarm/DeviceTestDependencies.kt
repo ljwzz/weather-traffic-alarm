@@ -6,6 +6,7 @@ import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
@@ -32,6 +33,7 @@ interface DeviceTestDependencies {
     fun commuteOverrides(): PlanCommuteOverrideRepository
     fun effectiveCommutes(): EffectiveCommuteResolver
     fun workdayOverrides(): WorkdayOverrideRepository
+    fun dailyInputs(): DailyEvaluationInputResolver
     fun evaluationScheduler(): EvaluationWorkScheduler
     fun credentials(): CredentialStore
     fun settings(): LocalSettingsStore

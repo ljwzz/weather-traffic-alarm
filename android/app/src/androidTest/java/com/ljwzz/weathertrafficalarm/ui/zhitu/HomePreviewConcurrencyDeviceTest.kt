@@ -78,6 +78,7 @@ class HomePreviewConcurrencyDeviceTest {
                 credentials = credentials,
                 planCommuteOverrideRepository = dependencies.commuteOverrides(),
                 effectiveCommuteResolver = dependencies.effectiveCommutes(),
+                dailyInputs = dependencies.dailyInputs(),
                 amapSdk = dependencies.amapSdk(),
                 amapProvider = dependencies.amapWebProvider(),
                 weatherProvider = fakeWeather,

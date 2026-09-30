@@ -117,7 +117,7 @@ class AmapRouteContractDeviceTest {
             viewModel = ZhituViewModel(
                 dependencies.coordinator(), dependencies.decisions(), dependencies.evaluationScheduler(),
                 dependencies.calendar(), stores.settings, dependencies.workdayOverrides(), stores.credentials,
-                dependencies.commuteOverrides(), dependencies.effectiveCommutes(), dependencies.amapSdk(),
+                dependencies.commuteOverrides(), dependencies.effectiveCommutes(), dependencies.dailyInputs(), dependencies.amapSdk(),
                 provider, dependencies.weatherProvider(), dependencies.caiyunWeatherProvider(),
             )
             viewModels.put("n003", viewModel)
