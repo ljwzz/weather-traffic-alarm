@@ -294,22 +294,24 @@ CalendarYearCache(
   days: List<CalendarDay(date, name, isOffDay)>
 )
 CalendarDay(date: LocalDate, name: String, isOffDay: Boolean)
+DayKind = WORKDAY | WEEKEND_REST | STATUTORY_REST
+DaySource = HOLIDAY_CN | WEEKDAY_FALLBACK
 DayClassification(
   date: LocalDate,
-  baseDayKind: WORKDAY | WEEKEND_REST | STATUTORY_REST,
-  source: HOLIDAY_CN | WEEKDAY_FALLBACK,
+  baseDayKind: DayKind,
+  source: DaySource,
   effectiveStatus: WORKDAY | HOLIDAY
 )
 SingleDayOverride(
   planId: UUID,
   date: LocalDate,
-  baseDayKind: WORKDAY | WEEKEND_REST | STATUTORY_REST,
-  source: HOLIDAY_CN | WEEKDAY_FALLBACK,
-  status: WORKDAY | HOLIDAY,
+  status: WORKDAY | HOLIDAY | null,          // null 沿用日历判定
   defaultWakeLocalTime?: LocalTime,
   arrivalLocalTime?: LocalTime,
   preparationMinutes?: Int,
-  weatherProfile?: WeatherBufferProfile
+  weatherProfile?: WeatherBufferProfile,
+  commute?: { origin, destination, commuteMode }?,   // 整体替换，不接受部分组合
+  dayRevision: Long                          // 该计划该日期的修订号，创建为 0
 )
 ```
 
@@ -326,7 +328,9 @@ SingleDayOverride(
 - 目标日期为 12 月时，同时并入下一年缓存中 12 月条目后再判定（holiday-cn 注意事项）。
 - 当年缓存缺失、过期校验失败或解析失败时自动使用默认周规则，并在首页与日历页标注原因；不要求用户额外确认，也不阻塞响铃。
 - 日期分类用于选择天气缓冲：法定休息日优先于普通周末；调休上班日与普通工作日使用工作日缓冲。单日加班把指定休息日覆盖为工作日，但保留其原始休息日分类以选择周末或法定休息日缓冲。
-- `DayClassification` 始终保留日历得到的原始类别和来源；`effectiveStatus` 再应用单日覆盖。现有 `WorkdayOverride` 是旧模型名称，v3 目标模型以 `SingleDayOverride` 替代，不声明现有 Android 存储已迁移。
+- `DayClassification` 始终保留日历得到的原始类别和来源；`effectiveStatus` 再应用单日覆盖。现有 `WorkdayOverride` 是旧模型名称，`SingleDayOverride` 是其完整形态；Android 存储自数据库 v7 起在原日期覆盖表上原地扩展，旧行的 `status`、`wakeLocalTime` 与复合主键保持不变。
+- 单日逐字段继承顺序为：单日非空值 → 计划已有配置 → 全局默认。`0` 是有效值，不表示未设置；三个缓冲值和完整通勤组合各自整体替换，不跨层级混用起点与终点。
+- 单日覆盖的每个字段都能单独恢复继承；清空最后一个字段（`status` 也为空）时删除该记录，删除后该日期回到日历判定。
 
 ### 5.5 天气缓冲配置
 
@@ -346,7 +350,9 @@ WeatherBufferProfiles(
 - 三套配置均按天气严重等级 1/2/3 保存，每档范围为 0–60 分钟。
 - 三套配置互斥，不累加。默认工作日与原有天气等级缓冲一致；普通周末、法定休息日分别采用上述默认值。
 - 单日加班只对所选日期生效，不修改日常计划或每周安排；撤销时删除该日期覆盖。
-- `SingleDayOverride` 的时间、准备时长和 `weatherProfile` 均为可选值；为空时继承 `AlarmPlan` 和 `baseDayKind` 对应的三档 profile。非空 `weatherProfile` 仅替换该日期三档缓冲，不改动任一全局 profile，也不与其叠加。
+- `SingleDayOverride` 的时间、准备时长和 `weatherProfile` 均为可选值；为空时继承 `AlarmPlan` 和 `baseDayKind` 对应的三档 profile，`0` 分钟仍然是有效覆盖值。非空 `weatherProfile` 仅替换该日期三档缓冲，不改动任一全局 profile，也不与其叠加。
+- 计划模型不新增天气 profile 字段；单日未设置缓冲时直接回落到原始日期类别对应的全局 profile。
+- 单日覆盖只影响目标计划和目标日期，不递增整个计划修订号。日级修订用于使该日期已提交的评估失效，其他日期的已注册实例保持有效。
 
 ### 5.6 `ProviderCredential`
 
@@ -398,6 +404,8 @@ attemptNumber: Int                   // 首次为 0，重试为 1–3
 applicationOutcome: APPLIED | UNCHANGED | CANCELLED | STALE | FAILED | NOT_APPLIED
 preparationMinutes: Int
 defaultWakeAt/actualWakeAt: Instant?
+arrivalLocalTime: String?              // 本次评估实际使用的到岗时间；N004 之前的历史允许缺失
+dayRevision: Long                     // 本次评估使用的日级修订号；无单日覆盖为 0
 calendarSource/weatherDataSource: String?
 planName: String?                    // 本次评估快照，旧记录允许缺失
 zoneId: String?                      // 本次计划时区，不从当前配置补填
@@ -476,7 +484,7 @@ finalWake = min(existingTempWake?, recommendedWake)
 
 - 用户可分别配置工作日、普通周末和法定休息日的等级 1–3 缓冲（均为 0–60 分钟）；配置互斥不叠加。默认值依次为工作日 `10/20/30`、普通周末 `5/10/20`、法定休息日 `10/15/25`。
 - `isOffDay=false` 的调休上班日使用工作日缓冲；法定休息日与周末重合时使用法定休息日缓冲；日历缓存缺失时按周几选择工作日或周末缓冲。
-- 单日加班可保存本日专用三档缓冲；该值替换本日应选 profile，不修改任何全局 profile，不与其叠加。
+- 单日加班可保存本日专用三档缓冲；该值替换本日应选 profile，不修改任何全局 profile，不与其叠加。未保存本日缓冲时使用原始日期类别对应的 profile，即使本日状态被覆盖为上班或休息。
 - 天气提供方固定为彩云天气 v2.6，App 内直连，凭证来自本机凭证存储。
 - 天气 Provider 只产生 `WeatherEvaluation` 与建议缓冲；不得创建、取消或修改 `AlarmOccurrence`、本地响铃或当前本地闹钟状态。统一评估调度属于后续 P9 能力。
 - 分别查询家庭地和工作地，从 `[defaultWake-maxAdvance, arrivalTime]` 小时窗口内取最高严重等级，再取两地中较严重的一端。
@@ -799,8 +807,11 @@ ProviderError(
 | 特殊工作日 | 年度节假日数据中 `isOffDay=false` | `--el-color-warning`（`#e6a23c`） | `--el-color-warning-light-9`（`#fdf6ec`） |
 
 - 上述 Element Plus 色值以主题变量定义为准：https://github.com/element-plus/element-plus/blob/dev/packages/theme-chalk/src/common/var.scss 。`2026-09-20` 在该主状态中按特殊工作日显示；2026 年节假日与调休安排以国务院办公厅通知为准：https://big5.www.gov.cn/gate/big5/www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm 。
-- 选中日期后可保存沿用计划、本日停用、本日启用或替代本日时间；保存后立即重算该计划下一次本地实例。
-- 日期覆盖只影响指定计划和日期；撤销覆盖恢复日历判定。
+- 选中日期后可在同一页面编辑本日状态、响铃时间、到岗时间、准备时长、三档天气缓冲和完整通勤组合；每项显示当前继承来源，并提供“恢复继承”。保存只写目标计划和目标日期，返回不写入，保存失败保留已存值并显示原因。
+- 到岗时间与准备时长沿用计划字段的校验范围（准备 0–240 分钟），缓冲三档各为 0–60 分钟；`0` 是有效值。时间使用计划时区。
+- 单日覆盖写入递增该日期的日级修订号；该日期已提交或正在执行的旧评估因此失效，其他日期和整个计划的修订号不变。旧评估响应在提交前重新核对日级修订与有效输入指纹，不匹配记为过期且不注册实例。
+- 日期覆盖只影响指定计划和日期；撤销覆盖（清空全部本日字段）删除该日记录、恢复日历判定并重算该计划的下一次实例。
+- 决策详情展示本次评估实际使用的到岗时间与日级修订；历史快照在覆盖被修改或删除后保持不变，缺失字段显示为“本次未提供”。
 
 ### 8.6 凭证配置（页面 19）
 
