@@ -1080,6 +1080,55 @@ class LocalAlarmCoordinatorTest {
         assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(candidate.occurrenceId)?.state)
     }
 
+    /** A failure while publishing the device-protected snapshot keeps the stored values. */
+    @Test
+    fun `a failed device protected publish keeps the stored values and clears the candidate`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        val failing = LocalAlarmCoordinator(
+            context = context,
+            planRepository = plans,
+            occurrenceRepository = occurrences,
+            decisionRepository = decisions,
+            eventRepository = events,
+            overrideRepository = overrides,
+            calendarRepository = WorkdayCalendarRepository(context),
+            scheduler = gateway,
+            snapshotStore = object : NextAlarmSnapshotStore(context) {
+                override suspend fun publishCandidate(
+                    snapshot: NextAlarmSnapshot,
+                    credential: DayCommitCredential,
+                ): Unit = throw IllegalStateException("device protected storage unavailable")
+            },
+            dailyInputs = dailyInputs,
+        )
+
+        val result = failing.setDayOverride(
+            DayOverrideChange(
+                planId = existing.id,
+                date = TOMORROW,
+                expectedDayRevision = stored.committedRevision,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 45),
+            ),
+        )
+
+        assertEquals(DayOverrideFailureCode.STORAGE_FAILED, (result as? DayOverrideSaveResult.Failure)?.code)
+        assertEquals(15, overrides.getForPlanDate(existing.id, TOMORROW)?.preparationMinutes)
+        assertEquals(stored.committedRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertTrue(overrides.pendingCandidates().isEmpty())
+        assertEquals(0, occurrences.getByPlanId(existing.id).count { it.state == OccurrenceState.REGISTERING })
+        assertTrue(gateway.cancelled.isNotEmpty(), "the platform candidate must be revoked")
+    }
+
     /** The final check runs inside the commit lock: a stale day revision is stored as STALE. */
     @Test
     fun `applying an evaluation whose day revision changed is stale and registers nothing`() = runBlocking {

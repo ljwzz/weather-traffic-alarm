@@ -21,7 +21,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class NextAlarmSnapshotStore @Inject constructor(
+open class NextAlarmSnapshotStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -85,7 +85,7 @@ class NextAlarmSnapshotStore @Inject constructor(
      * Either both are visible after an interruption or neither is, which is what recovery needs
      * to decide between completing the change and discarding the candidate.
      */
-    suspend fun publishCandidate(snapshot: NextAlarmSnapshot, credential: DayCommitCredential) {
+    open suspend fun publishCandidate(snapshot: NextAlarmSnapshot, credential: DayCommitCredential) {
         dataStore.edit { prefs ->
             removeDuplicateOccurrenceKeys(prefs, snapshot.occurrenceId)
             prefs[snapshotKey(snapshot.occurrenceId)] = json.encodeToString(snapshot)
@@ -102,7 +102,7 @@ class NextAlarmSnapshotStore @Inject constructor(
         }
 
     /** Publishes only the credential, used when the change needs no new local instance. */
-    suspend fun publishCommitCredential(credential: DayCommitCredential) {
+    open suspend fun publishCommitCredential(credential: DayCommitCredential) {
         dataStore.edit { prefs ->
             prefs[commitKey(credential.changeId)] = json.encodeToString(credential)
         }
