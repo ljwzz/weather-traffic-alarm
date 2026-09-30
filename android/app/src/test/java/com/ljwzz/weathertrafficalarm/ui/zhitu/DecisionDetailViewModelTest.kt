@@ -14,6 +14,7 @@ import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionDetailLookup
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionDetailRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
@@ -63,16 +64,24 @@ class DecisionDetailViewModelTest {
         decisions = DecisionRepository(database.alarmDecisionDao())
         occurrences = OccurrenceRepository(database.alarmOccurrenceDao())
         val overrides = PlanCommuteOverrideRepository(database.planCommuteOverrideDao())
+        val dayOverrides = WorkdayOverrideRepository(database.workdayOverrideDao(), database.dayOverrideCommitDao())
+        val calendar = WorkdayCalendarRepository(context)
         val scheduler = EvaluationWorkScheduler(
             context = context,
             plans = plans,
             occurrences = occurrences,
             settings = LocalSettingsStore(context),
             commuteOverrides = overrides,
-            dayOverrides = WorkdayOverrideRepository(database.workdayOverrideDao(), database.workdayOverrideWriteDao()),
-            calendar = WorkdayCalendarRepository(context),
+            dayOverrides = dayOverrides,
+            calendar = calendar,
             credentials = CredentialStore(context),
-            commuteResolver = EffectiveCommuteResolver(overrides),
+            dailyInputs = DailyEvaluationInputResolver(
+                plans = plans,
+                settings = LocalSettingsStore(context),
+                commutes = EffectiveCommuteResolver(overrides),
+                overrides = dayOverrides,
+                calendar = calendar,
+            ),
             clock = Clock.systemUTC(),
         )
         viewModel = DecisionDetailViewModel(

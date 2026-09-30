@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.ljwzz.weathertrafficalarm.core.model.DayCommitCredential
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -54,7 +55,7 @@ class NextAlarmSnapshotStore @Inject constructor(
     fun observeAll(): Flow<List<NextAlarmSnapshot>> {
         return dataStore.data.map { prefs ->
             prefs.asMap().entries.mapNotNull { (key, value) ->
-                if (key.name.startsWith("snapshot_")) {
+                if (key.name.startsWith(SNAPSHOT_PREFIX)) {
                     try {
                         json.decodeFromString<NextAlarmSnapshot>(value.toString())
                     } catch (_: Exception) {
@@ -74,15 +75,56 @@ class NextAlarmSnapshotStore @Inject constructor(
      */
     suspend fun save(snapshot: NextAlarmSnapshot) {
         dataStore.edit { prefs ->
-            prefs.asMap().entries
-                .filter { (key, value) ->
-                    key.name.startsWith("snapshot_") && key.name != snapshotKey(snapshot.occurrenceId).name && runCatching {
-                        json.decodeFromString<NextAlarmSnapshot>(value.toString()).occurrenceId == snapshot.occurrenceId
-                    }.getOrDefault(false)
-                }
-                .forEach { (key, _) -> prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>) }
+            removeDuplicateOccurrenceKeys(prefs, snapshot.occurrenceId)
             prefs[snapshotKey(snapshot.occurrenceId)] = json.encodeToString(snapshot)
         }
+    }
+
+    /**
+     * Publishes a candidate snapshot and its commit credential in one device-protected update.
+     * Either both are visible after an interruption or neither is, which is what recovery needs
+     * to decide between completing the change and discarding the candidate.
+     */
+    suspend fun publishCandidate(snapshot: NextAlarmSnapshot, credential: DayCommitCredential) {
+        dataStore.edit { prefs ->
+            removeDuplicateOccurrenceKeys(prefs, snapshot.occurrenceId)
+            prefs[snapshotKey(snapshot.occurrenceId)] = json.encodeToString(snapshot)
+            prefs[commitKey(credential.changeId)] = json.encodeToString(credential)
+        }
+    }
+
+    suspend fun commitCredential(changeId: String): DayCommitCredential? =
+        dataStore.data.first()[commitKey(changeId)]?.let { decodeCredential(it) }
+
+    suspend fun commitCredentials(): List<DayCommitCredential> =
+        dataStore.data.first().asMap().entries.mapNotNull { (key, value) ->
+            if (key.name.startsWith(COMMIT_PREFIX)) decodeCredential(value.toString()) else null
+        }
+
+    /** Publishes only the credential, used when the change needs no new local instance. */
+    suspend fun publishCommitCredential(credential: DayCommitCredential) {
+        dataStore.edit { prefs ->
+            prefs[commitKey(credential.changeId)] = json.encodeToString(credential)
+        }
+    }
+
+    suspend fun removeCommitCredential(changeId: String) {
+        dataStore.edit { prefs -> prefs.remove(commitKey(changeId)) }
+    }
+
+    private fun decodeCredential(value: String): DayCommitCredential? =
+        runCatching { json.decodeFromString<DayCommitCredential>(value) }.getOrNull()
+
+    private fun commitKey(changeId: String) = stringPreferencesKey("$COMMIT_PREFIX$changeId")
+
+    private fun removeDuplicateOccurrenceKeys(prefs: androidx.datastore.preferences.core.MutablePreferences, occurrenceId: String) {
+        prefs.asMap().entries
+            .filter { (key, value) ->
+                key.name.startsWith(SNAPSHOT_PREFIX) && key.name != snapshotKey(occurrenceId).name && runCatching {
+                    json.decodeFromString<NextAlarmSnapshot>(value.toString()).occurrenceId == occurrenceId
+                }.getOrDefault(false)
+            }
+            .forEach { (key, _) -> prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>) }
     }
 
     /**
@@ -92,9 +134,15 @@ class NextAlarmSnapshotStore @Inject constructor(
         dataStore.edit { prefs ->
             prefs.asMap().entries
                 .filter { (key, value) ->
-                    key.name.startsWith("snapshot_") && runCatching {
+                    key.name.startsWith(SNAPSHOT_PREFIX) && runCatching {
                         json.decodeFromString<NextAlarmSnapshot>(value.toString()).planId == planId
                     }.getOrDefault(false)
+                }
+                .forEach { (key, _) -> prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>) }
+            prefs.asMap().entries
+                .filter { (key, value) ->
+                    key.name.startsWith(COMMIT_PREFIX) &&
+                        decodeCredential(value.toString())?.planId == planId
                 }
                 .forEach { (key, _) -> prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>) }
         }
@@ -122,7 +170,7 @@ class NextAlarmSnapshotStore @Inject constructor(
             // payload is for this occurrence, preventing cross-plan deletion.
             prefs.asMap().entries
                 .filter { (key, value) ->
-                    key.name.startsWith("snapshot_") && runCatching {
+                    key.name.startsWith(SNAPSHOT_PREFIX) && runCatching {
                         json.decodeFromString<NextAlarmSnapshot>(value.toString()).occurrenceId == occurrenceId
                     }.getOrDefault(false)
                 }
@@ -136,7 +184,7 @@ class NextAlarmSnapshotStore @Inject constructor(
     suspend fun replaceAll(snapshots: List<NextAlarmSnapshot>) {
         dataStore.edit { prefs ->
             // Remove old snapshots
-            val oldKeys = prefs.asMap().keys.filter { it.name.startsWith("snapshot_") }
+            val oldKeys = prefs.asMap().keys.filter { it.name.startsWith(SNAPSHOT_PREFIX) }
             oldKeys.forEach { prefs.remove(it) }
             // Add new ones
             snapshots.forEach { snapshot ->
@@ -150,7 +198,7 @@ class NextAlarmSnapshotStore @Inject constructor(
      */
     suspend fun clear() {
         dataStore.edit { prefs ->
-            val oldKeys = prefs.asMap().keys.filter { it.name.startsWith("snapshot_") }
+            val oldKeys = prefs.asMap().keys.filter { it.name.startsWith(SNAPSHOT_PREFIX) || it.name.startsWith(COMMIT_PREFIX) }
             oldKeys.forEach { prefs.remove(it) }
         }
     }
@@ -180,7 +228,7 @@ class NextAlarmSnapshotStore @Inject constructor(
 
     private fun decodeSnapshots(prefs: Preferences): List<NextAlarmSnapshot> =
         prefs.asMap().entries.mapNotNull { (key, value) ->
-            if (!key.name.startsWith("snapshot_")) return@mapNotNull null
+            if (!key.name.startsWith(SNAPSHOT_PREFIX)) return@mapNotNull null
             runCatching { json.decodeFromString<NextAlarmSnapshot>(value.toString()) }.getOrNull()
         }
 
@@ -191,7 +239,9 @@ class NextAlarmSnapshotStore @Inject constructor(
         }
     }
 
-    private companion object {
+    internal companion object {
+        const val SNAPSHOT_PREFIX = "snapshot_"
+        const val COMMIT_PREFIX = "commit_"
         val stores = ConcurrentHashMap<String, DataStore<Preferences>>()
     }
 }

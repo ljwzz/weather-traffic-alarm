@@ -4,21 +4,15 @@ import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
-import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
-import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
-import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
-import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputs
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
-import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommute
-import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
-import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.AlarmTimeCalculator
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
-import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.EffectiveDailySettings
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
@@ -30,8 +24,6 @@ import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import com.ljwzz.weathertrafficalarm.core.model.RouteProvider
 import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
 import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
-import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
-import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfiles
 import com.ljwzz.weathertrafficalarm.core.model.WeatherDataSource
 import com.ljwzz.weathertrafficalarm.core.model.WeatherLocation
 import com.ljwzz.weathertrafficalarm.core.model.WeatherLocationRole
@@ -44,7 +36,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
@@ -62,14 +53,15 @@ data class EvaluationRunResult(
  * The only app-side composition point for the evaluation inputs. Providers produce data only;
  * this class creates an auditable decision and delegates the guarded local-alarm mutation to
  * [LocalAlarmCoordinator].
+ *
+ * Inputs are resolved once through [DailyEvaluationInputResolver] and the resulting fingerprint
+ * travels with the decision, so the alarm coordinator can reject a run whose date was edited
+ * while the providers were running.
  */
 @Singleton
 class EvaluationCoordinator @Inject constructor(
     private val plans: AlarmPlanRepository,
-    private val settings: LocalSettingsStore,
-    private val commutes: EffectiveCommuteResolver,
-    private val overrides: WorkdayOverrideRepository,
-    private val calendar: WorkdayCalendarRepository,
+    private val inputs: DailyEvaluationInputResolver,
     private val routes: RouteProvider,
     private val weather: WeatherProvider,
     private val decisions: DecisionRepository,
@@ -117,60 +109,64 @@ class EvaluationCoordinator @Inject constructor(
         val initialPlan = plans.getById(planId)?.takeIf { it.enabled } ?: return EvaluationRunResult(false)
         val date = targetDate ?: clock.instant().atZone(initialPlan.zoneIdInstance()).toLocalDate().plusDays(1)
         val startedAt = clock.instant()
-        val snapshot = resolveInputs(initialPlan, date, evaluationId) ?: return persistFailure(
-            initialPlan, date, evaluationId, attemptNumber, deadline, startedAt, "COMMUTE_NOT_CONFIGURED", FallbackReason.ROUTE_NOT_FOUND,
-        )
-        if (deadline != null && !startedAt.isBefore(deadline)) {
-            return persistStale(snapshot, attemptNumber, startedAt, deadline, "EVALUATION_WINDOW_EXPIRED")
+        val resolved = inputs.resolve(initialPlan, date)
+        val effectiveCommute = resolved.effectiveCommute
+        if (effectiveCommute == null) {
+            return persistFailure(
+                resolved, evaluationId, attemptNumber, deadline, startedAt,
+                "COMMUTE_NOT_CONFIGURED", FallbackReason.ROUTE_NOT_FOUND,
+            )
         }
-        if (!EvaluationCoordinatorPolicy.isEligible(snapshot.plan.schedule, date, snapshot.dayStatus, snapshot.override)) {
-            return persistSkipped(snapshot, attemptNumber, startedAt, deadline)
+        if (deadline != null && !startedAt.isBefore(deadline)) {
+            return persistStale(resolved, evaluationId, attemptNumber, startedAt, deadline, "EVALUATION_WINDOW_EXPIRED")
+        }
+        if (!EvaluationCoordinatorPolicy.isEligible(resolved.plan.schedule, date, resolved.dayStatus, resolved.override)) {
+            return persistSkipped(resolved, evaluationId, attemptNumber, startedAt, deadline)
         }
 
         val route = try {
-            resolveRoute(snapshot)
+            resolveRoute(resolved)
         } catch (failure: Throwable) {
-            return persistProviderFailure(snapshot, attemptNumber, startedAt, deadline, failure, ProviderKind.ROUTE)
+            return persistProviderFailure(resolved, evaluationId, attemptNumber, startedAt, deadline, failure, ProviderKind.ROUTE)
         }
         val weatherWindow = try {
-            EvaluationCoordinatorPolicy.weatherWindow(snapshot.plan, snapshot.effective)
+            EvaluationCoordinatorPolicy.weatherWindow(resolved.plan, resolved.effective)
         } catch (_: IllegalArgumentException) {
             return persistFailure(
-                snapshot.plan, date, evaluationId, attemptNumber, deadline, startedAt,
-                "INVALID_TIME_WINDOW", FallbackReason.NONE, snapshot = snapshot, route = route,
+                resolved, evaluationId, attemptNumber, deadline, startedAt,
+                "INVALID_TIME_WINDOW", FallbackReason.NONE, route = route,
             )
         }
         val weatherResult = try {
             weather.evaluate(
                 WeatherRequest(
-                    home = WeatherLocation(WeatherLocationRole.HOME, snapshot.commute.origin.toPoint()),
-                    work = WeatherLocation(WeatherLocationRole.WORK, snapshot.commute.destination.toPoint()),
+                    home = WeatherLocation(WeatherLocationRole.HOME, effectiveCommute.origin.toPoint()),
+                    work = WeatherLocation(WeatherLocationRole.WORK, effectiveCommute.destination.toPoint()),
                     window = weatherWindow,
-                    weatherBufferProfile = snapshot.weatherProfile,
-                    weatherRuleVersion = snapshot.plan.weatherRuleVersion,
+                    weatherBufferProfile = resolved.effective.weatherProfile,
+                    weatherRuleVersion = resolved.plan.weatherRuleVersion,
                     requestedAt = startedAt,
                 ),
             )
         } catch (failure: Throwable) {
-            return persistProviderFailure(snapshot, attemptNumber, startedAt, deadline, failure, ProviderKind.WEATHER)
+            return persistProviderFailure(resolved, evaluationId, attemptNumber, startedAt, deadline, failure, ProviderKind.WEATHER)
         }
         if (!weatherResult.isUsableForScheduling || weatherResult.providerReportTime == null || weatherResult.source == null) {
             return persistFailure(
-                snapshot.plan, date, evaluationId, attemptNumber, deadline, startedAt,
-                "WEATHER_${weatherResult.fallbackReason.name}", weatherResult.fallbackReason,
-                snapshot = snapshot, route = route,
+                resolved, evaluationId, attemptNumber, deadline, startedAt,
+                "WEATHER_${weatherResult.fallbackReason.name}", weatherResult.fallbackReason, route = route,
             )
         }
 
         val calculation = AlarmTimeCalculator.calculate(
-            defaultWakeTime = requireNotNull(snapshot.effective.wakeLocalTime),
-            arrivalTime = requireNotNull(snapshot.effective.arrivalLocalTimeValue),
-            preparationMinutes = snapshot.effective.preparationMinutes,
-            maxAdvanceMinutes = snapshot.plan.maxAdvanceMinutes,
+            defaultWakeTime = requireNotNull(resolved.effective.wakeLocalTime),
+            arrivalTime = requireNotNull(resolved.effective.arrivalLocalTimeValue),
+            preparationMinutes = resolved.effective.preparationMinutes,
+            maxAdvanceMinutes = resolved.plan.maxAdvanceMinutes,
             commuteSeconds = route.calculationCommuteSeconds,
             weatherBufferMinutes = weatherResult.bufferMinutes,
             targetDate = date,
-            zoneId = snapshot.plan.zoneIdInstance(),
+            zoneId = resolved.plan.zoneIdInstance(),
         )
         val recommendedWake = Instant.ofEpochMilli(calculation.recommendedWakeAt)
         val weatherReportTime = requireNotNull(weatherResult.providerReportTime)
@@ -181,16 +177,17 @@ class EvaluationCoordinator @Inject constructor(
             recommendedWake,
         ).minOrNull() ?: recommendedWake
         val completedAt = clock.instant()
-        if (EvaluationCoordinatorPolicy.isExpired(completedAt, expiresAt) || !hasSameInputs(snapshot)) {
-            return persistStale(snapshot, attemptNumber, completedAt, expiresAt, if (EvaluationCoordinatorPolicy.isExpired(completedAt, expiresAt)) {
-                "EVALUATION_RESULT_EXPIRED"
-            } else {
-                "EVALUATION_INPUTS_CHANGED"
-            })
+        val expired = EvaluationCoordinatorPolicy.isExpired(completedAt, expiresAt)
+        if (expired || !hasSameInputs(resolved)) {
+            return persistStale(
+                resolved, evaluationId, attemptNumber, completedAt, expiresAt,
+                if (expired) "EVALUATION_RESULT_EXPIRED" else "EVALUATION_INPUTS_CHANGED",
+            )
         }
 
         val decision = decision(
-            snapshot = snapshot,
+            inputs = resolved,
+            evaluationId = evaluationId,
             attempt = attemptNumber,
             generatedAt = completedAt,
             expiresAt = expiresAt,
@@ -211,59 +208,37 @@ class EvaluationCoordinator @Inject constructor(
             insufficientAdvance = calculation.insufficientAdvance,
         )
         decisions.save(decision)
-        // The coordinator owns its own mutex and repeats the enabled/revision/expiry checks.
-        alarms.applyEvaluation(decision)
+        // The coordinator owns its own mutex and re-resolves the fingerprint before committing.
+        alarms.applyEvaluation(decision, resolved.fingerprint)
         return EvaluationRunResult(false, decision = decisions.getById(decision.decisionId) ?: decision)
     }
 
-    private suspend fun resolveInputs(plan: AlarmPlan, date: LocalDate, evaluationId: String): EvaluationInputs? {
-        val persistedSettings = settings.loadInitial()
-        val override = overrides.getForPlanDate(plan.id, date.toString())
-        val commute = commutes.resolveForPlanDate(plan.id, date.toString(), persistedSettings, override) ?: return null
-        val calendarDays = calendar.statuses()
-        val effective = DailySettingsResolver.resolve(
-            plan = plan,
-            date = date,
-            override = override,
-            officialDays = calendarDays,
-            profiles = persistedSettings.weatherBufferProfiles(),
-            commute = commute,
-        )
-        return EvaluationInputs(
-            plan = plan,
-            date = date,
-            evaluationId = evaluationId,
-            settings = persistedSettings,
-            commute = commute,
-            calendarDays = calendarDays,
-            override = override,
-            dayStatus = effective.classification.effectiveStatus,
-            effective = effective,
-            weatherProfile = effective.weatherProfile,
-        )
-    }
-
-    private suspend fun hasSameInputs(before: EvaluationInputs): Boolean {
+    /** Re-resolves the day and reports whether the evaluation inputs are still the same. */
+    private suspend fun hasSameInputs(before: DailyEvaluationInputs): Boolean {
         val latestPlan = plans.getById(before.plan.id) ?: return false
         if (!latestPlan.enabled || latestPlan.revision != before.plan.revision || latestPlan.zoneId != before.plan.zoneId) return false
-        return resolveInputs(latestPlan, before.date, before.evaluationId)?.fingerprint == before.fingerprint
+        val latest = inputs.resolve(latestPlan, before.date)
+        return latest.fingerprint == before.fingerprint
     }
 
-    private suspend fun resolveRoute(inputs: EvaluationInputs): RouteResult = when (inputs.commute.commuteMode) {
-        CommuteMode.DRIVING -> resolveDrivingRoute(inputs)
-        CommuteMode.TRANSIT -> resolveTransitRoute(inputs)
-        else -> {
-            val estimate = routes.estimate(inputs.routeRequest(departureAt = null))
-            val duration = estimate.alternatives.map(RouteAlternative::durationSeconds).filter { it >= 0 }.minOrNull()
-                ?: throw ProviderError(ProviderError.Category.ROUTE_NOT_FOUND, message = "No usable route duration")
-            RouteResult(
-                calculationCommuteSeconds = duration,
-                estimatedDeparture = inputs.arrival.minusSeconds(duration).toInstant(),
-            )
+    private suspend fun resolveRoute(inputs: DailyEvaluationInputs): RouteResult {
+        val commute = requireNotNull(inputs.effectiveCommute)
+        return when (commute.commuteMode) {
+            CommuteMode.DRIVING -> resolveDrivingRoute(inputs)
+            CommuteMode.TRANSIT -> resolveTransitRoute(inputs)
+            else -> {
+                val estimate = routes.estimate(inputs.routeRequest(departureAt = null))
+                val duration = estimate.alternatives.map(RouteAlternative::durationSeconds).filter { it >= 0 }.minOrNull()
+                    ?: throw ProviderError(ProviderError.Category.ROUTE_NOT_FOUND, message = "No usable route duration")
+                RouteResult(
+                    calculationCommuteSeconds = duration,
+                    estimatedDeparture = inputs.arrivalInstant.minusSeconds(duration),
+                )
+            }
         }
     }
 
-    private suspend fun resolveDrivingRoute(inputs: EvaluationInputs): RouteResult {
+    private suspend fun resolveDrivingRoute(inputs: DailyEvaluationInputs): RouteResult {
         // The v5 driving API has no departure-time parameter. Reuse its current-traffic
         // estimate across the local candidates and retain the fallback in the decision.
         // https://lbs.amap.com/api/webservice/guide/api/newroute
@@ -282,7 +257,7 @@ class EvaluationCoordinator @Inject constructor(
         )
     }
 
-    private suspend fun resolveTransitRoute(inputs: EvaluationInputs): RouteResult {
+    private suspend fun resolveTransitRoute(inputs: DailyEvaluationInputs): RouteResult {
         val arrival = inputs.arrival
         val candidateDepartures = EvaluationCoordinatorPolicy.transitCandidateDepartures(arrival)
         for (departure in candidateDepartures) {
@@ -302,48 +277,45 @@ class EvaluationCoordinator @Inject constructor(
     }
 
     private suspend fun persistProviderFailure(
-        inputs: EvaluationInputs,
+        inputs: DailyEvaluationInputs,
+        evaluationId: String,
         attempt: Int,
         generatedAt: Instant,
         deadline: Instant?,
         failure: Throwable,
         kind: ProviderKind,
     ): EvaluationRunResult {
-        if (failure is kotlinx.coroutines.CancellationException) throw failure
+        if (failure is CancellationException) throw failure
         val provider = failure as? ProviderError
         val retryable = EvaluationCoordinatorPolicy.isRetryable(provider)
         return persistFailure(
-            inputs.plan, inputs.date, inputs.evaluationId, attempt, deadline, generatedAt,
+            inputs, evaluationId, attempt, deadline, generatedAt,
             "${kind.name}_${provider?.category?.name ?: "UNEXPECTED"}",
             when (kind) {
                 ProviderKind.ROUTE -> provider.toRouteFallback()
                 ProviderKind.WEATHER -> provider.toWeatherFallback()
             },
-            snapshot = inputs,
             retryable = retryable,
             retryAfterSeconds = provider?.retryAfterSeconds,
         )
     }
 
     private suspend fun persistFailure(
-        plan: AlarmPlan,
-        date: LocalDate,
+        inputs: DailyEvaluationInputs,
         evaluationId: String,
         attempt: Int,
         deadline: Instant?,
         generatedAt: Instant,
         failureReason: String,
         fallbackReason: FallbackReason,
-        snapshot: EvaluationInputs? = null,
         route: RouteResult? = null,
         retryable: Boolean = false,
         retryAfterSeconds: Long? = null,
     ): EvaluationRunResult {
-        val inputs = snapshot ?: resolveInputs(plan, date, evaluationId)
-        val defaultWake = ZonedDateTime.of(date, LocalTime.parse(plan.defaultWakeLocalTime), plan.zoneIdInstance()).toInstant()
-        val decision = if (inputs == null) simpleDecision(plan, date, evaluationId, attempt, generatedAt, deadline ?: defaultWake, EvaluationOutcome.FAILED, failureReason, fallbackReason, defaultWake)
-        else decision(
-            inputs, attempt, generatedAt, deadline ?: defaultWake, EvaluationOutcome.FAILED, failureReason, fallbackReason,
+        val defaultWake = inputs.defaultWakeInstant
+        val decision = decision(
+            inputs, evaluationId, attempt, generatedAt, deadline ?: defaultWake, EvaluationOutcome.FAILED,
+            failureReason, fallbackReason,
             route?.estimatedDeparture, route?.calculationCommuteSeconds, 0, 0, defaultWake,
             route?.let { "AMAP_WEB" }, null, null, null, null, null, false,
         )
@@ -351,51 +323,69 @@ class EvaluationCoordinator @Inject constructor(
         return EvaluationRunResult(retryable, retryAfterSeconds, decision)
     }
 
-    private suspend fun persistSkipped(inputs: EvaluationInputs, attempt: Int, generatedAt: Instant, deadline: Instant?): EvaluationRunResult {
-        val wake = inputs.defaultWake.toInstant()
+    private suspend fun persistSkipped(
+        inputs: DailyEvaluationInputs,
+        evaluationId: String,
+        attempt: Int,
+        generatedAt: Instant,
+        deadline: Instant?,
+    ): EvaluationRunResult {
+        val wake = inputs.defaultWakeInstant
         val decision = decision(
-            inputs, attempt, generatedAt, deadline ?: wake, EvaluationOutcome.SKIPPED, "DATE_NOT_APPLICABLE", FallbackReason.NONE,
+            inputs, evaluationId, attempt, generatedAt, deadline ?: wake, EvaluationOutcome.SKIPPED,
+            "DATE_NOT_APPLICABLE", FallbackReason.NONE,
             null, null, 0, 0, wake, null, null, null, null, null, null, false,
         )
         decisions.save(decision)
         return EvaluationRunResult(false, decision = decision)
     }
 
-    private suspend fun persistStale(inputs: EvaluationInputs, attempt: Int, generatedAt: Instant, expiresAt: Instant, reason: String): EvaluationRunResult {
-        val wake = inputs.defaultWake.toInstant()
+    private suspend fun persistStale(
+        inputs: DailyEvaluationInputs,
+        evaluationId: String,
+        attempt: Int,
+        generatedAt: Instant,
+        expiresAt: Instant,
+        reason: String,
+    ): EvaluationRunResult {
+        val wake = inputs.defaultWakeInstant
         val decision = decision(
-            inputs, attempt, generatedAt, expiresAt, EvaluationOutcome.STALE, reason, FallbackReason.STALE_RESPONSE,
+            inputs, evaluationId, attempt, generatedAt, expiresAt, EvaluationOutcome.STALE,
+            reason, FallbackReason.STALE_RESPONSE,
             null, null, 0, 0, wake, null, null, null, null, null, null, false,
         )
         decisions.save(decision)
         return EvaluationRunResult(false, decision = decision)
     }
-
-    private fun simpleDecision(
-        plan: AlarmPlan, date: LocalDate, evaluationId: String, attempt: Int, generatedAt: Instant, expiresAt: Instant,
-        outcome: EvaluationOutcome, failure: String, fallback: FallbackReason, defaultWake: Instant,
-    ) = AlarmDecision(
-        decisionId = decisionId(plan, date, attempt, evaluationId), planId = plan.id, planRevision = plan.revision,
-        targetDate = date.toString(), workdayStatus = null, estimatedDepartureAt = null, commuteSeconds = null,
-        weatherSeverity = 0, weatherBufferMinutes = 0, recommendedWakeAt = defaultWake.toString(), routeProvider = null,
-        routeProviderReportTime = null, weatherProvider = null, weatherProviderReportTime = null, weatherWindowStart = null,
-        weatherWindowEnd = null, fallbackReason = fallback, insufficientAdvance = false, generatedAt = generatedAt.toString(),
-        expiresAt = expiresAt.toString(), evaluationOutcome = outcome, failureReason = failure, attemptNumber = attempt,
-        preparationMinutes = plan.preparationMinutes, defaultWakeAt = defaultWake.toString(),
-        planName = plan.name, zoneId = plan.zoneId,
-        applicationOutcome = "NOT_APPLIED",
-    )
 
     private fun decision(
-        snapshot: EvaluationInputs, attempt: Int, generatedAt: Instant, expiresAt: Instant, outcome: EvaluationOutcome,
-        failureReason: String?, fallbackReason: FallbackReason, estimatedDeparture: Instant?, commuteSeconds: Long?,
-        weatherSeverity: Int, weatherBufferMinutes: Int, recommendedWake: Instant, routeProvider: String?,
-        routeProviderReportTime: Instant?, weatherProvider: String?, weatherProviderReportTime: Instant?,
-        weatherWindow: WeatherTimeWindow?, weatherDataSource: WeatherDataSource?, insufficientAdvance: Boolean,
+        inputs: DailyEvaluationInputs,
+        evaluationId: String,
+        attempt: Int,
+        generatedAt: Instant,
+        expiresAt: Instant,
+        outcome: EvaluationOutcome,
+        failureReason: String?,
+        fallbackReason: FallbackReason,
+        estimatedDeparture: Instant?,
+        commuteSeconds: Long?,
+        weatherSeverity: Int,
+        weatherBufferMinutes: Int,
+        recommendedWake: Instant,
+        routeProvider: String?,
+        routeProviderReportTime: Instant?,
+        weatherProvider: String?,
+        weatherProviderReportTime: Instant?,
+        weatherWindow: WeatherTimeWindow?,
+        weatherDataSource: WeatherDataSource?,
+        insufficientAdvance: Boolean,
     ) = AlarmDecision(
-        decisionId = decisionId(snapshot.plan, snapshot.date, attempt, snapshot.evaluationId), planId = snapshot.plan.id,
-        planRevision = snapshot.plan.revision, targetDate = snapshot.date.toString(),
-        workdayStatus = snapshot.dayStatus.toDecisionStatus(), estimatedDepartureAt = estimatedDeparture?.toString(),
+        decisionId = decisionId(inputs.plan, inputs.date, attempt, evaluationId),
+        planId = inputs.plan.id,
+        planRevision = inputs.plan.revision,
+        targetDate = inputs.date.toString(),
+        workdayStatus = inputs.dayStatus.toDecisionStatus(),
+        estimatedDepartureAt = estimatedDeparture?.toString(),
         commuteSeconds = commuteSeconds, weatherSeverity = weatherSeverity, weatherBufferMinutes = weatherBufferMinutes,
         recommendedWakeAt = recommendedWake.toString(), routeProvider = routeProvider,
         routeProviderReportTime = routeProviderReportTime?.toString(), weatherProvider = weatherProvider,
@@ -405,11 +395,12 @@ class EvaluationCoordinator @Inject constructor(
         evaluationOutcome = outcome, failureReason = failureReason, attemptNumber = attempt,
         // The decision stores the values this evaluation actually used. Editing the day
         // override later never rewrites an earlier decision snapshot.
-        preparationMinutes = snapshot.effective.preparationMinutes, defaultWakeAt = snapshot.defaultWake.toInstant().toString(),
-        arrivalLocalTime = snapshot.effective.arrivalLocalTime,
-        dayRevision = snapshot.effective.dayRevision,
-        calendarSource = snapshot.calendarSource, weatherDataSource = weatherDataSource?.name,
-        planName = snapshot.plan.name, zoneId = snapshot.plan.zoneId,
+        preparationMinutes = inputs.effective.preparationMinutes,
+        defaultWakeAt = inputs.defaultWakeInstant.toString(),
+        arrivalLocalTime = inputs.effective.arrivalLocalTime,
+        dayRevision = inputs.committedRevision,
+        calendarSource = inputs.calendarSource, weatherDataSource = weatherDataSource?.name,
+        planName = inputs.plan.name, zoneId = inputs.plan.zoneId,
         applicationOutcome = if (outcome == EvaluationOutcome.SUCCESS) null else "NOT_APPLIED",
     )
 
@@ -427,30 +418,19 @@ private data class RouteResult(
     val fallbackReason: FallbackReason? = null,
 )
 
-private data class EvaluationInputs(
-    val plan: AlarmPlan,
-    val date: LocalDate,
-    val evaluationId: String,
-    val settings: LocalSettings,
-    val commute: EffectiveCommute,
-    val calendarDays: Map<String, DayStatus>,
-    val override: SingleDayOverride?,
-    val dayStatus: DayStatus,
-    val effective: EffectiveDailySettings,
-    val weatherProfile: WeatherBufferProfile,
-) {
-    val defaultWake: ZonedDateTime get() = ZonedDateTime.of(date, requireNotNull(effective.wakeLocalTime), plan.zoneIdInstance())
-    val arrival: ZonedDateTime get() = ZonedDateTime.of(date, requireNotNull(effective.arrivalLocalTimeValue), plan.zoneIdInstance())
-    val calendarSource: String get() = when {
-        override?.status != null -> "PLAN_OVERRIDE"
-        calendarDays.containsKey(date.toString()) -> "HOLIDAY_CN"
-        else -> "WEEKDAY_FALLBACK"
-    }
-    val fingerprint: List<Any?> get() = EvaluationCoordinatorPolicy.fingerprint(
-        plan, commute, override, dayStatus, weatherProfile, calendarSource, settings, effective,
-    )
+/** Local wall-clock instants of the resolved day, derived from the effective values only. */
+private val DailyEvaluationInputs.defaultWakeInstant: Instant
+    get() = ZonedDateTime.of(date, requireNotNull(effective.wakeLocalTime), plan.zoneIdInstance()).toInstant()
 
-    fun routeRequest(departureAt: LocalDateTime?): RouteRequest = RouteRequest(
+private val DailyEvaluationInputs.arrivalInstant: Instant
+    get() = ZonedDateTime.of(date, requireNotNull(effective.arrivalLocalTimeValue), plan.zoneIdInstance()).toInstant()
+
+private val DailyEvaluationInputs.arrival: ZonedDateTime
+    get() = ZonedDateTime.of(date, requireNotNull(effective.arrivalLocalTimeValue), plan.zoneIdInstance())
+
+private fun DailyEvaluationInputs.routeRequest(departureAt: LocalDateTime?): RouteRequest {
+    val commute = requireNotNull(effectiveCommute)
+    return RouteRequest(
         origin = commute.origin.toPoint(), destination = commute.destination.toPoint(), mode = commute.commuteMode,
         policy = plan.routePolicy, originCity = commute.origin.citycode.takeIf(String::isNotBlank),
         destinationCity = commute.destination.citycode.takeIf(String::isNotBlank), departureAt = departureAt,
@@ -463,37 +443,21 @@ internal object EvaluationCoordinatorPolicy {
     fun isRetryable(error: ProviderError?): Boolean = error?.retryable == true ||
         (error?.category == ProviderError.Category.PROVIDER_FAILURE && error.providerCode?.startsWith("HTTP_5") == true)
 
-    /**
-     * Complete input identity for a submitted evaluation. The day revision and every resolved
-     * daily value are part of it, so a save or undo that lands during a provider call makes
-     * the in-flight result stale instead of re-registering an instance for outdated inputs.
-     */
-    fun fingerprint(
-        plan: AlarmPlan,
-        commute: EffectiveCommute,
+    fun isEligible(
+        schedule: AlarmSchedule?,
+        date: LocalDate,
+        status: DayStatus,
         override: SingleDayOverride?,
-        dayStatus: DayStatus,
-        weatherProfile: WeatherBufferProfile,
-        calendarSource: String,
-        settings: LocalSettings,
-        effective: EffectiveDailySettings,
-    ): List<Any?> = listOf(
-        plan.revision, plan.enabled, plan.zoneId, plan.defaultWakeLocalTime, plan.arrivalLocalTime,
-        plan.preparationMinutes, plan.maxAdvanceMinutes, plan.schedule, plan.routePolicy, plan.weatherRuleVersion,
-        commute, override?.dayRevision, dayStatus, weatherProfile, calendarSource,
-        effective.defaultWakeLocalTime, effective.arrivalLocalTime, effective.preparationMinutes,
-        effective.classification.baseDayKind, effective.classification.source,
-        settings.amapConsentGranted, settings.amapConsentPromptedVersion,
-    )
-
-    fun isEligible(schedule: AlarmSchedule?, date: LocalDate, status: DayStatus, override: SingleDayOverride?): Boolean = when (schedule) {
-        is AlarmSchedule.Once -> schedule.date == date.toString() && override?.status != DayStatus.HOLIDAY
+    ): Boolean = when (schedule) {
+        is AlarmSchedule.Once ->
+            schedule.date == date.toString() && override?.status != DayStatus.HOLIDAY
         is AlarmSchedule.Weekly -> when (override?.status) {
             DayStatus.WORKDAY -> true
             DayStatus.HOLIDAY -> false
             null -> date.dayOfWeek.value in schedule.days
         }
-        AlarmSchedule.Workdays -> status == DayStatus.WORKDAY
+        AlarmSchedule.Workdays ->
+            status == DayStatus.WORKDAY
         null -> false
     }
 
@@ -501,7 +465,10 @@ internal object EvaluationCoordinatorPolicy {
      * Weather window for the resolved day inputs. The window starts from the effective wake
      * time minus the advance allowance and ends at the effective arrival time.
      */
-    fun weatherWindow(plan: AlarmPlan, effective: EffectiveDailySettings): WeatherTimeWindow {
+    fun weatherWindow(
+        plan: AlarmPlan,
+        effective: EffectiveDailySettings,
+    ): WeatherTimeWindow {
         val zone = plan.zoneIdInstance()
         val end = ZonedDateTime.of(effective.date, requireNotNull(effective.arrivalLocalTimeValue), zone)
         return WeatherTimeWindow(
@@ -518,21 +485,17 @@ internal object EvaluationCoordinatorPolicy {
         (0..3).map { arrival.minusMinutes(90L + it * 15L) }
 }
 
-private fun LocalSettings.weatherBufferProfiles() = WeatherBufferProfiles(
-    workday = workdayWeatherBuffers.toProfile(),
-    weekend = weekendWeatherBuffers.toProfile(),
-    statutoryRest = holidayWeatherBuffers.toProfile(),
-)
-
 private fun PlaceRef.toPoint() = GeoPoint(longitudeGcj02, latitudeGcj02)
-private fun WeatherBuffers.toProfile() = WeatherBufferProfile(lightMinutes, moderateMinutes, severeMinutes)
-private fun DayStatus.toDecisionStatus() = if (this == DayStatus.WORKDAY) WorkdayStatus.WORKDAY else WorkdayStatus.HOLIDAY
+private fun DayStatus.toDecisionStatus() =
+    if (this == DayStatus.WORKDAY) WorkdayStatus.WORKDAY else WorkdayStatus.HOLIDAY
+
 private fun ProviderError?.toRouteFallback(): FallbackReason = when (this?.category) {
     ProviderError.Category.TIMEOUT -> FallbackReason.ROUTE_PROVIDER_TIMEOUT
     ProviderError.Category.QUOTA_EXCEEDED, ProviderError.Category.RATE_LIMITED -> FallbackReason.ROUTE_PROVIDER_QUOTA
     ProviderError.Category.ROUTE_NOT_FOUND -> FallbackReason.ROUTE_NOT_FOUND
     else -> FallbackReason.ROUTE_NOT_FOUND
 }
+
 private fun ProviderError?.toWeatherFallback(): FallbackReason = when (this?.category) {
     ProviderError.Category.TIMEOUT -> FallbackReason.WEATHER_PROVIDER_TIMEOUT
     ProviderError.Category.INVALID_KEY, ProviderError.Category.MISSING_KEY, ProviderError.Category.CONSENT_REQUIRED -> FallbackReason.WEATHER_PROVIDER_AUTH

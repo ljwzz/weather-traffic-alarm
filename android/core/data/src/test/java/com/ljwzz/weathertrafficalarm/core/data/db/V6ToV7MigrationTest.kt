@@ -27,6 +27,9 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class V6ToV7MigrationTest {
+
+    private val FIXED_NOW = java.time.Instant.parse("2026-09-01T00:00:00Z").toEpochMilli()
+
     private lateinit var context: Context
     private lateinit var databaseName: String
     private lateinit var db: AppDatabase
@@ -41,6 +44,7 @@ class V6ToV7MigrationTest {
         createV6Fixture()
         db = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .addMigrations(AppDatabaseMigrations.V6_TO_V7)
+            .addMigrations(AppDatabaseMigrations.V7_TO_V8)
             .build()
     }
 
@@ -97,9 +101,13 @@ class V6ToV7MigrationTest {
 
     @Test
     fun `the migrated table accepts the complete N004 row and round trips it`() = runBlocking {
-        val repository = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
-        val saved = repository.save(
-            SingleDayOverride(
+        val repository = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val saved = requireNotNull(
+            repository.commitCurrent(
+                planId = "plan-v6",
+                date = "2026-09-07",
+                now = FIXED_NOW,
+                replacement = SingleDayOverride(
                 planId = "plan-v6",
                 date = "2026-09-07",
                 status = DayStatus.WORKDAY,
@@ -109,11 +117,12 @@ class V6ToV7MigrationTest {
                 weatherProfile = WeatherBufferProfile(0, 30, 60),
                 origin = PlaceRef("h", "Home", "Home", 116.397428, 39.90923, "110000", "010"),
                 destination = PlaceRef("o", "Office", "Office", 116.407428, 39.91923, "110000", "010"),
-                commuteMode = CommuteMode.TRANSIT,
+                    commuteMode = CommuteMode.TRANSIT,
+                ),
             ),
         )
 
-        assertEquals(1L, saved.dayRevision)
+        assertEquals(1L, saved.committedRevision)
         val reloaded = repository.getForPlanDate("plan-v6", "2026-09-07")
         assertNotNull(reloaded)
         assertEquals("08:45", reloaded!!.arrivalLocalTime)

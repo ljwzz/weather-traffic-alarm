@@ -81,6 +81,9 @@ import com.ljwzz.weathertrafficalarm.core.model.CommuteSource
 import com.ljwzz.weathertrafficalarm.core.model.DailySettingSource
 import com.ljwzz.weathertrafficalarm.core.model.DayClassification
 import com.ljwzz.weathertrafficalarm.core.model.DayKind
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideChange
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideFailureCode
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideSaveResult
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.EffectiveDailySettings
 import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
@@ -105,7 +108,7 @@ fun LocalCalendarScreen(
     overrides: List<SingleDayOverride>,
     calendarState: CalendarUiState,
     loadEditorInputs: suspend (planId: String, date: String) -> DayEditorInputs?,
-    onSave: (SingleDayOverride, onComplete: (String?) -> Unit) -> Unit,
+    onSave: (DayOverrideChange, onComplete: (DayOverrideSaveResult) -> Unit) -> Unit,
     onRefresh: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -116,15 +119,29 @@ fun LocalCalendarScreen(
     var draft by remember { mutableStateOf(DayOverrideDraft()) }
     var timeField by remember { mutableStateOf<DayTimeField?>(null) }
     var feedback by remember { mutableStateOf<String?>(null) }
+    var fieldErrors by remember { mutableStateOf(DayDraftErrors()) }
+    var failureCode by remember { mutableStateOf<DayOverrideFailureCode?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    var reloadToken by remember { mutableStateOf(0) }
     var persisted by remember { mutableStateOf(false) }
     val activePlan = plans.firstOrNull { it.id == selectedPlanId } ?: plans.firstOrNull()
     val activePlanId = activePlan?.id
     val existing = overrides.firstOrNull { it.planId == activePlanId && it.date == selectedDate.toString() }
 
     LaunchedEffect(Unit) { onRefresh(false) }
-    LaunchedEffect(activePlanId, selectedDate, overrides, calendarState.days) {
+    val storedForDate = overrides.firstOrNull { it.planId == activePlanId && it.date == selectedDate.toString() }
+    // Selecting another plan or date starts a fresh draft.
+    LaunchedEffect(activePlanId, selectedDate) {
         feedback = null
+        fieldErrors = DayDraftErrors()
+        failureCode = null
         persisted = false
+        reloadToken += 1
+    }
+    // Loading inputs is bound to the selection and to an explicit reload. Another date's save, a
+    // calendar refresh or a rejected save never overwrite the draft the user is editing; a change
+    // to this very date surfaces on the next save as a conflict with a reload action.
+    LaunchedEffect(activePlanId, selectedDate, reloadToken) {
         val planId = activePlanId
         if (planId == null) {
             inputs = null
@@ -142,45 +159,53 @@ fun LocalCalendarScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    val plan = activePlan ?: return@Button
                     val current = inputs ?: return@Button
-                    val base = existing ?: SingleDayOverride(plan.id, selectedDate.toString())
-                    val next = draft.applyTo(base)
-                    if (next.isInheritingEverything) {
-                        if (existing == null) {
-                            // Nothing is stored and nothing is drafted: the date already inherits everything.
-                            persisted = true
-                            feedback = null
-                            return@Button
-                        }
-                        // Removing the row restores the calendar classification and re-arms the plan.
-                        onSave(next) { failure ->
-                            if (failure == null) {
-                                persisted = true
-                                feedback = null
-                            } else {
-                                // A rejected undo keeps the previously stored values in the database.
-                                draft = DayOverrideDraft.from(current)
-                                feedback = failure
-                            }
-                        }
+                    if (saving) return@Button
+                    val errors = draft.validate(current)
+                    fieldErrors = errors
+                    if (errors.hasErrors) {
+                        // Invalid drafts never reach the save callback and never write to storage.
+                        failureCode = null
+                        feedback = errors.firstMessage
                         return@Button
                     }
-                    onSave(next) { failure ->
-                        if (failure == null) {
+                    if (draft.isEmptySnapshot()) {
+                        if (storedForDate == null) {
+                            // Nothing stored and nothing drafted: the date already inherits everything.
                             persisted = true
                             feedback = null
-                        } else {
-                            draft = DayOverrideDraft.from(current)
-                            feedback = failure
+                            failureCode = null
+                            return@Button
+                        }
+                    }
+                    saving = true
+                    feedback = null
+                    failureCode = null
+                    onSave(draft.toChange(current)) { result ->
+                        saving = false
+                        when (result) {
+                            is DayOverrideSaveResult.Success -> {
+                                persisted = true
+                                feedback = null
+                                failureCode = null
+                                fieldErrors = DayDraftErrors()
+                                // Reload the committed revision so the next save is not a conflict.
+                                reloadToken += 1
+                            }
+                            // A rejected save keeps the user's draft and the stored values.
+                            is DayOverrideSaveResult.Failure -> {
+                                persisted = false
+                                failureCode = result.code
+                                feedback = result.message
+                            }
                         }
                     }
                 },
-                enabled = activePlan != null && inputs != null,
+                enabled = activePlan != null && inputs != null && !saving,
                 modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("day_override_save"),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand),
-            ) { Text(if (existing == null && draft.isInheriting) "保持自动规则" else "保存当前日期") }
+            ) { Text(if (saving) "保存中…" else if (storedForDate == null && draft.isInheriting) "保持自动规则" else "保存当前日期") }
         },
     ) { padding ->
         LazyColumn(
@@ -254,6 +279,7 @@ fun LocalCalendarScreen(
                     DayWeatherCard(
                         draft = draft,
                         effective = current.effective,
+                        inherited = current.inherited,
                         onProfile = { draft = draft.copy(weatherProfile = it) },
                     )
                 }
@@ -268,12 +294,24 @@ fun LocalCalendarScreen(
                 item {
                     DayInheritanceSummary(
                         effective = current.effective,
+                        inherited = current.inherited,
                         draft = draft,
                         persisted = persisted,
                     )
                 }
             }
-            feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }
+            feedback?.let { message ->
+                item {
+                    LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) {
+                        if (failureCode == DayOverrideFailureCode.CONFLICT) {
+                            TextButton(
+                                onClick = { reloadToken += 1 },
+                                modifier = Modifier.testTag("day_override_reload"),
+                            ) { Text("重新载入本日设置") }
+                        }
+                    }
+                }
+            }
         }
     }
     val field = timeField
@@ -302,6 +340,28 @@ fun LocalCalendarScreen(
 internal enum class DayTimeField { WAKE, ARRIVAL }
 
 /**
+ * Weather step baseline: the draft's own three values once it has one, otherwise the profile the
+ * target date really inherits from the plan, the global configuration and the raw date category.
+ */
+internal fun bufferBaseline(draft: DayOverrideDraft, inherited: EffectiveDailySettings): WeatherBufferProfile =
+    draft.weatherProfile ?: inherited.weatherProfile
+
+/** Field-level validation result of one day draft; nothing is written while any entry is set. */
+internal data class DayDraftErrors(
+    val wake: String? = null,
+    val arrival: String? = null,
+    val preparation: String? = null,
+    val weather: String? = null,
+    val commute: String? = null,
+) {
+    val hasErrors: Boolean
+        get() = listOfNotNull(wake, arrival, preparation, weather, commute).isNotEmpty()
+
+    val firstMessage: String?
+        get() = listOfNotNull(commute, wake, arrival, preparation, weather).firstOrNull()
+}
+
+/**
  * Editable single-day draft. Null means "inherit"; the stored row also keeps its
  * persisted revision so a save only touches this plan and date.
  */
@@ -328,15 +388,57 @@ internal data class DayOverrideDraft(
             weatherProfile == null && !weatherEdited && !commuteEdited &&
             origin == null && destination == null && commuteMode == null
 
-    fun applyTo(base: SingleDayOverride): SingleDayOverride = base.copy(
-        status = status,
-        wakeLocalTime = wake,
-        arrivalLocalTime = arrival,
-        preparationMinutes = preparationMinutes,
-        weatherProfile = weatherProfile,
-        origin = if (commuteEdited) origin else base.origin,
-        destination = if (commuteEdited) destination else base.destination,
-        commuteMode = if (commuteEdited) commuteMode else base.commuteMode,
+    /** True when the draft carries no user-visible change and would remove the stored row. */
+    fun isEmptySnapshot(): Boolean = isInheriting
+
+    /**
+     * Validates the draft against the contract before any domain object is constructed. An
+     * incomplete or contradictory commute, an unparseable time and an out-of-range number are
+     * reported as field errors instead of escaping as an exception.
+     */
+    fun validate(inputs: DayEditorInputs): DayDraftErrors {
+        val plan = inputs.plan
+        val errors = DayDraftErrors(
+            wake = wake?.takeIf { SingleDayOverride.parseLocalTime(it) == null }?.let { "响铃时间无效" },
+            arrival = arrival?.takeIf { SingleDayOverride.parseLocalTime(it) == null }?.let { "到岗时间无效" },
+            preparation = preparationMinutes?.takeIf { it !in 0..240 }?.let { "准备时长需在 0–240 分钟" },
+            weather = weatherProfile?.takeIf {
+                it.lightMinutes !in 0..60 || it.moderateMinutes !in 0..60 || it.severeMinutes !in 0..60
+            }?.let { "天气缓冲每档需在 0–60 分钟" },
+            commute = when {
+                !commuteEdited && origin == null && destination == null && commuteMode == null -> null
+                origin == null || destination == null || commuteMode == null -> "本日通勤需要同时选择起点和终点"
+                origin == destination -> "本日通勤的起点和终点不能相同"
+                else -> null
+            },
+        )
+        return errors.copy(wake = errors.wake.takeIf { SingleDayOverride.parseLocalTime(plan.defaultWakeLocalTime) == null || it != null })
+    }
+
+    /** Snapshot for a valid draft; null when validation fails, so nothing is written. */
+    fun toChangeOrNull(inputs: DayEditorInputs): DayOverrideChange? =
+        if (validate(inputs).hasErrors) null else toChange(inputs)
+
+    /**
+     * Builds the complete replacement snapshot for this date. Every null field means "restore
+     * inheritance", so a cleared field really clears the stored value.
+     */
+    fun toChange(inputs: DayEditorInputs): DayOverrideChange = DayOverrideChange(
+        planId = inputs.plan.id,
+        date = inputs.effective.date.toString(),
+        expectedDayRevision = inputs.dayRevision,
+        replacement = SingleDayOverride(
+            planId = inputs.plan.id,
+            date = inputs.effective.date.toString(),
+            status = status,
+            wakeLocalTime = wake,
+            arrivalLocalTime = arrival,
+            preparationMinutes = preparationMinutes,
+            weatherProfile = weatherProfile,
+            origin = if (commuteEdited) origin else null,
+            destination = if (commuteEdited) destination else null,
+            commuteMode = if (commuteEdited) commuteMode else null,
+        ),
     )
 
     companion object {
@@ -493,9 +595,11 @@ private fun DayPreparationCard(
 private fun DayWeatherCard(
     draft: DayOverrideDraft,
     effective: EffectiveDailySettings,
+    inherited: EffectiveDailySettings,
     onProfile: (WeatherBufferProfile?) -> Unit,
 ) {
-    val inherited = inheritedProfile(effective)
+    // The step baseline is the real inherited tier, not the factory constant.
+    val inherited = bufferBaseline(draft, inherited)
     val profile = draft.weatherProfile ?: inherited
     LocalCard {
         Text("本日天气缓冲", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
@@ -580,6 +684,7 @@ private fun DayCommuteCard(
 @Composable
 private fun DayInheritanceSummary(
     effective: EffectiveDailySettings,
+    inherited: EffectiveDailySettings,
     draft: DayOverrideDraft,
     persisted: Boolean,
 ) {
@@ -591,7 +696,7 @@ private fun DayInheritanceSummary(
             add("响铃" to (draft.wake ?: effective.defaultWakeLocalTime))
             add("到岗" to (draft.arrival ?: effective.arrivalLocalTime))
             add("准备" to "${draft.preparationMinutes ?: effective.preparationMinutes} 分钟")
-            add("天气缓冲" to bufferText(draft.weatherProfile ?: inheritedProfile(effective)))
+            add("天气缓冲" to bufferText(draft.weatherProfile ?: inherited.weatherProfile))
             add(
                 "通勤" to when {
                     draft.commuteEdited && draft.origin != null && draft.destination != null && draft.commuteMode != null ->
@@ -622,12 +727,6 @@ private fun weatherKindLabel(effective: EffectiveDailySettings): String = when (
     DayKind.WORKDAY -> "工作日"
     DayKind.WEEKEND_REST -> "普通周末"
     DayKind.STATUTORY_REST -> "法定休息日"
-}
-
-private fun inheritedProfile(effective: EffectiveDailySettings): WeatherBufferProfile = when (effective.classification.baseDayKind) {
-    DayKind.WORKDAY -> WeatherBufferProfile.WORKDAY_DEFAULT
-    DayKind.WEEKEND_REST -> WeatherBufferProfile.WEEKEND_DEFAULT
-    DayKind.STATUTORY_REST -> WeatherBufferProfile.STATUTORY_REST_DEFAULT
 }
 
 private fun bufferText(profile: WeatherBufferProfile): String =
@@ -1293,7 +1392,7 @@ private val commuteModes = listOf(
     colors = CardDefaults.cardColors(containerColor = background),
     border = border,
 ) { Column(Modifier.fillMaxWidth().padding(16.dp), content = content) }
-@Composable private fun LocalInfoCard(title: String, body: String, background: Color = ZhituColors.Surface, color: Color = ZhituColors.Ink) = LocalCard(background) { Text(title, fontWeight = FontWeight.Bold, color = color); Spacer(Modifier.height(6.dp)); Text(body, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
+@Composable private fun LocalInfoCard(title: String, body: String, background: Color = ZhituColors.Surface, color: Color = ZhituColors.Ink, action: (@Composable () -> Unit)? = null) = LocalCard(background) { Text(title, fontWeight = FontWeight.Bold, color = color); Spacer(Modifier.height(6.dp)); Text(body, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall); action?.invoke() }
 private fun fallbackStatus(date: LocalDate) = if (date.dayOfWeek.value <= 5) DayStatus.WORKDAY else DayStatus.HOLIDAY
 private fun statusLabel(status: DayStatus) = if (status == DayStatus.WORKDAY) "工作日" else "休息日"
 

@@ -40,4 +40,9 @@ data class NextAlarmSnapshot(
     val targetDate: String? = null,
     /** Baseline regular wake instant for Direct-Boot display of an advance occurrence. */
     val defaultWakeAtMillis: Long? = null,
+    /**
+     * Day revision of the logical target date this instance was registered for. Snapshots written
+     * before N004 fixes read as 0 and are treated as legacy format during recovery.
+     */
+    val dayRevision: Long = 0,
 )

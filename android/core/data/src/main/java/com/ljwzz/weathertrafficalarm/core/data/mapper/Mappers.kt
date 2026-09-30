@@ -76,6 +76,7 @@ fun AlarmOccurrenceEntity.toDomain(): AlarmOccurrence = AlarmOccurrence(
     kind = kind,
     parentOccurrenceId = parentOccurrenceId,
     updatedAt = updatedAt,
+    dayRevision = dayRevision,
 )
 
 fun AlarmOccurrence.toEntity(): AlarmOccurrenceEntity = AlarmOccurrenceEntity(
@@ -89,6 +90,7 @@ fun AlarmOccurrence.toEntity(): AlarmOccurrenceEntity = AlarmOccurrenceEntity(
     kind = kind,
     parentOccurrenceId = parentOccurrenceId,
     updatedAt = updatedAt,
+    dayRevision = dayRevision,
 )
 
 fun AlarmDecisionEntity.toDomain(): AlarmDecision = AlarmDecision(

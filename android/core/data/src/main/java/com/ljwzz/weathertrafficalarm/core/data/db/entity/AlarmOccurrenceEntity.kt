@@ -25,4 +25,6 @@ data class AlarmOccurrenceEntity(
     @ColumnInfo(name = "kind") val kind: OccurrenceKind = OccurrenceKind.REGULAR,
     @ColumnInfo(name = "parent_occurrence_id") val parentOccurrenceId: String? = null,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    /** Day revision of the target date (database v8); pre-v8 rows read as 0. */
+    @ColumnInfo(name = "day_revision", defaultValue = "0") val dayRevision: Long = 0,
 )

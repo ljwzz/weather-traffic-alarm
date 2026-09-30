@@ -3,6 +3,14 @@ package com.ljwzz.weathertrafficalarm.core.alarm
 import android.content.Context
 import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
+import androidx.room3.executeSQL
+import androidx.room3.useWriterConnection
+import com.ljwzz.weathertrafficalarm.core.data.repository.DayOverrideAllocation
+import com.ljwzz.weathertrafficalarm.core.model.DayCommitCredential
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideFailureCode
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmRegistrationResult
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmSchedulingGateway
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.RegistrationFailure
@@ -13,7 +21,10 @@ import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.CommuteOverrideMutation
+import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
@@ -25,6 +36,9 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideChange
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideSaveResult
+import com.ljwzz.weathertrafficalarm.core.model.DayRegistrationState
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
@@ -58,6 +72,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LocalAlarmCoordinatorTest {
+
+    private val FIXED_NOW = Instant.parse("2026-07-01T00:00:00Z").toEpochMilli()
+    private val TOMORROW = LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(1).toString()
     private lateinit var context: Context
     private lateinit var db: AppDatabase
     private lateinit var plans: AlarmPlanRepository
@@ -67,6 +84,7 @@ class LocalAlarmCoordinatorTest {
     private lateinit var events: AlarmEventRepository
     private lateinit var snapshots: NextAlarmSnapshotStore
     private lateinit var gateway: FakeGateway
+    private lateinit var dailyInputs: DailyEvaluationInputResolver
     private lateinit var coordinator: LocalAlarmCoordinator
 
     @Before
@@ -81,16 +99,27 @@ class LocalAlarmCoordinatorTest {
         snapshots = NextAlarmSnapshotStore(context)
         snapshots.clear()
         gateway = FakeGateway()
+        val settingsStore = LocalSettingsStore(context)
+        val overrideRepository = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val calendarRepository = WorkdayCalendarRepository(context)
+        dailyInputs = DailyEvaluationInputResolver(
+            plans = plans,
+            settings = settingsStore,
+            commutes = EffectiveCommuteResolver(commuteOverrides),
+            overrides = overrideRepository,
+            calendar = calendarRepository,
+        )
         coordinator = LocalAlarmCoordinator(
             context = context,
             planRepository = plans,
             occurrenceRepository = occurrences,
             decisionRepository = decisions,
             eventRepository = events,
-            overrideRepository = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao()),
-            calendarRepository = WorkdayCalendarRepository(context),
+            overrideRepository = overrideRepository,
+            calendarRepository = calendarRepository,
             scheduler = gateway,
             snapshotStore = snapshots,
+            dailyInputs = dailyInputs,
         )
     }
 
@@ -395,7 +424,10 @@ class LocalAlarmCoordinatorTest {
             .copy(parentOccurrenceId = advance.occurrenceId)
         listOf(regular, advance, snooze).forEach { occurrences.save(it) }
 
-        coordinator.setDayOverride(SingleDayOverride(existing.id, regular.targetDate, DayStatus.HOLIDAY))
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        coordinator.setDayOverride(
+            dayChange(existing.id, regular.targetDate, overrides, SingleDayOverride(existing.id, regular.targetDate, DayStatus.HOLIDAY)),
+        )
 
         assertEquals(OccurrenceState.CANCELLED, occurrences.getById(advance.occurrenceId)?.state)
         assertEquals(OccurrenceState.CANCELLED, occurrences.getById(snooze.occurrenceId)?.state)
@@ -404,7 +436,7 @@ class LocalAlarmCoordinatorTest {
 
         val replacement = occurrence(existing, "replacement", OccurrenceState.SCHEDULED, OccurrenceKind.ADVANCE)
         occurrences.save(replacement)
-        coordinator.clearDayOverride(existing.id, regular.targetDate)
+        coordinator.clearDayOverride(existing.id, regular.targetDate, overrides.committedRevision(existing.id, regular.targetDate))
         assertEquals(OccurrenceState.CANCELLED, occurrences.getById(replacement.occurrenceId)?.state)
     }
 
@@ -414,19 +446,38 @@ class LocalAlarmCoordinatorTest {
         db.alarmPlanDao().upsert(existing.toEntity())
         val target = LocalDate.now(ZoneId.of(existing.zoneId)).plusDays(1)
         val other = target.plusDays(1)
-        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
 
         val first = coordinator.setDayOverride(
-            SingleDayOverride(existing.id, target.toString(), DayStatus.WORKDAY, arrivalLocalTime = "08:45"),
+            dayChange(existing.id, target.toString(), overrides, SingleDayOverride(existing.id, target.toString(), DayStatus.WORKDAY, arrivalLocalTime = "08:45")),
         )
         val second = coordinator.setDayOverride(
-            SingleDayOverride(existing.id, target.toString(), DayStatus.WORKDAY, preparationMinutes = 15),
+            DayOverrideChange(
+                planId = existing.id,
+                date = target.toString(),
+                expectedDayRevision = (first as DayOverrideSaveResult.Success).dayRevision,
+                replacement = SingleDayOverride(
+                    existing.id,
+                    target.toString(),
+                    DayStatus.WORKDAY,
+                    arrivalLocalTime = "08:45",
+                    preparationMinutes = 15,
+                ),
+            ),
         )
-        coordinator.setDayOverride(SingleDayOverride(existing.id, other.toString(), DayStatus.HOLIDAY))
+        coordinator.setDayOverride(
+            DayOverrideChange(
+                planId = existing.id,
+                date = other.toString(),
+                expectedDayRevision = overrides.committedRevision(existing.id, other.toString()),
+                replacement = SingleDayOverride(existing.id, other.toString(), DayStatus.HOLIDAY),
+            ),
+        )
 
-        assertEquals(1L, first?.dayRevision)
-        assertEquals(2L, second?.dayRevision)
+        assertEquals(1L, (first as DayOverrideSaveResult.Success).dayRevision)
+        assertEquals(2L, (second as DayOverrideSaveResult.Success).dayRevision)
         assertEquals("08:45", overrides.getForPlanDate(existing.id, target.toString())?.arrivalLocalTime)
+        assertEquals(15, overrides.getForPlanDate(existing.id, target.toString())?.preparationMinutes)
         assertEquals(1L, overrides.getForPlanDate(existing.id, other.toString())?.dayRevision)
         // The neighbouring date and the plan revision are untouched.
         assertEquals(DayStatus.HOLIDAY, overrides.getForPlanDate(existing.id, other.toString())?.status)
@@ -438,15 +489,18 @@ class LocalAlarmCoordinatorTest {
         val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
         db.alarmPlanDao().upsert(existing.toEntity())
         val target = LocalDate.now(ZoneId.of(existing.zoneId)).plusDays(1).toString()
-        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
 
-        coordinator.setDayOverride(SingleDayOverride(existing.id, target, DayStatus.WORKDAY))
-        val removed = coordinator.clearDayOverride(existing.id, target)
+        val saved = coordinator.setDayOverride(
+            dayChange(existing.id, target, overrides, SingleDayOverride(existing.id, target, DayStatus.WORKDAY)),
+        ) as DayOverrideSaveResult.Success
+        val removed = coordinator.clearDayOverride(existing.id, target, saved.dayRevision) as DayOverrideSaveResult.Success
 
-        assertEquals(1L, removed)
+        assertEquals(2L, removed.dayRevision)
         assertNull(overrides.getForPlanDate(existing.id, target))
-        // A second undo removes nothing and reports no day revision.
-        assertNull(coordinator.clearDayOverride(existing.id, target))
+        // A second undo of an already inheriting date succeeds without consuming a revision.
+        val repeated = coordinator.clearDayOverride(existing.id, target, removed.dayRevision) as DayOverrideSaveResult.Success
+        assertEquals(2L, repeated.dayRevision)
         assertNull(overrides.getForPlanDate(existing.id, target))
     }
 
@@ -455,11 +509,13 @@ class LocalAlarmCoordinatorTest {
         val existing = plan().copy(revision = 1, enabled = false, armedState = AlarmArmedState.DISABLED)
         db.alarmPlanDao().upsert(existing.toEntity())
         val target = LocalDate.now(ZoneId.of(existing.zoneId)).plusDays(1).toString()
-        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
 
-        coordinator.setDayOverride(SingleDayOverride(existing.id, target, DayStatus.WORKDAY, wakeLocalTime = "07:00"))
+        val change = dayChange(existing.id, target, overrides, SingleDayOverride(existing.id, target, DayStatus.WORKDAY, wakeLocalTime = "07:00"))
+        val result = coordinator.setDayOverride(change) as DayOverrideSaveResult.Success
 
         assertEquals("07:00", overrides.getForPlanDate(existing.id, target)?.wakeLocalTime)
+        assertEquals(DayRegistrationState.NOT_ARMED, result.registration)
         assertTrue(occurrences.getByPlanId(existing.id).isEmpty())
     }
 
@@ -757,6 +813,298 @@ class LocalAlarmCoordinatorTest {
         assertEquals(2L, plans.getById(proposed.id)!!.revision)
     }
 
+    /** Builds a change against the revision that is committed right now (test seeding). */
+    private suspend fun dayChange(
+        planId: String,
+        date: String,
+        overrides: WorkdayOverrideRepository,
+        replacement: SingleDayOverride?,
+    ) = DayOverrideChange(planId, date, overrides.committedRevision(planId, date), replacement)
+
+    // --- N004 fixes: candidate commit protocol, failure compensation and final validation ----
+
+    /** F3: a platform rejection must keep the stored day and the already armed instance. */
+    @Test
+    fun `rejected day registration keeps the stored values and the previous instance`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, wakeLocalTime = "06:30", preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        val regular = occurrence(
+            existing,
+            "regular",
+            OccurrenceState.SCHEDULED,
+            wakeAt = LocalDate.parse(TOMORROW).atTime(6, 30).atZone(ZoneId.of(existing.zoneId)).toInstant().toEpochMilli(),
+        )
+        occurrences.save(regular)
+        gateway.result = AlarmRegistrationResult.Rejected(RegistrationFailure.PLATFORM_REJECTED)
+
+        val result = coordinator.setDayOverride(
+            DayOverrideChange(
+                planId = existing.id,
+                date = TOMORROW,
+                expectedDayRevision = stored.committedRevision,
+                replacement = SingleDayOverride(existing.id, TOMORROW, wakeLocalTime = "07:30", preparationMinutes = 45),
+            ),
+        )
+
+        assertEquals(
+            DayOverrideFailureCode.REGISTRATION_FAILED,
+            (result as? DayOverrideSaveResult.Failure)?.code,
+            "a rejected registration must be reported as a failure",
+        )
+        val after = requireNotNull(overrides.getForPlanDate(existing.id, TOMORROW))
+        assertEquals("06:30", after.wakeLocalTime)
+        assertEquals(15, after.preparationMinutes)
+        assertEquals(stored.committedRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertEquals(
+            0,
+            occurrences.getByPlanId(existing.id).count { it.state == OccurrenceState.REGISTERING },
+            "the unpublished candidate must not stay registerable",
+        )
+        assertEquals(0, snapshots.observeAll().first().count { it.occurrenceId != regular.occurrenceId })
+    }
+
+    /** A registration exception travels the same path as a rejection. */
+    @Test
+    fun `registration exception keeps the stored values and removes the candidate`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        gateway.failure = IllegalStateException("platform exploded")
+
+        val result = coordinator.setDayOverride(
+            DayOverrideChange(
+                planId = existing.id,
+                date = TOMORROW,
+                expectedDayRevision = stored.committedRevision,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 45),
+            ),
+        )
+
+        assertEquals(DayOverrideFailureCode.REGISTRATION_FAILED, (result as? DayOverrideSaveResult.Failure)?.code)
+        assertEquals(15, overrides.getForPlanDate(existing.id, TOMORROW)?.preparationMinutes)
+        assertEquals(stored.committedRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertEquals(0, occurrences.getByPlanId(existing.id).count { it.state == OccurrenceState.REGISTERING })
+    }
+
+    /** Cancelling the coroutine mid-registration still cleans the candidate. */
+    @Test
+    fun `cancelling a day save leaves the stored values untouched`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        gateway.scheduleDelayMillis = 30_000L
+
+        val job = launch {
+            coordinator.setDayOverride(
+                DayOverrideChange(
+                    planId = existing.id,
+                    date = TOMORROW,
+                    expectedDayRevision = stored.committedRevision,
+                    replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 45),
+                ),
+            )
+        }
+        withTimeout(10_000) {
+            while (occurrences.getByPlanId(existing.id).none { it.state == OccurrenceState.REGISTERING }) delay(20)
+        }
+        job.cancelAndJoin()
+
+        assertEquals(15, overrides.getForPlanDate(existing.id, TOMORROW)?.preparationMinutes)
+        assertEquals(stored.committedRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertEquals(0, occurrences.getByPlanId(existing.id).count { it.state == OccurrenceState.REGISTERING })
+    }
+
+    /** A failure of the aggregated transaction compensates the already published candidate. */
+    @Test
+    fun `a failed aggregated commit keeps the stored values and clears the candidate`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        db.useWriterConnection { connection ->
+            connection.executeSQL(
+                "CREATE TRIGGER fail_day_override_commit BEFORE INSERT ON workday_overrides " +
+                    "BEGIN SELECT RAISE(ABORT, 'forced commit failure'); END",
+            )
+        }
+
+        val result = coordinator.setDayOverride(
+            DayOverrideChange(
+                planId = existing.id,
+                date = TOMORROW,
+                expectedDayRevision = stored.committedRevision,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 45),
+            ),
+        )
+
+        assertEquals(DayOverrideFailureCode.STORAGE_FAILED, (result as? DayOverrideSaveResult.Failure)?.code)
+        assertEquals(15, overrides.getForPlanDate(existing.id, TOMORROW)?.preparationMinutes)
+        assertEquals(stored.committedRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertTrue(overrides.pendingCandidates().isEmpty())
+        assertEquals(0, occurrences.getByPlanId(existing.id).count { it.state == OccurrenceState.REGISTERING })
+        assertEquals(0, snapshots.observeAll().first().count { it.occurrenceId.startsWith("candidate") })
+    }
+
+    /** An interrupted change without a published credential is discarded, never promoted. */
+    @Test
+    fun `recovery discards an unpublished candidate and keeps the previous values`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        // Simulate a process kill after allocation but before the device-protected publish.
+        val candidate = AlarmOccurrence(
+            occurrenceId = "candidate",
+            planId = existing.id,
+            planRevision = existing.revision,
+            targetDate = TOMORROW,
+            scheduledWakeAt = System.currentTimeMillis() + 600_000L,
+            state = OccurrenceState.REGISTERING,
+            kind = OccurrenceKind.REGULAR,
+        )
+        occurrences.save(candidate)
+        snapshots.save(snapshot(existing, candidate.occurrenceId, candidate.scheduledWakeAt, kind = OccurrenceKind.REGULAR))
+        val allocation = overrides.allocateCandidate(
+            changeId = "interrupted",
+            planId = existing.id,
+            date = TOMORROW,
+            replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 45),
+            expectedDayRevision = stored.committedRevision,
+            candidateOccurrenceId = candidate.occurrenceId,
+            cancelledOccurrenceIds = emptyList(),
+            now = FIXED_NOW,
+        )
+        assertTrue(allocation is DayOverrideAllocation.Allocated)
+
+        coordinator.recover()
+
+        assertEquals(15, overrides.getForPlanDate(existing.id, TOMORROW)?.preparationMinutes)
+        assertEquals(stored.committedRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertTrue(overrides.pendingCandidates().isEmpty())
+        assertEquals(OccurrenceState.FAILED, occurrences.getById(candidate.occurrenceId)?.state)
+    }
+
+    /** A published credential means the same commit is completed, never restarted from scratch. */
+    @Test
+    fun `recovery completes a published candidate exactly once`() = runBlocking {
+        val existing = plan(schedule = AlarmSchedule.Once(TOMORROW)).copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = TOMORROW,
+                replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 15),
+                now = FIXED_NOW,
+            ),
+        )
+        val candidate = AlarmOccurrence(
+            occurrenceId = "candidate-published",
+            planId = existing.id,
+            planRevision = existing.revision,
+            targetDate = TOMORROW,
+            scheduledWakeAt = System.currentTimeMillis() + 600_000L,
+            state = OccurrenceState.REGISTERING,
+            kind = OccurrenceKind.REGULAR,
+        )
+        occurrences.save(candidate)
+        val allocation = overrides.allocateCandidate(
+            changeId = "published",
+            planId = existing.id,
+            date = TOMORROW,
+            replacement = SingleDayOverride(existing.id, TOMORROW, preparationMinutes = 45),
+            expectedDayRevision = stored.committedRevision,
+            candidateOccurrenceId = candidate.occurrenceId,
+            cancelledOccurrenceIds = emptyList(),
+            now = FIXED_NOW,
+        ) as DayOverrideAllocation.Allocated
+        val candidateSnapshot = snapshot(existing, candidate.occurrenceId, candidate.scheduledWakeAt, kind = OccurrenceKind.REGULAR)
+        snapshots.publishCandidate(
+            candidateSnapshot.copy(occurrenceState = AlarmReceiver.STATE_SCHEDULED),
+            DayCommitCredential(
+                changeId = allocation.changeId,
+                planId = existing.id,
+                date = TOMORROW,
+                dayRevision = allocation.candidateRevision,
+                occurrenceId = candidate.occurrenceId,
+                targetDate = TOMORROW,
+                triggerAtMillis = candidate.scheduledWakeAt,
+            ),
+        )
+
+        coordinator.recover()
+
+        assertEquals(45, overrides.getForPlanDate(existing.id, TOMORROW)?.preparationMinutes)
+        assertEquals(allocation.candidateRevision, overrides.committedRevision(existing.id, TOMORROW))
+        assertTrue(overrides.pendingCandidates().isEmpty())
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(candidate.occurrenceId)?.state)
+    }
+
+    /** The final check runs inside the commit lock: a stale day revision is stored as STALE. */
+    @Test
+    fun `applying an evaluation whose day revision changed is stale and registers nothing`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val regular = occurrence(existing, "regular", OccurrenceState.SCHEDULED)
+        occurrences.save(regular)
+        val decision = decision(existing, regular, "decision", regular.scheduledWakeAt - 1_200_000L)
+        requireNotNull(
+            overrides.commitCurrent(
+                planId = existing.id,
+                date = regular.targetDate,
+                replacement = SingleDayOverride(existing.id, regular.targetDate, preparationMinutes = 60),
+                now = FIXED_NOW,
+            ),
+        )
+
+        val result = coordinator.applyEvaluation(decision, null)
+
+        assertEquals("STALE", result.outcome)
+        assertEquals(EvaluationOutcome.STALE, decisions.getById("decision")?.evaluationOutcome)
+        assertEquals(0, occurrences.getByPlanId(existing.id).count { it.kind == OccurrenceKind.ADVANCE })
+    }
+
     private fun plan(
         id: String = "plan",
         schedule: AlarmSchedule = AlarmSchedule.Weekly(setOf(1, 2, 3, 4, 5, 6, 7)),
@@ -859,6 +1207,7 @@ class LocalAlarmCoordinatorTest {
 
     private class FakeGateway : AlarmSchedulingGateway {
         var result: AlarmRegistrationResult = AlarmRegistrationResult.Registered
+        var failure: Exception? = null
         val cancelled = mutableListOf<String>()
         val restored = mutableListOf<String>()
         var scheduleDelayMillis: Long = 0L
@@ -871,6 +1220,7 @@ class LocalAlarmCoordinatorTest {
             maxConcurrentSchedules = maxOf(maxConcurrentSchedules, activeSchedules)
             try {
                 if (scheduleDelayMillis > 0) delay(scheduleDelayMillis)
+                failure?.let { throw it }
                 return result
             } finally {
                 activeSchedules -= 1

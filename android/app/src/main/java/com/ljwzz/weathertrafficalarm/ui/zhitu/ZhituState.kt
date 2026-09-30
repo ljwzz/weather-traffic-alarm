@@ -14,6 +14,7 @@ import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideReposit
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
 import com.ljwzz.weathertrafficalarm.core.data.repository.CommuteOverrideMutation
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommute
 import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
@@ -25,6 +26,9 @@ import com.ljwzz.weathertrafficalarm.core.map.AmapSdkController
 import com.ljwzz.weathertrafficalarm.core.map.AmapSdkInitialization
 import com.ljwzz.weathertrafficalarm.core.map.MapLocationResult
 import com.ljwzz.weathertrafficalarm.core.map.isAmapNativeRendererSupported
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideChange
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideFailureCode
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideSaveResult
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
 import com.ljwzz.weathertrafficalarm.core.model.EffectiveDailySettings
@@ -96,6 +100,7 @@ class ZhituViewModel @Inject constructor(
     private val credentials: com.ljwzz.weathertrafficalarm.core.data.local.CredentialStore,
     private val planCommuteOverrideRepository: PlanCommuteOverrideRepository,
     private val effectiveCommuteResolver: EffectiveCommuteResolver,
+    private val dailyInputs: DailyEvaluationInputResolver,
     private val amapSdk: AmapSdkController,
     private val amapProvider: AmapWebProvider,
     private val weatherProvider: WeatherProvider,
@@ -279,23 +284,24 @@ class ZhituViewModel @Inject constructor(
     fun snooze(occurrenceId: String) = safe { coordinator.snooze(occurrenceId) }
     fun recover() = viewModelScope.launch { coordinator.recover() }
     fun refreshCalendar(force: Boolean = false) = viewModelScope.launch { coordinator.refreshCalendar(force) }
-    fun setDayOverride(override: SingleDayOverride) = viewModelScope.launch { coordinator.setDayOverride(override) }
-    fun clearDayOverride(planId: String, date: String) = viewModelScope.launch { coordinator.clearDayOverride(planId, date) }
+    fun setDayOverride(change: DayOverrideChange) = viewModelScope.launch { coordinator.setDayOverride(change) }
+    fun clearDayOverride(planId: String, date: String, expectedDayRevision: Long) =
+        viewModelScope.launch { coordinator.clearDayOverride(planId, date, expectedDayRevision) }
 
     /**
-     * Saves the single-day draft. An empty draft removes the override so the date inherits
-     * again; both paths only touch the target plan and date. `onComplete` receives null on
-     * success so the caller keeps the page open and shows the failure otherwise.
+     * Saves the complete single-day snapshot. The coordinator validates the expected revision,
+     * registers a candidate instance first and only then commits, so `onComplete` receives the
+     * real result: the page keeps the draft and shows the reason on every failure.
      */
-    fun saveDayOverride(override: SingleDayOverride, onComplete: (String?) -> Unit) = viewModelScope.launch {
-        runCatching {
-            if (override.isInheritingEverything) {
-                // A stored row without user-visible values must not survive as an empty override.
-                coordinator.clearDayOverride(override.planId, override.date)
-            } else {
-                coordinator.setDayOverride(override)
+    fun saveDayOverride(change: DayOverrideChange, onComplete: (DayOverrideSaveResult) -> Unit) = viewModelScope.launch {
+        val result = runCatching { coordinator.setDayOverride(change) }
+            .getOrElse { failure ->
+                DayOverrideSaveResult.Failure(
+                    DayOverrideFailureCode.STORAGE_FAILED,
+                    failure.message ?: "日历保存失败",
+                )
             }
-        }.onSuccess { onComplete(null) }.onFailure { onComplete(it.message ?: "日历保存失败") }
+        onComplete(result)
     }
     /**
      * Loads the persisted plan, the plan-level commute and the global buffers for one
@@ -304,26 +310,15 @@ class ZhituViewModel @Inject constructor(
      */
     suspend fun loadDayEditorInputs(planId: String, date: String): DayEditorInputs? {
         val plan = plans.value.firstOrNull { it.id == planId } ?: return null
-        val stored = settingsStore.loadInitial()
-        val commute = effectiveCommuteResolver.resolveForPlan(planId, stored)
-        val dayOverride = overrideRepository.getForPlanDate(planId, date)
+        val resolved = dailyInputs.resolve(plan, LocalDate.parse(date))
         return DayEditorInputs(
-            plan = plan,
-            settings = stored,
-            dayOverride = dayOverride,
-            planCommute = commute,
-            effective = DailySettingsResolver.resolve(
-                plan = plan,
-                date = LocalDate.parse(date),
-                override = dayOverride,
-                officialDays = calendar.state.value.days,
-                profiles = WeatherBufferProfiles(
-                    workday = stored.workdayWeatherBuffers.toWeatherProfile(),
-                    weekend = stored.weekendWeatherBuffers.toWeatherProfile(),
-                    statutoryRest = stored.holidayWeatherBuffers.toWeatherProfile(),
-                ),
-                commute = commute,
-            ),
+            plan = resolved.plan,
+            settings = resolved.settings,
+            dayOverride = resolved.override,
+            planCommute = resolved.inheritedCommute,
+            effective = resolved.effective,
+            inherited = resolved.inherited,
+            dayRevision = resolved.committedRevision,
         )
     }
 
@@ -971,7 +966,10 @@ data class PlanCommuteEditorState(
 
 /**
  * Everything the single-day editor needs for one plan and date: the live row, the plan and
- * global tiers it inherits from, and the already-resolved effective values.
+ * global tiers it inherits from, and both resolved views of the date.
+ *
+ * [inherited] ignores the day override (the real tier every field falls back to), [effective]
+ * applies it, and [dayRevision] is the committed revision the draft was loaded from.
  */
 data class DayEditorInputs(
     val plan: AlarmPlan,
@@ -979,6 +977,8 @@ data class DayEditorInputs(
     val dayOverride: SingleDayOverride?,
     val planCommute: EffectiveCommute?,
     val effective: EffectiveDailySettings,
+    val inherited: EffectiveDailySettings,
+    val dayRevision: Long,
 )
 
 private fun WeatherBuffers.toWeatherProfile() =

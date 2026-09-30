@@ -2,6 +2,7 @@ package com.ljwzz.weathertrafficalarm.evaluation
 
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputs
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommute
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
@@ -153,8 +154,8 @@ class EvaluationCoordinatorPolicyTest {
         val effective = effective(plan, monday)
 
         assertNotEquals(
-            EvaluationCoordinatorPolicy.fingerprint(plan, commute, null, DayStatus.WORKDAY, profile, "WEEKDAY_FALLBACK", denied, effective),
-            EvaluationCoordinatorPolicy.fingerprint(plan, commute, null, DayStatus.WORKDAY, profile, "WEEKDAY_FALLBACK", granted, effective),
+            fingerprint(plan, commute, null, profile, denied),
+            fingerprint(plan, commute, null, profile, granted),
         )
     }
 
@@ -173,21 +174,38 @@ class EvaluationCoordinatorPolicyTest {
             fingerprint(plan, commute, base, profile),
             fingerprint(plan, commute, bumped, profile),
         )
+        // The revision comes from the independent table: identical values on a newer generation
+        // must not reproduce the old identity (undo followed by recreating the same values).
+        assertNotEquals(
+            fingerprint(plan, commute, base, profile, committedRevision = 3),
+            fingerprint(plan, commute, base, profile, committedRevision = 5),
+        )
         assertNotEquals(
             fingerprint(plan, commute, base, profile),
             fingerprint(plan, commute, base, WeatherBufferProfile(2, 2, 3)),
         )
     }
 
+    /** The fingerprint is the typed identity of the resolved inputs, including the day revision. */
     private fun fingerprint(
         plan: AlarmPlan,
         commute: EffectiveCommute,
         override: SingleDayOverride?,
         profile: WeatherBufferProfile,
-    ) = EvaluationCoordinatorPolicy.fingerprint(
-        plan, commute, override, DayStatus.WORKDAY, profile, "PLAN_OVERRIDE", settings,
-        effective(plan, monday, override, profile),
-    )
+        settings: LocalSettings = LocalSettings(),
+        committedRevision: Long = override?.dayRevision ?: 0,
+    ) = DailyEvaluationInputs(
+        plan = plan,
+        date = monday,
+        settings = settings,
+        override = override,
+        committedRevision = committedRevision,
+        calendarDays = emptyMap(),
+        inherited = effective(plan, monday, override, profile),
+        effective = effective(plan, monday, override, profile),
+        inheritedCommute = commute,
+        effectiveCommute = commute,
+    ).fingerprint
 
     private fun effective(
         plan: AlarmPlan,

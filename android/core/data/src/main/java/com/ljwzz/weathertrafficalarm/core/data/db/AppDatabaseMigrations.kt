@@ -265,4 +265,82 @@ object AppDatabaseMigrations {
         db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN arrival_local_time TEXT")
         db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN day_revision INTEGER NOT NULL DEFAULT 0")
     }
+
+    /**
+     * Moves the invalidation generation out of the override row into its own table so undoing a
+     * day and recreating the same values keeps a strictly increasing revision. Both revision
+     * columns are seeded from the surviving override rows and from retained decisions, existing
+     * override rows are synchronised to the committed revision, and history keeps its own values.
+     */
+    val V7_TO_V8: Migration = Migration(7, 8) { db ->
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS workday_day_revisions (
+                plan_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                committed_revision INTEGER NOT NULL DEFAULT 0,
+                last_issued_revision INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(plan_id, date),
+                FOREIGN KEY(plan_id) REFERENCES alarm_plans(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_workday_day_revisions_plan_id ON workday_day_revisions(plan_id)")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS day_override_commits (
+                change_id TEXT NOT NULL,
+                plan_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                candidate_revision INTEGER NOT NULL,
+                previous_revision INTEGER NOT NULL,
+                candidate_occurrence_id TEXT,
+                cancelled_occurrence_ids TEXT NOT NULL DEFAULT '',
+                published INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                status TEXT,
+                wake_local_time TEXT,
+                arrival_local_time TEXT,
+                preparation_minutes INTEGER,
+                weather_severity1_minutes INTEGER,
+                weather_severity2_minutes INTEGER,
+                weather_severity3_minutes INTEGER,
+                origin TEXT,
+                destination TEXT,
+                commute_mode TEXT,
+                PRIMARY KEY(change_id),
+                FOREIGN KEY(plan_id) REFERENCES alarm_plans(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_day_override_commits_plan_id ON day_override_commits(plan_id)")
+        db.execSQL("ALTER TABLE alarm_occurrences ADD COLUMN day_revision INTEGER NOT NULL DEFAULT 0")
+        db.execSQL(
+            """
+            INSERT OR REPLACE INTO workday_day_revisions (plan_id, date, committed_revision, last_issued_revision)
+            SELECT plan_id, date, MAX(revision), MAX(revision) FROM (
+                SELECT o.plan_id AS plan_id, o.date AS date, o.day_revision AS revision
+                FROM workday_overrides o
+                WHERE o.plan_id IN (SELECT id FROM alarm_plans)
+                UNION ALL
+                SELECT d.plan_id AS plan_id, d.target_date AS date, d.day_revision AS revision
+                FROM alarm_decisions d
+                WHERE d.day_revision > 0 AND d.plan_id IN (SELECT id FROM alarm_plans)
+            )
+            GROUP BY plan_id, date
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            UPDATE workday_overrides SET day_revision = (
+                SELECT r.committed_revision FROM workday_day_revisions r
+                WHERE r.plan_id = workday_overrides.plan_id AND r.date = workday_overrides.date
+            )
+            WHERE EXISTS (
+                SELECT 1 FROM workday_day_revisions r
+                WHERE r.plan_id = workday_overrides.plan_id AND r.date = workday_overrides.date
+            )
+            """.trimIndent(),
+        )
+    }
 }

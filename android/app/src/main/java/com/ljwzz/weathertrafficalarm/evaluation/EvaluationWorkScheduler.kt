@@ -11,11 +11,11 @@ import androidx.work.WorkInfo
 import androidx.work.workDataOf
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStore
 import com.ljwzz.weathertrafficalarm.core.data.local.CredentialStatus
-import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
+import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
-import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
@@ -31,9 +31,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -61,7 +61,7 @@ class EvaluationWorkScheduler @Inject constructor(
     private val dayOverrides: WorkdayOverrideRepository,
     private val calendar: WorkdayCalendarRepository,
     private val credentials: CredentialStore,
-    private val commuteResolver: EffectiveCommuteResolver,
+    private val dailyInputs: DailyEvaluationInputResolver,
     private val clock: Clock,
 ) {
     private val _schedulingError = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
@@ -75,7 +75,7 @@ class EvaluationWorkScheduler @Inject constructor(
     /** Test-only seam; production always reloads the encrypted credential store. */
     internal var credentialStatusReaderForTest: (suspend () -> CredentialStatus)? = null
 
-    /** Active runs retain their plan, revision and target identity for decision-detail matching. */
+    /** Active runs retain their plan, revision, target date and day generation identity. */
     fun observeTaskStateRuns(): kotlinx.coroutines.flow.Flow<List<EvaluationTaskState>> =
         manager.getWorkInfosByTagFlow(ALL_WORK_TAG).map { works ->
             works.filter { !it.state.isFinished }.mapNotNull { info ->
@@ -96,6 +96,7 @@ class EvaluationWorkScheduler @Inject constructor(
                     attemptNumber = run.attempt,
                     targetDate = run.targetDate.toString(),
                     planRevision = run.revision,
+                    dayRevision = run.dayRevision,
                     origin = run.origin,
                     decisionId = run.decisionId,
                     workId = info.id.toString(),
@@ -117,6 +118,12 @@ class EvaluationWorkScheduler @Inject constructor(
             }
         }
 
+    /** Shared configuration of one plan; a change resets that plan's nightly work. */
+    private data class PlanScheduleState(
+        val configKey: List<Any?>,
+        val dayRevisions: Map<String, Long>,
+    )
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start() {
         if (!context.getSystemService(UserManager::class.java).isUserUnlocked || !started.compareAndSet(false, true)) return
@@ -124,7 +131,7 @@ class EvaluationWorkScheduler @Inject constructor(
             try {
                 // Await the persisted values, rather than enqueuing from the StateFlow's empty defaults.
                 settings.loadInitial()
-                var previous: Map<String, List<Any?>>? = null
+                var previous: Map<String, PlanScheduleState>? = null
                 combine(
                     plans.observeAll(), settings.settings,
                     calendar.state.map { it.days }.distinctUntilChanged(),
@@ -138,8 +145,13 @@ class EvaluationWorkScheduler @Inject constructor(
                     )
                 }.flatMapLatest { (currentPlans, shared) ->
                     if (currentPlans.isEmpty()) flowOf(emptyList()) else combine(currentPlans.map { plan ->
-                        combine(commuteOverrides.observeByPlanId(plan.id), dayOverrides.observeForPlan(plan.id)) { commute, overrides ->
-                            plan to (shared + listOf(plan.revision, plan.enabled, plan.zoneId, commute, overrides))
+                        combine(commuteOverrides.observeByPlanId(plan.id), dayOverrides.observeDayStates(plan.id)) { commute, dayStates ->
+                            plan to PlanScheduleState(
+                                configKey = shared + listOf(plan.revision, plan.enabled, plan.zoneId, commute),
+                                // Committed revisions survive deleting the override, so undo and
+                                // undo-then-recreate both register as a change of this date.
+                                dayRevisions = dayStates.associate { it.date to it.committedRevision },
+                            )
                         }
                     }) { it.toList() }
                 }.collect { entries ->
@@ -147,15 +159,27 @@ class EvaluationWorkScheduler @Inject constructor(
                         val current = entries.associate { it.first.id to it.second }
                         val old = previous
                         old?.keys?.minus(current.keys)?.forEach { cancel(it) }
-                        entries.forEach { (plan, key) ->
-                            if (!plan.enabled) {
-                                cancel(plan.id)
-                            } else if (old == null || old[plan.id] != key) {
-                                val changed = old != null
-                                // A queued manual refresh reads current inputs at execution. Do not
-                                // discard that action while an earlier Room emission catches up.
-                                if (changed) cancel(plan.id, nightOnly = true)
-                                ensureNightly(plan, replace = changed)
+                        entries.forEach { (plan, state) ->
+                            val before = old?.get(plan.id)
+                            when {
+                                !plan.enabled -> cancel(plan.id)
+                                before == null -> ensureNightly(plan)
+                                before.configKey != state.configKey -> {
+                                    cancel(plan.id, nightOnly = true)
+                                    ensureNightly(plan, replace = true)
+                                }
+                                else -> {
+                                    val changedDates = (before.dayRevisions.keys + state.dayRevisions.keys)
+                                        .filter { before.dayRevisions[it] != state.dayRevisions[it] }
+                                        .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+                                        .toSet()
+                                    if (changedDates.isNotEmpty()) {
+                                        // Only this date's old generation is cancelled; other dates keep
+                                        // their effective work.
+                                        cancelNightlyForDates(plan.id, changedDates)
+                                        ensureNightly(plan, replace = true, changedDates = changedDates)
+                                    }
+                                }
                             }
                         }
                         previous = current
@@ -183,60 +207,97 @@ class EvaluationWorkScheduler @Inject constructor(
             // Read persistent state here instead of using StateFlow defaults from process start.
             val localSettings = settings.loadInitial()
             val credentialStatus = credentialStatusReaderForTest?.invoke() ?: credentials.maskedValues()
-            val hasCommute = commuteResolver.resolveForPlan(planId, localSettings) != null
             val now = clock.instant()
-            validateManualEvaluation(plan, localSettings, credentialStatus, hasCommute, now)?.let { rejection ->
-                return@withLock EvaluateNowResult.Rejected(rejection)
-            }
-
-            val target = occurrences.getByPlanId(planId)
+            // The target date comes from the effective regular instance, so a day-level wake or
+            // commute decides whether this plan can be evaluated now.
+            val regular = occurrences.getByPlanId(planId)
                 .asSequence()
                 .filter { it.kind == OccurrenceKind.REGULAR && it.state == OccurrenceState.SCHEDULED }
                 .filter { it.planRevision == plan.revision }
                 .filter { it.scheduledWakeAt > now.toEpochMilli() }
-                .sortedBy { it.scheduledWakeAt }
-                .mapNotNull { runCatching { LocalDate.parse(it.targetDate) }.getOrNull() }
-                .firstOrNull()
+                .minByOrNull { it.scheduledWakeAt }
                 ?: return@withLock EvaluateNowResult.Rejected(EvaluateNowRejection.NO_UPCOMING_OCCURRENCE)
-            val defaultWake = target.atTime(LocalTime.parse(plan.defaultWakeLocalTime))
-                .atZone(plan.zoneIdInstance()).toInstant()
-            val expiry = minOf(now.plus(Duration.ofHours(2)), defaultWake)
+            val target = runCatching { LocalDate.parse(regular.targetDate) }.getOrNull()
+                ?: return@withLock EvaluateNowResult.Rejected(EvaluateNowRejection.NO_UPCOMING_OCCURRENCE)
+            val resolved = dailyInputs.resolve(plan, target)
+            validateManualEvaluation(
+                plan = plan,
+                inputs = resolved,
+                credentials = credentialStatus,
+                now = now,
+            )?.let { rejection -> return@withLock EvaluateNowResult.Rejected(rejection) }
+
+            // The instance's own wake time is the effective day wake; a plan-level default must
+            // not expire a window that the configured day still allows.
+            val expiry = minOf(now.plus(Duration.ofHours(2)), Instant.ofEpochMilli(regular.scheduledWakeAt))
             if (!expiry.isAfter(now)) {
                 return@withLock EvaluateNowResult.Rejected(EvaluateNowRejection.EVALUATION_WINDOW_EXPIRED)
             }
 
-            val run = EvaluationWorkRun(target, now, expiry, 0, "manual", plan.revision, plan.zoneId)
+            val run = EvaluationWorkRun(
+                targetDate = target,
+                notBefore = now,
+                deadline = expiry,
+                attempt = 0,
+                origin = "manual",
+                revision = plan.revision,
+                zoneId = plan.zoneId,
+                dayRevision = resolved.committedRevision,
+            )
             val name = uniqueWorkName(plan, run)
             val existing = manager.getWorkInfosForUniqueWork(name).get(30, TimeUnit.SECONDS)
             existing.firstOrNull { !it.state.isFinished }?.let { work ->
                 return@withLock EvaluateNowResult.AlreadyQueued(plan.id, target.toString(), plan.revision, work.id.toString())
             }
-            val workId = enqueue(plan, run, ExistingWorkPolicy.KEEP)
+            val workId = enqueue(plan, run, ExistingWorkPolicy.KEEP, skipExisting = false)
             start()
             EvaluateNowResult.Enqueued(plan.id, target.toString(), plan.revision, workId)
         }
     }
 
-    /** Invoked on startup, recovery and at the start of each Worker, before network I/O. */
-    suspend fun ensureNightly(plan: AlarmPlan, replace: Boolean = false) {
+    /**
+     * Arranges the nightly evaluation windows. [changedDates] restricts the replacement to the
+     * dates whose committed revision changed, so a single-day edit never restarts another date's
+     * effective work.
+     */
+    suspend fun ensureNightly(
+        plan: AlarmPlan,
+        replace: Boolean = false,
+        changedDates: Set<LocalDate> = emptySet(),
+    ) {
         if (!plan.enabled) return
-        if (commuteResolver.resolveForPlan(plan.id, settings.loadInitial()) == null) return
         val now = clock.instant()
         val jitter = Math.floorMod(plan.id.hashCode(), 16)
         val zone = plan.zoneIdInstance()
         val localTime = now.atZone(zone).toLocalTime()
-        val immediate = replace && !localTime.isBefore(java.time.LocalTime.of(19, 0)) && localTime.isBefore(java.time.LocalTime.of(23, 30))
+        val immediate = replace && !localTime.isBefore(LocalTime.of(19, 0)) && localTime.isBefore(LocalTime.of(23, 30))
         val starts = setOf(
             if (immediate) now else EvaluationWorkPolicy.nextNight(now, zone, jitter),
             EvaluationWorkPolicy.nextNight(now, zone, jitter, futureOnly = true),
         )
         starts.forEach { at ->
             val evaluationDate = at.atZone(zone).toLocalDate()
+            val target = evaluationDate.plusDays(1)
+            // Resolve the target date first: only this date's effective commute decides whether
+            // an evaluation is possible, and a plan-level commute is no longer required.
+            val resolved = dailyInputs.resolve(plan, target)
+            if (resolved.effectiveCommute == null) return@forEach
+            val run = EvaluationWorkRun(
+                targetDate = target,
+                notBefore = at,
+                deadline = EvaluationWorkPolicy.deadline(evaluationDate, zone),
+                attempt = 0,
+                origin = "night",
+                revision = plan.revision,
+                zoneId = plan.zoneId,
+                dayRevision = resolved.committedRevision,
+            )
+            val replacesThisDate = (replace && changedDates.isEmpty()) || target in changedDates
             enqueue(
                 plan,
-                EvaluationWorkRun(evaluationDate.plusDays(1), at, EvaluationWorkPolicy.deadline(evaluationDate, zone), 0, "night", plan.revision, plan.zoneId),
-                if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
-                terminalDeduplication = true,
+                run,
+                if (replacesThisDate) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
+                skipExisting = !replacesThisDate,
             )
         }
     }
@@ -246,7 +307,7 @@ class EvaluationWorkScheduler @Inject constructor(
             plan,
             run.copy(notBefore = at, attempt = run.attempt + 1, decisionId = decisionId),
             ExistingWorkPolicy.KEEP,
-            terminalDeduplication = true,
+            skipExisting = true,
         )
     }
 
@@ -255,8 +316,7 @@ class EvaluationWorkScheduler @Inject constructor(
         return scope.launch {
             mutation.withLock {
                 plans.observeAll().first().filter { it.enabled }.forEach {
-                    cancel(it.id)
-                    ensureNightly(it, replace = true)
+                    ensureNightly(it)
                 }
             }
         }
@@ -266,20 +326,36 @@ class EvaluationWorkScheduler @Inject constructor(
         manager.cancelAllWorkByTag(if (nightOnly) "evaluation-night:$planId" else planTag(planId)).result.get(30, TimeUnit.SECONDS)
     }
 
+    private fun cancelNightlyForDates(planId: String, dates: Set<LocalDate>) {
+        dates.forEach { date ->
+            manager.cancelAllWorkByTag(nightDateTag(planId, date)).result.get(30, TimeUnit.SECONDS)
+        }
+    }
+
+    /**
+     * Enqueues one run. [skipExisting] keeps an unfinished run of the same generation and does not
+     * repeat one that already succeeded, while a genuinely changed configuration replaces it.
+     * Cancelled or failed history alone never blocks a required re-run.
+     */
     private fun enqueue(
         plan: AlarmPlan,
         run: EvaluationWorkRun,
         policy: ExistingWorkPolicy,
-        terminalDeduplication: Boolean = false,
+        skipExisting: Boolean,
     ): String {
         val name = uniqueWorkName(plan, run)
-        if (terminalDeduplication && manager.getWorkInfosForUniqueWork(name).get(30, TimeUnit.SECONDS).isNotEmpty()) return ""
+        if (skipExisting) {
+            val known = manager.getWorkInfosForUniqueWork(name).get(30, TimeUnit.SECONDS)
+            val alreadyEffective = known.any { !it.state.isFinished || it.state == WorkInfo.State.SUCCEEDED }
+            if (alreadyEffective) return ""
+        }
         val request = OneTimeWorkRequestBuilder<EvaluationWorker>()
             .setInputData(workDataOf(PLAN_ID to plan.id))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setInitialDelay(Duration.between(clock.instant(), run.notBefore).toMillis().coerceAtLeast(0), TimeUnit.MILLISECONDS)
             .addTag(planTag(plan.id))
             .addTag("evaluation-${run.origin}:${plan.id}")
+            .addTag(nightDateTag(plan.id, run.targetDate))
             .addTag(ALL_WORK_TAG)
             .apply { run.tags().forEach(::addTag) }
             .build()
@@ -290,12 +366,13 @@ class EvaluationWorkScheduler @Inject constructor(
     }
 
     private fun uniqueWorkName(plan: AlarmPlan, run: EvaluationWorkRun): String =
-        "evaluation:${plan.id}:${run.revision}:${run.targetDate}:${run.origin}:${run.attempt}"
+        "evaluation:${plan.id}:${run.revision}:${run.targetDate}:${run.dayRevision}:${run.origin}:${run.attempt}"
 
     companion object {
         const val PLAN_ID = "planId"
         const val ALL_WORK_TAG = "automatic-evaluation"
         fun planTag(planId: String) = "evaluation-plan:$planId"
+        fun nightDateTag(planId: String, date: LocalDate) = "evaluation-night-date:$planId:$date"
     }
 }
 
@@ -307,6 +384,8 @@ data class EvaluationTaskState(
     val attemptNumber: Int = 0,
     val targetDate: String? = null,
     val planRevision: Long? = null,
+    /** Committed day revision this run belongs to; null for legacy work without the tag. */
+    val dayRevision: Long? = null,
     val origin: String? = null,
     /** Decision that requested this retry; null for initial work and legacy WorkManager rows. */
     val decisionId: String? = null,
@@ -356,19 +435,25 @@ fun EvaluateNowRejection.userMessage(): String = when (this) {
     EvaluateNowRejection.EVALUATION_WINDOW_EXPIRED -> "本次评估窗口已结束"
 }
 
+/**
+ * Manual evaluation checks the resolved day rather than the plan defaults: the effective commute
+ * of the target date must be complete, and its times must parse.
+ */
 internal fun validateManualEvaluation(
     plan: AlarmPlan,
-    settings: LocalSettings,
+    inputs: com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputs,
     credentials: CredentialStatus,
-    hasCommute: Boolean,
     now: Instant = Instant.now(),
 ): EvaluateNowRejection? = when {
     !plan.enabled -> EvaluateNowRejection.PLAN_DISABLED
-    runCatching { LocalTime.parse(plan.defaultWakeLocalTime); LocalTime.parse(plan.arrivalLocalTime); ZoneId.of(plan.zoneId) }.isFailure ->
-        EvaluateNowRejection.INVALID_TIME
+    runCatching {
+        ZoneId.of(plan.zoneId)
+        requireNotNull(inputs.effective.wakeLocalTime)
+        requireNotNull(inputs.effective.arrivalLocalTimeValue)
+    }.isFailure -> EvaluateNowRejection.INVALID_TIME
     !plan.hasManualEvaluationScheduleAt(now) -> EvaluateNowRejection.INVALID_SCHEDULE
-    !hasCommute -> EvaluateNowRejection.COMMUTE_NOT_CONFIGURED
-    !settings.amapConsentGranted -> EvaluateNowRejection.AMAP_CONSENT_REQUIRED
+    inputs.effectiveCommute == null -> EvaluateNowRejection.COMMUTE_NOT_CONFIGURED
+    !inputs.settings.amapConsentGranted -> EvaluateNowRejection.AMAP_CONSENT_REQUIRED
     credentials.storageError -> EvaluateNowRejection.CREDENTIAL_STORAGE_ERROR
     !credentials.hasAmapWebKey -> EvaluateNowRejection.AMAP_WEB_KEY_MISSING
     !credentials.hasCaiyunAppKey || !credentials.hasCaiyunSecret -> EvaluateNowRejection.CAIYUN_CREDENTIALS_MISSING
@@ -394,11 +479,14 @@ data class EvaluationWorkRun(
     val revision: Long,
     val zoneId: String,
     val decisionId: String? = null,
+    /** Committed day revision of [targetDate]; 0 for legacy work without the tag. */
+    val dayRevision: Long = 0,
 ) {
     fun tags(): Set<String> = buildSet {
         addAll(setOf(
         "target:$targetDate", "not-before:${notBefore.toEpochMilli()}", "deadline:${deadline.toEpochMilli()}",
         "attempt:$attempt", "origin:$origin", "revision:$revision", "zone:$zoneId",
+        "day-revision:$dayRevision",
         ))
         decisionId?.let { add("decision:$it") }
     }
@@ -407,9 +495,22 @@ data class EvaluationWorkRun(
         fun fromTags(tags: Set<String>): EvaluationWorkRun? = runCatching {
             fun tag(prefix: String) = tags.single { it.startsWith("$prefix:") }.substringAfter(':')
             fun optionalTag(prefix: String) = tags.singleOrNull { it.startsWith("$prefix:") }?.substringAfter(':')
-            EvaluationWorkRun(LocalDate.parse(tag("target")), Instant.ofEpochMilli(tag("not-before").toLong()),
-                Instant.ofEpochMilli(tag("deadline").toLong()), tag("attempt").toInt(), tag("origin"), tag("revision").toLong(), tag("zone"), optionalTag("decision"))
-                .also { require(it.attempt in 0..3 && it.origin in setOf("night", "manual")) }
+            EvaluationWorkRun(
+                LocalDate.parse(tag("target")),
+                Instant.ofEpochMilli(tag("not-before").toLong()),
+                Instant.ofEpochMilli(tag("deadline").toLong()),
+                tag("attempt").toInt(),
+                tag("origin"),
+                tag("revision").toLong(),
+                tag("zone"),
+                optionalTag("decision"),
+                // Work enqueued before this fix has no day-revision tag; it is treated as the
+                // legacy generation and replaced rather than matched to revision 0.
+                optionalTag("day-revision")?.toLong() ?: LEGACY_DAY_REVISION,
+            ).also { require(it.attempt in 0..3 && it.origin in setOf("night", "manual")) }
         }.getOrNull()
+
+        /** Marker for legacy work rows that predate day-revision aware identities. */
+        const val LEGACY_DAY_REVISION = -1L
     }
 }

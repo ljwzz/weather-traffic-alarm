@@ -36,4 +36,6 @@ data class AlarmOccurrence(
     val kind: OccurrenceKind = OccurrenceKind.REGULAR,
     val parentOccurrenceId: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Day revision of the logical target date this instance was registered for; legacy rows are 0. */
+    val dayRevision: Long = 0,
 )

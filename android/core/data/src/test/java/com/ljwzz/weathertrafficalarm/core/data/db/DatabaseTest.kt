@@ -51,6 +51,8 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class DatabaseTest {
 
+    private val FIXED_NOW = Instant.parse("2026-07-01T00:00:00Z").toEpochMilli()
+
     private lateinit var db: AppDatabase
     private lateinit var planDao: AlarmPlanDao
     private lateinit var decisionDao: AlarmDecisionDao
@@ -482,66 +484,139 @@ class DatabaseTest {
     @Test
     fun dayOverrideRoundTripsEveryN004FieldAndKeepsZeroValues() = runTest {
         planDao.upsert(createTestPlan())
-        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
-        val saved = repository.save(
-            SingleDayOverride(
+        val repository = WorkdayOverrideRepository(overrideDao, db.dayOverrideCommitDao())
+        val saved = requireNotNull(
+            repository.commitCurrent(
                 planId = "plan-1",
                 date = "2026-07-25",
-                status = DayStatus.WORKDAY,
-                wakeLocalTime = "06:10",
-                arrivalLocalTime = "08:40",
-                preparationMinutes = 0,
-                weatherProfile = WeatherBufferProfile(0, 35, 60),
-                origin = origin,
-                destination = destination,
-                commuteMode = CommuteMode.TRANSIT,
+                replacement = SingleDayOverride(
+                    planId = "plan-1",
+                    date = "2026-07-25",
+                    status = DayStatus.WORKDAY,
+                    wakeLocalTime = "06:10",
+                    arrivalLocalTime = "08:40",
+                    preparationMinutes = 0,
+                    weatherProfile = WeatherBufferProfile(0, 35, 60),
+                    origin = origin,
+                    destination = destination,
+                    commuteMode = CommuteMode.TRANSIT,
+                ),
+                now = FIXED_NOW,
             ),
         )
 
         val stored = repository.getForPlanDate("plan-1", "2026-07-25")
         assertNotNull(stored)
-        assertEquals(1L, saved.dayRevision)
+        assertEquals(1L, saved.committedRevision)
         assertEquals(0, stored!!.preparationMinutes)
         assertEquals(WeatherBufferProfile(0, 35, 60), stored.weatherProfile)
         assertEquals(CommuteMode.TRANSIT, stored.commuteMode)
         assertEquals("08:40", stored.arrivalLocalTime)
     }
 
-    /** Saving one field keeps the other values already stored for that single date. */
+    /** Saving writes the submitted snapshot for that date only; other dates are untouched. */
     @Test
-    fun dayOverrideSaveMergesWithTheSameDateRowOnly() = runTest {
+    fun dayOverrideSaveReplacesTheWholeDateSnapshot() = runTest {
         planDao.upsert(createTestPlan())
-        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
-        repository.save(SingleDayOverride("plan-1", "2026-07-25", arrivalLocalTime = "08:40"))
-        repository.save(SingleDayOverride("plan-1", "2026-07-26", arrivalLocalTime = "09:30"))
-        val second = repository.save(SingleDayOverride("plan-1", "2026-07-25", preparationMinutes = 20))
+        val repository = WorkdayOverrideRepository(overrideDao, db.dayOverrideCommitDao())
+        repository.commitCurrent("plan-1", "2026-07-25", SingleDayOverride("plan-1", "2026-07-25", arrivalLocalTime = "08:40"), FIXED_NOW)
+        repository.commitCurrent("plan-1", "2026-07-26", SingleDayOverride("plan-1", "2026-07-26", arrivalLocalTime = "09:30"), FIXED_NOW)
+
+        // A complete replacement snapshot: the field the caller did not carry is cleared.
+        val second = requireNotNull(
+            repository.commitCurrent(
+                planId = "plan-1",
+                date = "2026-07-25",
+                replacement = SingleDayOverride("plan-1", "2026-07-25", preparationMinutes = 20),
+                now = FIXED_NOW,
+            ),
+        )
 
         val first = repository.getForPlanDate("plan-1", "2026-07-25")
-        assertEquals("08:40", first?.arrivalLocalTime)
+        assertNull("a field absent from the snapshot restores inheritance", first?.arrivalLocalTime)
         assertEquals(20, first?.preparationMinutes)
-        assertEquals(2L, second.dayRevision)
+        assertEquals(2L, second.committedRevision)
         assertEquals("09:30", repository.getForPlanDate("plan-1", "2026-07-26")?.arrivalLocalTime)
         assertEquals(1L, repository.getForPlanDate("plan-1", "2026-07-26")?.dayRevision)
     }
 
+    /** Clearing one field keeps the other submitted values and really clears that field. */
     @Test
-    fun dayOverrideDeleteReportsTheRemovedRevisionAndIsIdempotent() = runTest {
+    fun clearingOneFieldPersistsTheClearedValue() = runTest {
         planDao.upsert(createTestPlan())
-        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
-        repository.save(SingleDayOverride("plan-1", "2026-07-25", status = DayStatus.WORKDAY))
+        val repository = WorkdayOverrideRepository(overrideDao, db.dayOverrideCommitDao())
+        repository.commitCurrent(
+            planId = "plan-1",
+            date = "2026-07-25",
+            replacement = SingleDayOverride("plan-1", "2026-07-25", wakeLocalTime = "07:10", preparationMinutes = 45),
+            now = FIXED_NOW,
+        )
 
-        val removed = repository.delete("plan-1", "2026-07-25")
+        repository.commitCurrent(
+            planId = "plan-1",
+            date = "2026-07-25",
+            replacement = SingleDayOverride("plan-1", "2026-07-25", preparationMinutes = 45),
+            now = FIXED_NOW,
+        )
 
-        assertEquals(1L, removed)
+        val stored = repository.getForPlanDate("plan-1", "2026-07-25")
+        assertNull("restoring just wake inheritance must clear the stored wake", stored?.wakeLocalTime)
+        assertEquals(45, stored?.preparationMinutes)
+    }
+
+    /** Deleting the override keeps its revision, and recreating the same values keeps increasing. */
+    @Test
+    fun undoAndRecreateRetainsMonotonicRevision() = runTest {
+        planDao.upsert(createTestPlan())
+        val repository = WorkdayOverrideRepository(overrideDao, db.dayOverrideCommitDao())
+        val first = requireNotNull(
+            repository.commitCurrent(
+                planId = "plan-1",
+                date = "2026-07-25",
+                replacement = SingleDayOverride("plan-1", "2026-07-25", preparationMinutes = 45),
+                now = FIXED_NOW,
+            ),
+        )
+        val afterDelete = requireNotNull(repository.commitCurrent("plan-1", "2026-07-25", null, FIXED_NOW))
+
+        assertEquals("deleting the row consumes the next revision", 2L, afterDelete.committedRevision)
+        assertEquals(
+            "the revision survives deleting the row",
+            afterDelete.committedRevision,
+            repository.committedRevision("plan-1", "2026-07-25"),
+        )
+        val recreated = requireNotNull(
+            repository.commitCurrent(
+                planId = "plan-1",
+                date = "2026-07-25",
+                replacement = SingleDayOverride("plan-1", "2026-07-25", preparationMinutes = 45),
+                now = FIXED_NOW,
+            ),
+        )
+        assertTrue(
+            "recreated revision ${recreated.committedRevision} must exceed removed revision ${first.committedRevision}",
+            recreated.committedRevision > first.committedRevision,
+        )
+    }
+
+    @Test
+    fun dayOverrideDeleteRemovesTheRowAndKeepsTheRevision() = runTest {
+        planDao.upsert(createTestPlan())
+        val repository = WorkdayOverrideRepository(overrideDao, db.dayOverrideCommitDao())
+        repository.commitCurrent("plan-1", "2026-07-25", SingleDayOverride("plan-1", "2026-07-25", status = DayStatus.WORKDAY), FIXED_NOW)
+
+        val afterDelete = requireNotNull(repository.commitCurrent("plan-1", "2026-07-25", null, FIXED_NOW))
+
         assertNull(repository.getForPlanDate("plan-1", "2026-07-25"))
-        assertNull(repository.delete("plan-1", "2026-07-25"))
+        assertEquals(2L, afterDelete.committedRevision)
+        assertEquals(2L, repository.committedRevision("plan-1", "2026-07-25"))
     }
 
     /** A partial weather triple written outside the app must not invent buffer values. */
     @Test
     fun partialWeatherProfileColumnsFallBackToInheritance() = runTest {
         planDao.upsert(createTestPlan())
-        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
+        val repository = WorkdayOverrideRepository(overrideDao, db.dayOverrideCommitDao())
         overrideDao.upsert(
             WorkdayOverrideEntity(
                 planId = "plan-1",

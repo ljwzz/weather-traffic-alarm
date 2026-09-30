@@ -9,6 +9,8 @@ import com.ljwzz.weathertrafficalarm.core.alarm.LocalAlarmCoordinator
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmRegistrationResult
 import com.ljwzz.weathertrafficalarm.core.alarm.scheduler.AlarmSchedulingGateway
 import com.ljwzz.weathertrafficalarm.core.alarm.store.NextAlarmSnapshotStore
+import com.ljwzz.weathertrafficalarm.core.data.db.entity.AlarmDecisionEntity
+import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmDecisionDao
 import com.ljwzz.weathertrafficalarm.core.data.db.AppDatabase
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
@@ -21,6 +23,7 @@ import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmEventRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.AlarmPlanRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
 import com.ljwzz.weathertrafficalarm.core.data.repository.OccurrenceRepository
@@ -30,6 +33,7 @@ import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideReposit
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
+import com.ljwzz.weathertrafficalarm.core.model.DayOverrideChange
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
@@ -122,11 +126,14 @@ class EvaluationCoordinatorIntegrationTest {
         calendar = WorkdayCalendarRepository(context, clock)
         snapshots = NextAlarmSnapshotStore(context).also { it.clear() }
         val events = AlarmEventRepository(db.alarmEventDao())
-        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
-        val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, events, dayOverrides, calendar, FakeGateway(), snapshots, clock = clock)
+        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val dailyInputs = DailyEvaluationInputResolver(plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar)
+        val alarm = LocalAlarmCoordinator(
+            context, plans, occurrences, decisions, events, dayOverrides, calendar,
+            FakeGateway(), snapshots, dailyInputs, clock = clock,
+        )
         coordinator = EvaluationCoordinator(
-            plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar,
-            FakeRoute, FakeWeather(now), decisions, alarm, clock, diagnostics,
+            plans, dailyInputs, FakeRoute, FakeWeather(now), decisions, alarm, clock, diagnostics,
         )
         assertEquals(mapOf(target.toString() to DayStatus.WORKDAY, holiday.toString() to DayStatus.HOLIDAY, holidayWeekend.toString() to DayStatus.HOLIDAY), calendar.statuses())
         assertFalse(calendar.statuses().containsKey(weekend.toString()))
@@ -519,7 +526,7 @@ class EvaluationCoordinatorIntegrationTest {
 
     /** Seeds a stored day row verbatim, including its day revision, without bumping a plan. */
     private suspend fun dayOverride(override: SingleDayOverride) {
-        db.workdayOverrideWriteDao().restore(override.toEntity())
+        db.workdayOverrideDao().upsert(override.toEntity())
     }
 
     @Test
@@ -570,6 +577,90 @@ class EvaluationCoordinatorIntegrationTest {
         assertEquals(expectedWake.toEpochMilli(), advance.scheduledWakeAt)
     }
 
+    // --- N004 fixes: final commit validation -------------------------------------------------
+
+    /**
+     * F1: a day save that lands after the coordinator's own fingerprint check but before the
+     * alarm commit must be rejected inside the commit lock.
+     */
+    @Test
+    fun `a day save between the fingerprint check and the alarm commit is stale`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val dailyInputs = DailyEvaluationInputResolver(plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar)
+        val alarm = LocalAlarmCoordinator(
+            context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides,
+            calendar, FakeGateway(), snapshots, dailyInputs, clock = clock,
+        )
+        val originalDao = db.alarmDecisionDao()
+        var edited = false
+        val hookedDao = object : AlarmDecisionDao by originalDao {
+            override suspend fun saveIfPlanExists(decision: AlarmDecisionEntity): Boolean {
+                if (!edited && decision.evaluationOutcome == EvaluationOutcome.SUCCESS) {
+                    edited = true
+                    alarm.setDayOverride(
+                        DayOverrideChange(
+                            planId = plan.id,
+                            date = target.toString(),
+                            expectedDayRevision = dayOverrides.committedRevision(plan.id, target.toString()),
+                            replacement = SingleDayOverride(plan.id, target.toString(), preparationMinutes = 60),
+                        ),
+                    )
+                }
+                return originalDao.saveIfPlanExists(decision)
+            }
+        }
+        val hooked = EvaluationCoordinator(
+            plans, dailyInputs, FakeRoute, FakeWeather(now), DecisionRepository(hookedDao), alarm, clock, diagnostics,
+        )
+
+        val result = hooked.evaluate(plan.id, targetDate = target, evaluationId = "commit-race")
+
+        assertTrue("the day edit must have landed before the alarm commit", edited)
+        assertEquals(EvaluationOutcome.STALE, result.decision?.evaluationOutcome)
+        assertEquals(
+            "a stale run must not register an advance instance",
+            0,
+            occurrences.getByPlanId(plan.id).count { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED },
+        )
+    }
+
+    /**
+     * F7: undoing and recreating the identical values during the provider call still changes the
+     * committed revision, so the in-flight result must not be applied.
+     */
+    @Test
+    fun `deleting and recreating the same day values during the provider call is stale`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val stored = requireNotNull(
+            dayOverrides.commitCurrent(
+                planId = plan.id,
+                date = target.toString(),
+                replacement = SingleDayOverride(plan.id, target.toString(), preparationMinutes = 5),
+                now = now.toEpochMilli(),
+            ),
+        )
+        val editing = coordinatorWith(
+            FakeRoute,
+            EditingWeather(now) {
+                dayOverrides.commitCurrent(plan.id, target.toString(), null, now.toEpochMilli())
+                dayOverrides.commitCurrent(plan.id, target.toString(), stored.override, now.toEpochMilli())
+            },
+        )
+
+        val result = editing.evaluate(plan.id, targetDate = target, evaluationId = "recreated")
+
+        assertEquals(EvaluationOutcome.STALE, result.decision?.evaluationOutcome)
+        assertEquals(
+            "a stale run must not register an advance instance",
+            0,
+            occurrences.getByPlanId(plan.id).count { it.kind == OccurrenceKind.ADVANCE && it.state == OccurrenceState.SCHEDULED },
+        )
+    }
+
     private suspend fun persistPlan(date: LocalDate = target, arrival: String = "10:00", defaultWake: String = "09:00"): AlarmPlan {
         val plan = AlarmPlan(
             id = "p", revision = 0, name = "通勤", enabled = true, zoneId = zone.id,
@@ -587,9 +678,13 @@ class EvaluationCoordinatorIntegrationTest {
     }
 
     private fun coordinatorWith(route: RouteProvider, weather: WeatherProvider): EvaluationCoordinator {
-        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
-        val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides, calendar, FakeGateway(), snapshots, clock = clock)
-        return EvaluationCoordinator(plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar, route, weather, decisions, alarm, clock, diagnostics)
+        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.dayOverrideCommitDao())
+        val dailyInputs = DailyEvaluationInputResolver(plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar)
+        val alarm = LocalAlarmCoordinator(
+            context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides,
+            calendar, FakeGateway(), snapshots, dailyInputs, clock = clock,
+        )
+        return EvaluationCoordinator(plans, dailyInputs, route, weather, decisions, alarm, clock, diagnostics)
     }
 
     private object FakeRoute : RouteProvider {

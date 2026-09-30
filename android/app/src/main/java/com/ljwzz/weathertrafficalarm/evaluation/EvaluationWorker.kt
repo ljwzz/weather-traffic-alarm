@@ -10,6 +10,7 @@ import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
@@ -29,6 +30,7 @@ class EvaluationWorker @AssistedInject constructor(
     private val coordinator: EvaluationCoordinator,
     private val scheduler: EvaluationWorkScheduler,
     private val decisions: DecisionRepository,
+    private val dayOverrides: WorkdayOverrideRepository,
     private val clock: Clock,
     private val diagnostics: RedactingEventLogger,
 ) : CoroutineWorker(context, parameters) {
@@ -45,6 +47,20 @@ class EvaluationWorker @AssistedInject constructor(
             recordExpired(plan, run)
             return Result.success()
         }
+        if (run.dayRevision == EvaluationWorkRun.LEGACY_DAY_REVISION) {
+            // Work enqueued before day-revision aware identities is superseded by the work
+            // arranged above instead of being matched to whatever the date says now.
+            diagnostics.record(
+                DiagnosticEventType.EVALUATION, DiagnosticResultCode.STALE,
+                planId = plan.id, timestamp = clock.millis(),
+            )
+            return Result.success()
+        }
+        if (dayOverrides.committedRevision(plan.id, run.targetDate.toString()) != run.dayRevision) {
+            // The date generation changed after this run was queued: do not evaluate stale inputs.
+            recordExpired(plan, run)
+            return Result.success()
+        }
         val result = try {
             coordinator.evaluate(planId, attemptNumber = run.attempt, targetDate = run.targetDate,
                 deadline = run.deadline, evaluationId = id.toString())
@@ -53,7 +69,9 @@ class EvaluationWorker @AssistedInject constructor(
         }
         // A fresh repository read also prevents disabled or edited plans from creating retries.
         val latest = plans.getById(planId)
-        if (result.retryable && latest?.enabled == true && latest.revision == run.revision) {
+        val retryStillCurrent = latest != null &&
+            dayOverrides.committedRevision(latest.id, run.targetDate.toString()) == run.dayRevision
+        if (result.retryable && latest?.enabled == true && latest.revision == run.revision && retryStillCurrent) {
             val retryDeadline = minOf(run.deadline,
                 EvaluationWorkPolicy.deadline(clock.instant().atZone(plan.zoneIdInstance()).toLocalDate(), plan.zoneIdInstance()))
             EvaluationWorkPolicy.retryAt(clock.instant(), run.attempt, retryDeadline, result.retryAfterSeconds)?.let { retry ->
