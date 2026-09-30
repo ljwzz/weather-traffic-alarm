@@ -32,13 +32,14 @@ import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
-import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
@@ -86,7 +87,7 @@ class LocalAlarmCoordinatorTest {
             occurrenceRepository = occurrences,
             decisionRepository = decisions,
             eventRepository = events,
-            overrideRepository = WorkdayOverrideRepository(db.workdayOverrideDao()),
+            overrideRepository = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao()),
             calendarRepository = WorkdayCalendarRepository(context),
             scheduler = gateway,
             snapshotStore = snapshots,
@@ -394,7 +395,7 @@ class LocalAlarmCoordinatorTest {
             .copy(parentOccurrenceId = advance.occurrenceId)
         listOf(regular, advance, snooze).forEach { occurrences.save(it) }
 
-        coordinator.setDayOverride(WorkdayOverride(existing.id, regular.targetDate, DayStatus.HOLIDAY))
+        coordinator.setDayOverride(SingleDayOverride(existing.id, regular.targetDate, DayStatus.HOLIDAY))
 
         assertEquals(OccurrenceState.CANCELLED, occurrences.getById(advance.occurrenceId)?.state)
         assertEquals(OccurrenceState.CANCELLED, occurrences.getById(snooze.occurrenceId)?.state)
@@ -405,6 +406,61 @@ class LocalAlarmCoordinatorTest {
         occurrences.save(replacement)
         coordinator.clearDayOverride(existing.id, regular.targetDate)
         assertEquals(OccurrenceState.CANCELLED, occurrences.getById(replacement.occurrenceId)?.state)
+    }
+
+    @Test
+    fun `saving a day override bumps only that plan and date revision`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val target = LocalDate.now(ZoneId.of(existing.zoneId)).plusDays(1)
+        val other = target.plusDays(1)
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
+
+        val first = coordinator.setDayOverride(
+            SingleDayOverride(existing.id, target.toString(), DayStatus.WORKDAY, arrivalLocalTime = "08:45"),
+        )
+        val second = coordinator.setDayOverride(
+            SingleDayOverride(existing.id, target.toString(), DayStatus.WORKDAY, preparationMinutes = 15),
+        )
+        coordinator.setDayOverride(SingleDayOverride(existing.id, other.toString(), DayStatus.HOLIDAY))
+
+        assertEquals(1L, first?.dayRevision)
+        assertEquals(2L, second?.dayRevision)
+        assertEquals("08:45", overrides.getForPlanDate(existing.id, target.toString())?.arrivalLocalTime)
+        assertEquals(1L, overrides.getForPlanDate(existing.id, other.toString())?.dayRevision)
+        // The neighbouring date and the plan revision are untouched.
+        assertEquals(DayStatus.HOLIDAY, overrides.getForPlanDate(existing.id, other.toString())?.status)
+        assertEquals(1L, plans.getById(existing.id)!!.revision)
+    }
+
+    @Test
+    fun `repeated save and undo stay idempotent for the target date`() = runBlocking {
+        val existing = plan().copy(revision = 1, armedState = AlarmArmedState.SCHEDULED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val target = LocalDate.now(ZoneId.of(existing.zoneId)).plusDays(1).toString()
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
+
+        coordinator.setDayOverride(SingleDayOverride(existing.id, target, DayStatus.WORKDAY))
+        val removed = coordinator.clearDayOverride(existing.id, target)
+
+        assertEquals(1L, removed)
+        assertNull(overrides.getForPlanDate(existing.id, target))
+        // A second undo removes nothing and reports no day revision.
+        assertNull(coordinator.clearDayOverride(existing.id, target))
+        assertNull(overrides.getForPlanDate(existing.id, target))
+    }
+
+    @Test
+    fun `a disabled plan keeps its day override without arming an instance`() = runBlocking {
+        val existing = plan().copy(revision = 1, enabled = false, armedState = AlarmArmedState.DISABLED)
+        db.alarmPlanDao().upsert(existing.toEntity())
+        val target = LocalDate.now(ZoneId.of(existing.zoneId)).plusDays(1).toString()
+        val overrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
+
+        coordinator.setDayOverride(SingleDayOverride(existing.id, target, DayStatus.WORKDAY, wakeLocalTime = "07:00"))
+
+        assertEquals("07:00", overrides.getForPlanDate(existing.id, target)?.wakeLocalTime)
+        assertTrue(occurrences.getByPlanId(existing.id).isEmpty())
     }
 
     @Test

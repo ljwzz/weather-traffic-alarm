@@ -12,6 +12,7 @@ import com.ljwzz.weathertrafficalarm.core.model.WeatherSeverity
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -39,6 +40,8 @@ data class DecisionDetailUi(
     val departure: String = "本次未提供",
     val commute: String = "本次未提供",
     val preparation: String = "本次未提供",
+    /** Effective target arrival of the recorded evaluation; absent before N004. */
+    val arrival: String = "本次未提供",
     val weather: String = "本次未提供",
     val weatherBuffer: String = "本次未提供",
     val dayRule: String = "本次未提供",
@@ -95,6 +98,7 @@ fun AlarmDecision.toDecisionDetailUi(
         departure = estimatedDepartureAt.formatDecisionTime(zone),
         commute = commuteSeconds.toDurationLabel(),
         preparation = if (planName == null && defaultWakeAt == null) "本次未提供" else "$preparationMinutes 分钟",
+        arrival = arrivalLocalTime?.formatLocalTime() ?: "本次未提供",
         weather = weatherSeverity.toWeatherLabel(weatherProvider != null || weatherDataSource != null),
         weatherBuffer = if (weatherProvider != null || weatherDataSource != null) "$weatherBufferMinutes 分钟" else "本次未提供",
         dayRule = workdayStatus.toDayRuleLabel(),
@@ -107,6 +111,7 @@ fun AlarmDecision.toDecisionDetailUi(
         currentPlanMessage = currentPlanMessage,
         sourceLines = buildList {
             calendarSource?.let { add("日期规则来源：${it.toCalendarSourceLabel()}") }
+            if (dayRevision > 0) add("单日覆盖修订：第 $dayRevision 次")
             routeProvider?.let { add("路线来源：${if (it in setOf("AMAP", "AMAP_WEB")) "高德地图" else it}${routeProviderReportTime.formatSourceTime(zone)}") }
             weatherProvider?.let { add("天气来源：${if (it in setOf("CAIYUN", "CAIYUN_V2_6")) "彩云天气" else it}${weatherProviderReportTime.formatSourceTime(zone)}") }
             weatherDataSource?.let { add("天气数据：${it.toWeatherSourceLabel()}") }
@@ -329,6 +334,11 @@ private fun String?.formatDecisionTime(zone: ZoneId?): String {
 }
 
 private fun String?.formatSourceTime(zone: ZoneId?): String = " · 更新于 ${formatDecisionTime(zone)}"
+
+/** Effective arrival is stored as a local wall-clock time, which needs no zone conversion. */
+private fun String.formatLocalTime(): String =
+    runCatching { LocalTime.parse(this).format(DateTimeFormatter.ofPattern("HH:mm", Locale.CHINA)) }
+        .getOrDefault("本次未提供")
 
 private fun String?.isExpired(): Boolean = this.toEpochMillisOrNull()?.let { it < System.currentTimeMillis() } == true
 

@@ -10,6 +10,7 @@ import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.CommuteSource
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.RoutePolicy
 import com.ljwzz.weathertrafficalarm.core.model.VibrationPattern

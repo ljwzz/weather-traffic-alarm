@@ -18,6 +18,7 @@ import com.ljwzz.weathertrafficalarm.core.data.db.entity.PlanCommuteOverrideEnti
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
 import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSound
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmEventType
@@ -28,6 +29,8 @@ import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.RoutePolicy
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
+import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
 import com.ljwzz.weathertrafficalarm.core.model.VibrationPattern
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 import kotlinx.coroutines.test.runTest
@@ -474,6 +477,81 @@ class DatabaseTest {
 
         overrideDao.deleteByPlanIdAndDate("plan-1", "2026-07-25")
         assertNull(overrideDao.getByPlanIdAndDate("plan-1", "2026-07-25"))
+    }
+
+    @Test
+    fun dayOverrideRoundTripsEveryN004FieldAndKeepsZeroValues() = runTest {
+        planDao.upsert(createTestPlan())
+        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
+        val saved = repository.save(
+            SingleDayOverride(
+                planId = "plan-1",
+                date = "2026-07-25",
+                status = DayStatus.WORKDAY,
+                wakeLocalTime = "06:10",
+                arrivalLocalTime = "08:40",
+                preparationMinutes = 0,
+                weatherProfile = WeatherBufferProfile(0, 35, 60),
+                origin = origin,
+                destination = destination,
+                commuteMode = CommuteMode.TRANSIT,
+            ),
+        )
+
+        val stored = repository.getForPlanDate("plan-1", "2026-07-25")
+        assertNotNull(stored)
+        assertEquals(1L, saved.dayRevision)
+        assertEquals(0, stored!!.preparationMinutes)
+        assertEquals(WeatherBufferProfile(0, 35, 60), stored.weatherProfile)
+        assertEquals(CommuteMode.TRANSIT, stored.commuteMode)
+        assertEquals("08:40", stored.arrivalLocalTime)
+    }
+
+    /** Saving one field keeps the other values already stored for that single date. */
+    @Test
+    fun dayOverrideSaveMergesWithTheSameDateRowOnly() = runTest {
+        planDao.upsert(createTestPlan())
+        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
+        repository.save(SingleDayOverride("plan-1", "2026-07-25", arrivalLocalTime = "08:40"))
+        repository.save(SingleDayOverride("plan-1", "2026-07-26", arrivalLocalTime = "09:30"))
+        val second = repository.save(SingleDayOverride("plan-1", "2026-07-25", preparationMinutes = 20))
+
+        val first = repository.getForPlanDate("plan-1", "2026-07-25")
+        assertEquals("08:40", first?.arrivalLocalTime)
+        assertEquals(20, first?.preparationMinutes)
+        assertEquals(2L, second.dayRevision)
+        assertEquals("09:30", repository.getForPlanDate("plan-1", "2026-07-26")?.arrivalLocalTime)
+        assertEquals(1L, repository.getForPlanDate("plan-1", "2026-07-26")?.dayRevision)
+    }
+
+    @Test
+    fun dayOverrideDeleteReportsTheRemovedRevisionAndIsIdempotent() = runTest {
+        planDao.upsert(createTestPlan())
+        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
+        repository.save(SingleDayOverride("plan-1", "2026-07-25", status = DayStatus.WORKDAY))
+
+        val removed = repository.delete("plan-1", "2026-07-25")
+
+        assertEquals(1L, removed)
+        assertNull(repository.getForPlanDate("plan-1", "2026-07-25"))
+        assertNull(repository.delete("plan-1", "2026-07-25"))
+    }
+
+    /** A partial weather triple written outside the app must not invent buffer values. */
+    @Test
+    fun partialWeatherProfileColumnsFallBackToInheritance() = runTest {
+        planDao.upsert(createTestPlan())
+        val repository = WorkdayOverrideRepository(overrideDao, db.workdayOverrideWriteDao())
+        overrideDao.upsert(
+            WorkdayOverrideEntity(
+                planId = "plan-1",
+                date = "2026-07-25",
+                status = DayStatus.WORKDAY,
+                weatherSeverity1Minutes = 5,
+            ),
+        )
+
+        assertNull(repository.getForPlanDate("plan-1", "2026-07-25")?.weatherProfile)
     }
 
     // --- Transaction tests ---

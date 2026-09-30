@@ -29,10 +29,11 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
-import com.ljwzz.weathertrafficalarm.evaluation.EvaluationCoordinatorPolicy
+import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfiles
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -137,21 +138,22 @@ class MergedSettingsEditorDeviceTest {
         saveBuffer("weather-buffer-weekend", WeatherBuffers(21, 22, 23)) { it.weekendWeatherBuffers }
         saveBuffer("weather-buffer-legal-rest", WeatherBuffers(31, 32, 33)) { it.holidayWeatherBuffers }
         val persisted = runBlocking { dependencies.settings().loadInitial() }
+        val profiles = WeatherBufferProfiles(
+            workday = persisted.workdayWeatherBuffers.toProfile(),
+            weekend = persisted.weekendWeatherBuffers.toProfile(),
+            statutoryRest = persisted.holidayWeatherBuffers.toProfile(),
+        )
         assertEquals(
             WeatherBufferProfile(11, 12, 13),
-            EvaluationCoordinatorPolicy.weatherProfile(LocalDate.of(2026, 9, 7), emptyMap(), persisted),
+            resolveProfile(LocalDate.of(2026, 9, 7), emptyMap(), profiles),
         )
         assertEquals(
             WeatherBufferProfile(21, 22, 23),
-            EvaluationCoordinatorPolicy.weatherProfile(LocalDate.of(2026, 9, 6), emptyMap(), persisted),
+            resolveProfile(LocalDate.of(2026, 9, 6), emptyMap(), profiles),
         )
         assertEquals(
             WeatherBufferProfile(31, 32, 33),
-            EvaluationCoordinatorPolicy.weatherProfile(
-                LocalDate.of(2026, 9, 7),
-                mapOf("2026-09-07" to DayStatus.HOLIDAY),
-                persisted,
-            ),
+            resolveProfile(LocalDate.of(2026, 9, 7), mapOf("2026-09-07" to DayStatus.HOLIDAY), profiles),
         )
         screenshot("settings-weather-buffers.png")
     }
@@ -264,6 +266,28 @@ class MergedSettingsEditorDeviceTest {
         assertTrue(runBlocking { dependencies.plans().observeAll().first().none { it.name == draftName } })
         assertEquals(null, runBlocking { dependencies.commuteOverrides().getByPlanId(draftPlanId) })
     }
+
+    private fun resolveProfile(
+        date: LocalDate,
+        officialDays: Map<String, DayStatus>,
+        profiles: WeatherBufferProfiles,
+    ): WeatherBufferProfile {
+        val plan = AlarmPlan(
+            id = "buffer-probe", revision = 0, name = "probe", enabled = false,
+            zoneId = ZoneId.systemDefault().id,
+            defaultWakeLocalTime = AlarmPlan.DEFAULT_WAKE_TIME,
+            arrivalLocalTime = AlarmPlan.DEFAULT_ARRIVAL_TIME,
+            preparationMinutes = AlarmPlan.DEFAULT_PREPARATION_MINUTES,
+            maxAdvanceMinutes = AlarmPlan.DEFAULT_MAX_ADVANCE_MINUTES,
+            commuteMode = CommuteMode.DRIVING,
+            schedule = AlarmSchedule.Workdays,
+            armedState = AlarmArmedState.DISABLED,
+        )
+        return DailySettingsResolver.resolve(plan, date, null, officialDays, profiles).weatherProfile
+    }
+
+    private fun com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers.toProfile() =
+        WeatherBufferProfile(lightMinutes, moderateMinutes, severeMinutes)
 
     private fun openSettings() {
         compose.onAllNodesWithText("设置").onFirst().performClick()

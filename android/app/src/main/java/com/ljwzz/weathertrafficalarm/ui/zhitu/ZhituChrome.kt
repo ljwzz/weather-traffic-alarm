@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -28,7 +29,12 @@ import com.ljwzz.weathertrafficalarm.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ZhituTopBar(title: String, subtitle: String? = null, navigation: (() -> Unit)? = null) {
+fun ZhituTopBar(
+    title: String,
+    subtitle: String? = null,
+    navigation: (() -> Unit)? = null,
+    navigationTag: String? = null,
+) {
     TopAppBar(
         title = {
             Column {
@@ -37,7 +43,7 @@ fun ZhituTopBar(title: String, subtitle: String? = null, navigation: (() -> Unit
             }
         },
         navigationIcon = {
-            if (navigation != null) Text("‹", modifier = Modifier.width(52.dp).clickable(onClick = navigation).padding(start = 22.dp), color = ZhituColors.Ink, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
+            if (navigation != null) Text("‹", modifier = Modifier.width(52.dp).then(if (navigationTag == null) Modifier else Modifier.testTag(navigationTag)).clickable(onClick = navigation).padding(start = 22.dp), color = ZhituColors.Ink, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = ZhituColors.Background),
     )

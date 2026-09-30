@@ -162,6 +162,7 @@ private fun RowScope.HeroWakeTime(label: String, time: String, color: Color) = C
 private fun DecisionTimingCard(detail: DecisionDetailUi) = FormCard {
     SectionTitle("时间是这样算出来的")
     DetailLine("预计出发", detail.departure)
+    DetailLine("目标到岗", detail.arrival)
     DetailLine("通勤耗时", detail.commute)
     DetailLine("准备时长", detail.preparation)
     DetailLine("天气等级", detail.weather)

@@ -47,6 +47,10 @@ data class AlarmDecision(
     val actualWakeAt: String? = null,
     val calendarSource: String? = null,
     val weatherDataSource: String? = null,
+    /** Effective target-arrival local time of this evaluation; legacy rows can be absent. */
+    val arrivalLocalTime: String? = null,
+    /** Day revision of the single-day override this evaluation used; 0 without an override. */
+    val dayRevision: Long = 0,
     /** Immutable display metadata captured during the evaluation; legacy rows can be absent. */
     val planName: String? = null,
     val zoneId: String? = null,

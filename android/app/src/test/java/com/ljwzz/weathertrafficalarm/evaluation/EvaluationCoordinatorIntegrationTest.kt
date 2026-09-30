@@ -14,6 +14,8 @@ import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEventType
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.local.WorkdayCalendarRepository
+import com.ljwzz.weathertrafficalarm.core.data.mapper.toDomain
+import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettingsStore
 import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
@@ -29,6 +31,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
 import com.ljwzz.weathertrafficalarm.core.model.FallbackReason
@@ -40,6 +43,7 @@ import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import com.ljwzz.weathertrafficalarm.core.model.RouteEstimate
 import com.ljwzz.weathertrafficalarm.core.model.RouteProvider
 import com.ljwzz.weathertrafficalarm.core.model.RouteRequest
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
 import com.ljwzz.weathertrafficalarm.core.model.WeatherDataSource
 import com.ljwzz.weathertrafficalarm.core.model.WeatherEvaluation
@@ -118,7 +122,7 @@ class EvaluationCoordinatorIntegrationTest {
         calendar = WorkdayCalendarRepository(context, clock)
         snapshots = NextAlarmSnapshotStore(context).also { it.clear() }
         val events = AlarmEventRepository(db.alarmEventDao())
-        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao())
+        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
         val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, events, dayOverrides, calendar, FakeGateway(), snapshots, clock = clock)
         coordinator = EvaluationCoordinator(
             plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar,
@@ -429,6 +433,95 @@ class EvaluationCoordinatorIntegrationTest {
         assertEquals(0, weather.requests)
     }
 
+    /** The decision snapshot stores the resolved day values instead of the current plan. */
+    @Test
+    fun `day override values are recorded in the decision snapshot`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        dayOverride(
+            SingleDayOverride(
+                planId = plan.id,
+                date = target.toString(),
+                arrivalLocalTime = "08:30",
+                preparationMinutes = 0,
+                weatherProfile = WeatherBufferProfile(2, 4, 6),
+                dayRevision = 1,
+            ),
+        )
+        val route = RecordingRoute(listOf(RouteAlternative("r", 45 * 60L, 1_000, emptyList())))
+        val weather = RecordingWeather(now)
+        coordinator = coordinatorWith(route, weather)
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "day-snapshot")
+
+        assertEquals(EvaluationOutcome.SUCCESS, result.decision?.evaluationOutcome)
+        assertEquals("08:30", result.decision?.arrivalLocalTime)
+        assertEquals(0, result.decision?.preparationMinutes)
+        assertEquals(1L, result.decision?.dayRevision)
+        assertEquals(4, weather.lastProfile?.moderateMinutes)
+        // The grid anchor is the resolved arrival time, so the 45 minute route departs at 07:45.
+        assertEquals(target.atTime(7, 45).atZone(zone).toInstant().toString(), result.decision?.estimatedDepartureAt)
+        assertEquals(2700L, result.decision?.commuteSeconds)
+        // arrival 08:30 - 45 minutes of travel - 0 preparation - 4 minutes of buffer = 07:41,
+        // which is earlier than the plan's 08:00 advance floor, so the plan limit wins.
+        assertEquals(
+            target.atTime(8, 0).atZone(zone).toInstant(),
+            result.decision?.recommendedWakeAt?.let(Instant::parse),
+        )
+        assertTrue(result.decision?.insufficientAdvance == true)
+        // The weather participating window follows the resolved arrival time.
+        assertEquals(
+            target.atTime(8, 30).atZone(zone).toInstant(),
+            result.decision?.weatherWindowEnd?.let(Instant::parse),
+        )
+        // The window starts one advance allowance before the resolved wake time.
+        assertEquals(
+            target.atTime(8, 0).atZone(zone).toInstant(),
+            result.decision?.weatherWindowStart?.let(Instant::parse),
+        )
+        // The save bumped the plan revision once; the day override never changes it again.
+        assertEquals(1L, plan.revision)
+        assertEquals(1L, plans.getById(plan.id)?.revision)
+    }
+
+    /** A save or undo that lands during a provider call makes the in-flight result stale. */
+    @Test
+    fun `day override change while provider is running never applies the result`() = runBlocking {
+        val plan = persistPlan()
+        val regular = regular(plan)
+        coordinator = coordinatorWith(FakeRoute, EditingWeather(now) {
+            dayOverride(SingleDayOverride(plan.id, target.toString(), preparationMinutes = 5, dayRevision = 4))
+        })
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "day-changed-during-run")
+
+        assertEquals(EvaluationOutcome.STALE, result.decision?.evaluationOutcome)
+        assertEquals("EVALUATION_INPUTS_CHANGED", result.decision?.failureReason)
+        assertEquals(OccurrenceState.SCHEDULED, occurrences.getById(regular.occurrenceId)?.state)
+        assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    /** A day revision alone invalidates the submitted fingerprint even without value changes. */
+    @Test
+    fun `day revision bump while provider is running never applies the result`() = runBlocking {
+        val plan = persistPlan()
+        regular(plan)
+        dayOverride(SingleDayOverride(plan.id, target.toString(), preparationMinutes = 5, dayRevision = 1))
+        coordinator = coordinatorWith(FakeRoute, EditingWeather(now) {
+            dayOverride(SingleDayOverride(plan.id, target.toString(), preparationMinutes = 5, dayRevision = 2))
+        })
+
+        val result = coordinator.evaluate(plan.id, targetDate = target, evaluationId = "day-revision-during-run")
+
+        assertEquals(EvaluationOutcome.STALE, result.decision?.evaluationOutcome)
+        assertTrue(occurrences.getByPlanId(plan.id).none { it.kind == OccurrenceKind.ADVANCE })
+    }
+
+    /** Seeds a stored day row verbatim, including its day revision, without bumping a plan. */
+    private suspend fun dayOverride(override: SingleDayOverride) {
+        db.workdayOverrideWriteDao().restore(override.toEntity())
+    }
+
     @Test
     fun `cancelled evaluation records cancellation and propagates without a decision`() = runBlocking {
         val plan = persistPlan()
@@ -494,7 +587,7 @@ class EvaluationCoordinatorIntegrationTest {
     }
 
     private fun coordinatorWith(route: RouteProvider, weather: WeatherProvider): EvaluationCoordinator {
-        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao())
+        val dayOverrides = WorkdayOverrideRepository(db.workdayOverrideDao(), db.workdayOverrideWriteDao())
         val alarm = LocalAlarmCoordinator(context, plans, occurrences, decisions, AlarmEventRepository(db.alarmEventDao()), dayOverrides, calendar, FakeGateway(), snapshots, clock = clock)
         return EvaluationCoordinator(plans, settings, EffectiveCommuteResolver(overrides), dayOverrides, calendar, route, weather, decisions, alarm, clock, diagnostics)
     }

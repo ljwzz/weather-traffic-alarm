@@ -217,4 +217,52 @@ object AppDatabaseMigrations {
         db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN plan_name TEXT")
         db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN zone_id TEXT")
     }
+
+    /**
+     * Extends the existing single-day override table in place. Every added column is
+     * nullable, so rows written by v6 keep the previous plan/global behaviour and the
+     * existing status and wake values survive unchanged. The composite primary key,
+     * foreign key and index are recreated explicitly so Room still validates the schema.
+     * Decision history gains the effective arrival time and day revision of the run.
+     */
+    val V6_TO_V7: Migration = Migration(6, 7) { db ->
+        db.execSQL("ALTER TABLE workday_overrides RENAME TO workday_overrides_v6")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS workday_overrides (
+                plan_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                status TEXT,
+                wake_local_time TEXT,
+                arrival_local_time TEXT,
+                preparation_minutes INTEGER,
+                weather_severity1_minutes INTEGER,
+                weather_severity2_minutes INTEGER,
+                weather_severity3_minutes INTEGER,
+                origin TEXT,
+                destination TEXT,
+                commute_mode TEXT,
+                day_revision INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(plan_id, date),
+                FOREIGN KEY(plan_id) REFERENCES alarm_plans(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            INSERT INTO workday_overrides (
+                plan_id, date, status, wake_local_time, arrival_local_time, preparation_minutes,
+                weather_severity1_minutes, weather_severity2_minutes, weather_severity3_minutes,
+                origin, destination, commute_mode, day_revision
+            )
+            SELECT plan_id, date, status, wake_local_time, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0
+            FROM workday_overrides_v6
+            """.trimIndent(),
+        )
+        db.execSQL("DROP TABLE workday_overrides_v6")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_workday_overrides_plan_id ON workday_overrides(plan_id)")
+
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN arrival_local_time TEXT")
+        db.execSQL("ALTER TABLE alarm_decisions ADD COLUMN day_revision INTEGER NOT NULL DEFAULT 0")
+    }
 }

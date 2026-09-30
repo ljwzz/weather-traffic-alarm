@@ -72,15 +72,22 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarUiState
+import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommute
 import com.ljwzz.weathertrafficalarm.core.data.preferences.FavoritePlace
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.CommuteSource
+import com.ljwzz.weathertrafficalarm.core.model.DailySettingSource
+import com.ljwzz.weathertrafficalarm.core.model.DayClassification
+import com.ljwzz.weathertrafficalarm.core.model.DayKind
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
+import com.ljwzz.weathertrafficalarm.core.model.EffectiveDailySettings
 import com.ljwzz.weathertrafficalarm.core.model.GeoPoint
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
-import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
+import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
 import com.ljwzz.weathertrafficalarm.core.map.AmapMap
 import com.ljwzz.weathertrafficalarm.core.map.AmapMapUiState
 import java.time.LocalDate
@@ -88,56 +95,96 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 /**
- * Per-plan calendar editor. Changes are held in Compose state until Save calls
- * the coordinator through [onSave]; a null status restores automatic rules.
+ * Per-plan calendar editor. Every field is held in Compose state until Save writes the
+ * single-day override through [onSave]; leaving the page without saving writes nothing.
+ * A null field keeps inheriting from the plan or the global defaults.
  */
 @Composable
 fun LocalCalendarScreen(
     plans: List<AlarmPlan>,
-    overrides: List<WorkdayOverride>,
+    overrides: List<SingleDayOverride>,
     calendarState: CalendarUiState,
-    onSave: (planId: String, date: String, status: DayStatus?, wake: String?, onComplete: (String?) -> Unit) -> Unit,
+    loadEditorInputs: suspend (planId: String, date: String) -> DayEditorInputs?,
+    onSave: (SingleDayOverride, onComplete: (String?) -> Unit) -> Unit,
     onRefresh: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var month by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedPlanId by remember { mutableStateOf(plans.firstOrNull()?.id) }
-    var draftStatus by remember { mutableStateOf<DayStatus?>(null) }
-    var draftWake by remember { mutableStateOf<String?>(null) }
-    var timeDialog by remember { mutableStateOf(false) }
+    var inputs by remember { mutableStateOf<DayEditorInputs?>(null) }
+    var draft by remember { mutableStateOf(DayOverrideDraft()) }
+    var timeField by remember { mutableStateOf<DayTimeField?>(null) }
     var feedback by remember { mutableStateOf<String?>(null) }
+    var persisted by remember { mutableStateOf(false) }
     val activePlan = plans.firstOrNull { it.id == selectedPlanId } ?: plans.firstOrNull()
     val activePlanId = activePlan?.id
     val existing = overrides.firstOrNull { it.planId == activePlanId && it.date == selectedDate.toString() }
 
     LaunchedEffect(Unit) { onRefresh(false) }
-    LaunchedEffect(activePlanId, selectedDate, overrides) {
-        draftStatus = existing?.status
-        draftWake = existing?.wakeLocalTime
+    LaunchedEffect(activePlanId, selectedDate, overrides, calendarState.days) {
         feedback = null
+        persisted = false
+        val planId = activePlanId
+        if (planId == null) {
+            inputs = null
+            draft = DayOverrideDraft()
+            return@LaunchedEffect
+        }
+        val loaded = loadEditorInputs(planId, selectedDate.toString())
+        inputs = loaded
+        draft = loaded?.let { DayOverrideDraft.from(it) } ?: DayOverrideDraft()
     }
 
     Scaffold(
         containerColor = ZhituColors.Background,
-        topBar = { ZhituTopBar("工作日日历", "识别日期类型，只改动指定的一天", onBack) },
+        topBar = { ZhituTopBar("工作日日历", "识别日期类型，只改动指定的一天", onBack, navigationTag = "day_top_back") },
         bottomBar = {
             Button(
                 onClick = {
                     val plan = activePlan ?: return@Button
-                    onSave(plan.id, selectedDate.toString(), draftStatus, draftWake) { failure ->
-                        if (failure == null) onBack() else feedback = failure
+                    val current = inputs ?: return@Button
+                    val base = existing ?: SingleDayOverride(plan.id, selectedDate.toString())
+                    val next = draft.applyTo(base)
+                    if (next.isInheritingEverything) {
+                        if (existing == null) {
+                            // Nothing is stored and nothing is drafted: the date already inherits everything.
+                            persisted = true
+                            feedback = null
+                            return@Button
+                        }
+                        // Removing the row restores the calendar classification and re-arms the plan.
+                        onSave(next) { failure ->
+                            if (failure == null) {
+                                persisted = true
+                                feedback = null
+                            } else {
+                                // A rejected undo keeps the previously stored values in the database.
+                                draft = DayOverrideDraft.from(current)
+                                feedback = failure
+                            }
+                        }
+                        return@Button
+                    }
+                    onSave(next) { failure ->
+                        if (failure == null) {
+                            persisted = true
+                            feedback = null
+                        } else {
+                            draft = DayOverrideDraft.from(current)
+                            feedback = failure
+                        }
                     }
                 },
-                enabled = activePlan != null,
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                enabled = activePlan != null && inputs != null,
+                modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("day_override_save"),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = ZhituColors.Brand),
-            ) { Text(if (draftStatus == null) "恢复自动规则" else "保存单日覆盖") }
+            ) { Text(if (existing == null && draft.isInheriting) "保持自动规则" else "保存当前日期") }
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).testTag("day_screen_list"),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -152,6 +199,7 @@ fun LocalCalendarScreen(
                             FilterChip(
                                 selected = plan.id == activePlanId,
                                 onClick = { selectedPlanId = plan.id },
+                                modifier = Modifier.testTag("day_plan_${plan.id}"),
                                 label = { Text(plan.name.ifBlank { "闹钟" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             )
                         }
@@ -169,46 +217,440 @@ fun LocalCalendarScreen(
                     onDate = { date -> selectedDate = date },
                 )
             }
-            if (activePlan != null) {
+            if (activePlan != null && inputs != null) {
+                val current = requireNotNull(inputs)
                 item {
-                    val automatic = calendarState.days[selectedDate.toString()]
-                        ?: fallbackStatus(selectedDate)
-                    val source = if (calendarState.days.containsKey(selectedDate.toString())) "年度日历" else "星期回退"
-                    LocalCard {
-                        Text("${activePlan.name.ifBlank { "闹钟" }} · ${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))}", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            if (draftStatus == null) "自动：${statusLabel(automatic)} · $source" else "手动：${statusLabel(draftStatus!!)}",
-                            color = ZhituColors.Muted,
-                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OverrideChoice("自动", draftStatus == null) { draftStatus = null; draftWake = null }
-                            OverrideChoice("工作", draftStatus == DayStatus.WORKDAY) { draftStatus = DayStatus.WORKDAY }
-                            OverrideChoice("休息", draftStatus == DayStatus.HOLIDAY) { draftStatus = DayStatus.HOLIDAY; draftWake = null }
-                        }
-                        if (draftStatus == DayStatus.WORKDAY) {
-                            Spacer(Modifier.height(12.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { timeDialog = true }) {
-                                Text("本日响铃时间", color = ZhituColors.Ink, modifier = Modifier.weight(1f))
-                                Text(draftWake ?: "沿用 ${activePlan.defaultWakeLocalTime}", color = ZhituColors.Muted)
-                                Text(" ›", color = ZhituColors.Subtle)
+                    DayStatusCard(
+                        planName = activePlan.name.ifBlank { "闹钟" },
+                        date = selectedDate,
+                        classification = current.effective.classification,
+                        calendarSource = if (calendarState.days.containsKey(selectedDate.toString())) "年度日历" else "星期回退",
+                        draftStatus = draft.status,
+                        onStatus = { draft = draft.copy(status = it) },
+                    )
+                }
+                item {
+                    DayTimeCard(
+                        draft = draft,
+                        effective = current.effective,
+                        onPick = { field -> timeField = field },
+                        onClear = { field ->
+                            draft = when (field) {
+                                DayTimeField.WAKE -> draft.copy(wake = null)
+                                DayTimeField.ARRIVAL -> draft.copy(arrival = null)
                             }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Text("单日覆盖只影响当前计划和所选日期；未保存前离开不会写入。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
-                    }
+                        },
+                    )
+                }
+                item {
+                    DayPreparationCard(
+                        draft = draft,
+                        effective = current.effective,
+                        planPreparation = current.plan.preparationMinutes,
+                        onPreparation = { draft = draft.copy(preparationMinutes = it) },
+                    )
+                }
+                item {
+                    DayWeatherCard(
+                        draft = draft,
+                        effective = current.effective,
+                        onProfile = { draft = draft.copy(weatherProfile = it) },
+                    )
+                }
+                item {
+                    DayCommuteCard(
+                        draft = draft,
+                        planCommute = current.planCommute,
+                        favorites = current.settings.favorites,
+                        onChange = { draft = it },
+                    )
+                }
+                item {
+                    DayInheritanceSummary(
+                        effective = current.effective,
+                        draft = draft,
+                        persisted = persisted,
+                    )
                 }
             }
             feedback?.let { message -> item { LocalInfoCard("无法保存", message, ZhituColors.AmberBackground, ZhituColors.Amber) } }
         }
     }
-    if (timeDialog && activePlan != null) LocalTimePicker(
-        initial = draftWake ?: activePlan.defaultWakeLocalTime,
-        onSave = { draftWake = it; timeDialog = false },
-        onDismiss = { timeDialog = false },
+    val field = timeField
+    if (field != null && activePlan != null) {
+        LocalTimePicker(
+            initial = when (field) {
+                DayTimeField.WAKE -> draft.wake ?: activePlan.defaultWakeLocalTime
+                DayTimeField.ARRIVAL -> draft.arrival?.takeIf { it != activePlan.arrivalLocalTime } ?: activePlan.arrivalLocalTime
+            },
+            tag = when (field) {
+                DayTimeField.WAKE -> "day_wake_picker"
+                DayTimeField.ARRIVAL -> "day_arrival_picker"
+            },
+            onSave = {
+                draft = when (field) {
+                    DayTimeField.WAKE -> draft.copy(wake = it)
+                    DayTimeField.ARRIVAL -> draft.copy(arrival = it.takeIf { value -> value != activePlan.arrivalLocalTime })
+                }
+                timeField = null
+            },
+            onDismiss = { timeField = null },
+        )
+    }
+}
+
+internal enum class DayTimeField { WAKE, ARRIVAL }
+
+/**
+ * Editable single-day draft. Null means "inherit"; the stored row also keeps its
+ * persisted revision so a save only touches this plan and date.
+ */
+internal data class DayOverrideDraft(
+    val status: DayStatus? = null,
+    val wake: String? = null,
+    val arrival: String? = null,
+    val preparationMinutes: Int? = null,
+    /** Null inherits the global profile matching the raw date category. */
+    val weatherProfile: WeatherBufferProfile? = null,
+    /** True once the user touched any of the three buffer values. */
+    val weatherEdited: Boolean = false,
+    val origin: PlaceRef? = null,
+    val destination: PlaceRef? = null,
+    /** Favorite identifiers behind [origin] and [destination]; null means "no place selected yet". */
+    val originFavoriteId: String? = null,
+    val destinationFavoriteId: String? = null,
+    val commuteMode: CommuteMode? = null,
+    /** True once the user selected a day-level commute combination. */
+    val commuteEdited: Boolean = false,
+) {
+    val isInheriting: Boolean
+        get() = status == null && wake == null && arrival == null && preparationMinutes == null &&
+            weatherProfile == null && !weatherEdited && !commuteEdited &&
+            origin == null && destination == null && commuteMode == null
+
+    fun applyTo(base: SingleDayOverride): SingleDayOverride = base.copy(
+        status = status,
+        wakeLocalTime = wake,
+        arrivalLocalTime = arrival,
+        preparationMinutes = preparationMinutes,
+        weatherProfile = weatherProfile,
+        origin = if (commuteEdited) origin else base.origin,
+        destination = if (commuteEdited) destination else base.destination,
+        commuteMode = if (commuteEdited) commuteMode else base.commuteMode,
     )
+
+    companion object {
+        fun from(inputs: DayEditorInputs): DayOverrideDraft {
+            val stored = inputs.dayOverride
+            val favorites = inputs.settings.favorites
+            return DayOverrideDraft(
+                status = stored?.status,
+                wake = stored?.wakeLocalTime,
+                arrival = stored?.arrivalLocalTime,
+                preparationMinutes = stored?.preparationMinutes,
+                weatherProfile = stored?.weatherProfile,
+                weatherEdited = stored?.weatherProfile != null,
+                origin = stored?.origin,
+                destination = stored?.destination,
+                originFavoriteId = favorites.firstOrNull { it.placeRef == stored?.origin }?.id,
+                destinationFavoriteId = favorites.firstOrNull { it.placeRef == stored?.destination }?.id,
+                commuteMode = stored?.commuteMode,
+                commuteEdited = stored?.hasCompleteCommute == true,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayStatusCard(
+    planName: String,
+    date: LocalDate,
+    classification: DayClassification,
+    calendarSource: String,
+    draftStatus: DayStatus?,
+    onStatus: (DayStatus?) -> Unit,
+) {
+    LocalCard {
+        Text("$planName · ${date.format(DateTimeFormatter.ofPattern("M月d日"))}", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "日历判定：$calendarSource · ${baseKindLabel(classification.baseDayKind)}",
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            when {
+                draftStatus == null -> "本日状态：自动（${statusLabel(classification.effectiveStatus)}）"
+                else -> "本日状态：手动 ${statusLabel(draftStatus)}"
+            },
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OverrideChoice("自动", draftStatus == null, "day_status_auto") { onStatus(null) }
+            OverrideChoice("工作", draftStatus == DayStatus.WORKDAY, "day_status_work") { onStatus(DayStatus.WORKDAY) }
+            OverrideChoice("休息", draftStatus == DayStatus.HOLIDAY, "day_status_rest") { onStatus(DayStatus.HOLIDAY) }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "本日上班不会把原始${baseKindLabel(classification.baseDayKind)}改成普通工作日，天气缓冲仍按原始类别选择。",
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
+private fun DayTimeCard(
+    draft: DayOverrideDraft,
+    effective: EffectiveDailySettings,
+    onPick: (DayTimeField) -> Unit,
+    onClear: (DayTimeField) -> Unit,
+) {
+    LocalCard {
+        Text("时间", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(8.dp))
+        DayValueRow(
+            label = "本日响铃时间",
+            value = draft.wake,
+            inherited = effective.defaultWakeLocalTime,
+            source = effective.wakeSource,
+            testTag = "day_wake_row",
+            onPick = { onPick(DayTimeField.WAKE) },
+            onClear = { onClear(DayTimeField.WAKE) },
+        )
+        Spacer(Modifier.height(8.dp))
+        DayValueRow(
+            label = "本日到岗时间",
+            value = draft.arrival,
+            inherited = effective.arrivalLocalTime,
+            source = effective.arrivalSource,
+            testTag = "day_arrival_row",
+            onPick = { onPick(DayTimeField.ARRIVAL) },
+            onClear = { onClear(DayTimeField.ARRIVAL) },
+        )
+    }
+}
+
+@Composable
+private fun DayValueRow(
+    label: String,
+    value: String?,
+    inherited: String,
+    source: DailySettingSource,
+    testTag: String,
+    onPick: () -> Unit,
+    onClear: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(label, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+        Text(
+            text = value ?: "$inherited（${sourceLabel(source)}）",
+            color = if (value == null) ZhituColors.Muted else ZhituColors.Ink,
+            modifier = Modifier.testTag("${testTag}_value").clickable { onPick() },
+        )
+        if (value != null) {
+            TextButton(onClick = onClear, modifier = Modifier.testTag("${testTag}_clear")) { Text("恢复继承") }
+        } else {
+            Text(" ›", color = ZhituColors.Subtle)
+        }
+    }
+}
+
+@Composable
+private fun DayPreparationCard(
+    draft: DayOverrideDraft,
+    effective: EffectiveDailySettings,
+    planPreparation: Int,
+    onPreparation: (Int?) -> Unit,
+) {
+    LocalCard {
+        Text("准备时长", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (draft.preparationMinutes == null) {
+                "沿用 ${planPreparation} 分钟（${sourceLabel(effective.preparationSource)}）"
+            } else {
+                "本日 ${draft.preparationMinutes} 分钟"
+            },
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0, 15, 30, 45, 60, 90).forEach { minutes ->
+                OverrideChoice("$minutes", draft.preparationMinutes == minutes, "day_preparation_$minutes") { onPreparation(minutes) }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        TextButton(onClick = { onPreparation(null) }, modifier = Modifier.testTag("day_preparation_clear")) { Text("恢复继承") }
+    }
+}
+
+@Composable
+private fun DayWeatherCard(
+    draft: DayOverrideDraft,
+    effective: EffectiveDailySettings,
+    onProfile: (WeatherBufferProfile?) -> Unit,
+) {
+    val inherited = inheritedProfile(effective)
+    val profile = draft.weatherProfile ?: inherited
+    LocalCard {
+        Text("本日天气缓冲", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (draft.weatherProfile == null) {
+                "沿用${weatherKindLabel(effective)}全局档（${sourceLabel(effective.weatherProfileSource)}）：${bufferText(inherited)}"
+            } else {
+                "本日三档：${bufferText(profile)}"
+            },
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(10.dp))
+        WeatherBufferStepper("轻微", profile.lightMinutes, "day_buffer_light") { value ->
+            onProfile(profile.copy(lightMinutes = value))
+        }
+        WeatherBufferStepper("中等", profile.moderateMinutes, "day_buffer_moderate") { value ->
+            onProfile(profile.copy(moderateMinutes = value))
+        }
+        WeatherBufferStepper("严重", profile.severeMinutes, "day_buffer_severe") { value ->
+            onProfile(profile.copy(severeMinutes = value))
+        }
+        TextButton(onClick = { onProfile(null) }, modifier = Modifier.testTag("day_buffer_clear")) { Text("恢复继承") }
+    }
+}
+
+@Composable
+private fun WeatherBufferStepper(label: String, value: Int, testTag: String, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(label, color = ZhituColors.Ink, modifier = Modifier.weight(1f))
+        TextButton(onClick = { onChange((value - 5).coerceAtLeast(0)) }, modifier = Modifier.testTag("${testTag}_minus")) { Text("−5") }
+        Text("$value 分钟", color = ZhituColors.Ink, modifier = Modifier.testTag(testTag))
+        TextButton(onClick = { onChange((value + 5).coerceAtMost(60)) }, modifier = Modifier.testTag("${testTag}_plus")) { Text("+5") }
+    }
+}
+
+@Composable
+private fun DayCommuteCard(
+    draft: DayOverrideDraft,
+    planCommute: EffectiveCommute?,
+    favorites: List<FavoritePlace>,
+    onChange: (DayOverrideDraft) -> Unit,
+) {
+    LocalCard {
+        Text("本日通勤", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (!draft.commuteEdited) {
+                planCommute?.let { "沿用现有通勤：${it.origin.name} → ${it.destination.name}（${sourceLabel(it.source)}）" }
+                    ?: "尚未配置可用通勤；本日覆盖需要起点和终点。"
+            } else {
+                "本日起点、终点和方式整体替换，不与其他层级混用。"
+            },
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(10.dp))
+        FavoriteSelector("本日起点", draft.originFavoriteId, favorites, tag = "day_origin") { id ->
+            onChange(draft.copy(originFavoriteId = id, origin = favorites.firstOrNull { it.id == id }?.placeRef, commuteEdited = true))
+        }
+        Spacer(Modifier.height(8.dp))
+        FavoriteSelector("本日终点", draft.destinationFavoriteId, favorites, tag = "day_destination") { id ->
+            onChange(draft.copy(destinationFavoriteId = id, destination = favorites.firstOrNull { it.id == id }?.placeRef, commuteEdited = true))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("本日出行方式", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                OverrideChoice("沿用", !draft.commuteEdited, "day_commute_inherit") { onChange(draft.copy(origin = null, destination = null, originFavoriteId = null, destinationFavoriteId = null, commuteMode = null, commuteEdited = false)) }
+            }
+            items(CommuteMode.entries.toList(), key = CommuteMode::name) { mode ->
+                OverrideChoice(mode.label(), draft.commuteMode == mode, "day_commute_mode_${mode.name}") {
+                    onChange(draft.copy(commuteMode = mode, commuteEdited = true))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayInheritanceSummary(
+    effective: EffectiveDailySettings,
+    draft: DayOverrideDraft,
+    persisted: Boolean,
+) {
+    LocalCard(background = ZhituColors.Mint, modifier = Modifier.testTag("day_summary")) {
+        Text(if (persisted) "本日覆盖已保存" else "本日差异预览", fontWeight = FontWeight.Bold, color = ZhituColors.Ink)
+        Spacer(Modifier.height(6.dp))
+        val rows = buildList {
+            add("状态" to (draft.status?.let(::statusLabel) ?: "自动（${statusLabel(effective.classification.effectiveStatus)}）"))
+            add("响铃" to (draft.wake ?: effective.defaultWakeLocalTime))
+            add("到岗" to (draft.arrival ?: effective.arrivalLocalTime))
+            add("准备" to "${draft.preparationMinutes ?: effective.preparationMinutes} 分钟")
+            add("天气缓冲" to bufferText(draft.weatherProfile ?: inheritedProfile(effective)))
+            add(
+                "通勤" to when {
+                    draft.commuteEdited && draft.origin != null && draft.destination != null && draft.commuteMode != null ->
+                        "${draft.origin.name} → ${draft.destination.name} · ${draft.commuteMode.label()}"
+                    else -> "沿用现有通勤"
+                },
+            )
+        }
+        rows.forEach { (label, value) ->
+            Text("$label：$value", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "只影响当前计划和所选日期；返回不保存，恢复继承会删除本日记录并重算。",
+            color = ZhituColors.Muted,
+            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+internal fun baseKindLabel(kind: DayKind): String = when (kind) {
+    DayKind.WORKDAY -> "工作日"
+    DayKind.WEEKEND_REST -> "普通周末"
+    DayKind.STATUTORY_REST -> "法定休息日"
+}
+
+private fun weatherKindLabel(effective: EffectiveDailySettings): String = when (effective.classification.baseDayKind) {
+    DayKind.WORKDAY -> "工作日"
+    DayKind.WEEKEND_REST -> "普通周末"
+    DayKind.STATUTORY_REST -> "法定休息日"
+}
+
+private fun inheritedProfile(effective: EffectiveDailySettings): WeatherBufferProfile = when (effective.classification.baseDayKind) {
+    DayKind.WORKDAY -> WeatherBufferProfile.WORKDAY_DEFAULT
+    DayKind.WEEKEND_REST -> WeatherBufferProfile.WEEKEND_DEFAULT
+    DayKind.STATUTORY_REST -> WeatherBufferProfile.STATUTORY_REST_DEFAULT
+}
+
+private fun bufferText(profile: WeatherBufferProfile): String =
+    "${profile.lightMinutes}/${profile.moderateMinutes}/${profile.severeMinutes} 分钟"
+
+internal fun sourceLabel(source: DailySettingSource): String = when (source) {
+    DailySettingSource.DAY_OVERRIDE -> "本日覆盖"
+    DailySettingSource.PLAN -> "计划配置"
+    DailySettingSource.GLOBAL -> "全局默认"
+}
+
+internal fun sourceLabel(source: CommuteSource): String = when (source) {
+    CommuteSource.DAY_OVERRIDE -> "本日覆盖"
+    CommuteSource.PLAN_OVERRIDE -> "本计划通勤"
+    CommuteSource.GLOBAL -> "全局通勤"
+}
+
+private fun CommuteMode.label(): String = when (this) {
+    CommuteMode.DRIVING -> "驾车"
+    CommuteMode.TRANSIT -> "公交"
+    CommuteMode.WALKING -> "步行"
+    CommuteMode.BICYCLING -> "骑行"
+    CommuteMode.ELECTRIC_BICYCLE -> "电动车"
 }
 
 /**
@@ -830,21 +1272,23 @@ private val commuteModes = listOf(
     TextButton({ refresh(true) }, enabled = !state.loading) { Text(if (state.loading) "正在刷新" else "刷新日历") }
 }
 
-@Composable private fun LocalMonthGrid(month: YearMonth, selected: LocalDate, officialDays: Map<String, DayStatus>, overrides: List<WorkdayOverride>, onPrevious: () -> Unit, onNext: () -> Unit, onDate: (LocalDate) -> Unit) = LocalCard {
+@Composable private fun LocalMonthGrid(month: YearMonth, selected: LocalDate, officialDays: Map<String, DayStatus>, overrides: List<SingleDayOverride>, onPrevious: () -> Unit, onNext: () -> Unit, onDate: (LocalDate) -> Unit) = LocalCard {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) { TextButton(onPrevious) { Text("‹") }; Text(month.format(DateTimeFormatter.ofPattern("yyyy年 M月")), modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = ZhituColors.Ink); TextButton(onNext) { Text("›") } }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("一","二","三","四","五","六","日").forEach { Text(it, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) } }
-    val first = month.atDay(1); val start = first.minusDays((first.dayOfWeek.value - 1).toLong()); val overridesByDate = overrides.associateBy(WorkdayOverride::date)
+    val first = month.atDay(1); val start = first.minusDays((first.dayOfWeek.value - 1).toLong()); val overridesByDate = overrides.associateBy(SingleDayOverride::date)
     repeat(6) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { repeat(7) { column -> val date = start.plusDays((row * 7 + column).toLong()); val inMonth = date.month == month.month; val override = overridesByDate[date.toString()]; val status = override?.status ?: officialDays[date.toString()] ?: fallbackStatus(date); val selectedDay = date == selected; val background = when { selectedDay -> ZhituColors.Brand; override != null -> ZhituColors.Mint; status == DayStatus.HOLIDAY -> ZhituColors.Sky; else -> Color.Transparent }; Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(background).then(if (inMonth) Modifier.clickable { onDate(date) } else Modifier), contentAlignment = Alignment.Center) { Text(date.dayOfMonth.toString(), color = if (selectedDay) Color.White else if (inMonth) ZhituColors.Ink else ZhituColors.Subtle); if (override != null) Text("•", color = ZhituColors.Brand, modifier = Modifier.align(Alignment.BottomCenter), style = androidx.compose.material3.MaterialTheme.typography.labelSmall) } } } }
 }
 
-@Composable private fun FavoriteSelector(label: String, selectedId: String?, favorites: List<FavoritePlace>, onSelected: (String?) -> Unit) { Column { Text(label, color = ZhituColors.Ink); LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) { item { FilterChip(selected = selectedId == null, onClick = { onSelected(null) }, label = { Text("未选择") }) }; items(favorites, key = FavoritePlace::id) { place -> FilterChip(selected = selectedId == place.id, onClick = { onSelected(place.id) }, label = { Text(place.name) }) } } } }
-@Composable private fun OverrideChoice(label: String, selected: Boolean, onClick: () -> Unit) = FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+@Composable private fun FavoriteSelector(label: String, selectedId: String?, favorites: List<FavoritePlace>, tag: String? = null, onSelected: (String?) -> Unit) { Column { Text(label, color = ZhituColors.Ink); LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) { item { FilterChip(selected = selectedId == null, onClick = { onSelected(null) }, label = { Text("未选择") }) }; items(favorites, key = FavoritePlace::id) { place -> FilterChip(selected = selectedId == place.id, onClick = { onSelected(place.id) }, modifier = if (tag == null) Modifier else Modifier.testTag("${tag}_${place.id}"), label = { Text(place.name) }) } } } }
+@Composable private fun OverrideChoice(label: String, selected: Boolean, tag: String? = null, onClick: () -> Unit) = FilterChip(selected = selected, onClick = onClick, modifier = if (tag == null) Modifier else Modifier.testTag(tag), label = { Text(label) })
 @Composable private fun LocalMapPlaceholder() = Box(Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp)).background(ZhituColors.Mint), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("地图暂未接入", fontWeight = FontWeight.Bold, color = ZhituColors.Ink); Text("可保存地点文字；不会请求定位、路线或距离。", color = ZhituColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) } }
 @Composable private fun LocalCard(
     background: Color = ZhituColors.Surface,
     border: BorderStroke? = null,
+    modifier: Modifier = Modifier,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) = Card(
+    modifier = modifier,
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(containerColor = background),
     border = border,
@@ -857,6 +1301,7 @@ private fun statusLabel(status: DayStatus) = if (status == DayStatus.WORKDAY) "�
 @Composable
 private fun LocalTimePicker(
     initial: String,
+    tag: String = "local_time_picker",
     onSave: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -869,7 +1314,10 @@ private fun LocalTimePicker(
     TimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onSave("%02d:%02d".format(state.hour, state.minute)) }) {
+            TextButton(
+                onClick = { onSave("%02d:%02d".format(state.hour, state.minute)) },
+                modifier = Modifier.testTag("${tag}_confirm"),
+            ) {
                 Text("确定")
             }
         },

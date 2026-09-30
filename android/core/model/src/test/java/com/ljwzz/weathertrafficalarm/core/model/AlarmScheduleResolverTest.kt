@@ -59,7 +59,7 @@ class AlarmScheduleResolverTest {
             alarm,
             Instant.parse("2026-08-28T00:00:00Z"),
             calendar = mapOf("2026-08-29" to DayStatus.HOLIDAY),
-            overrides = listOf(WorkdayOverride(alarm.id, "2026-08-29", DayStatus.WORKDAY, "07:10")),
+            overrides = listOf(SingleDayOverride(alarm.id, "2026-08-29", DayStatus.WORKDAY, "07:10")),
         )
         assertEquals(Instant.parse("2026-08-28T23:10:00Z"), value)
     }
@@ -71,8 +71,8 @@ class AlarmScheduleResolverTest {
             alarm,
             Instant.parse("2026-08-28T00:00:00Z"),
             overrides = listOf(
-                WorkdayOverride("other-plan", "2026-08-29", DayStatus.WORKDAY),
-                WorkdayOverride(alarm.id, "2026-08-29", DayStatus.WORKDAY),
+                SingleDayOverride("other-plan", "2026-08-29", DayStatus.WORKDAY),
+                SingleDayOverride(alarm.id, "2026-08-29", DayStatus.WORKDAY),
             ),
         )
         assertEquals(Instant.parse("2026-08-28T22:30:00Z"), value)

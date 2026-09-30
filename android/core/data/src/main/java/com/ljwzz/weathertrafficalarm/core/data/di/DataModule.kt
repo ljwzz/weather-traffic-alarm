@@ -11,6 +11,7 @@ import com.ljwzz.weathertrafficalarm.core.data.db.dao.PlanCommuteOverrideDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.PlanCommuteWriteDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.AlarmDecisionDao
 import com.ljwzz.weathertrafficalarm.core.data.db.dao.WorkdayOverrideDao
+import com.ljwzz.weathertrafficalarm.core.data.db.dao.WorkdayOverrideWriteDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,6 +32,7 @@ object DataModule {
             .addMigrations(AppDatabaseMigrations.V3_TO_V4)
             .addMigrations(AppDatabaseMigrations.V4_TO_V5)
             .addMigrations(AppDatabaseMigrations.V5_TO_V6)
+            .addMigrations(AppDatabaseMigrations.V6_TO_V7)
             .build()
 
     @Provides
@@ -50,6 +52,9 @@ object DataModule {
 
     @Provides
     fun provideWorkdayOverrideDao(db: AppDatabase): WorkdayOverrideDao = db.workdayOverrideDao()
+
+    @Provides
+    fun provideWorkdayOverrideWriteDao(db: AppDatabase): WorkdayOverrideWriteDao = db.workdayOverrideWriteDao()
 
     @Provides
     fun provideAlarmEventDao(db: AppDatabase): AlarmEventDao = db.alarmEventDao()

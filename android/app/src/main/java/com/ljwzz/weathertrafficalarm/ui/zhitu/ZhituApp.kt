@@ -378,7 +378,8 @@ fun ZhituApp(
                     calendarState = calendarState,
                     calendarOverrides = dayOverrides
                         .filter { it.planId == editorDraft.id }
-                        .associate { it.date to it.status },
+                        .mapNotNull { override -> override.status?.let { override.date to it } }
+                        .toMap(),
                     update = { editorDraft = it },
                     onCalendarPreviewRefresh = { viewModel.refreshCalendar() },
                     onCancel = { permissionViewModel.cancel(); returnFromRecovery(ZhituDestination.PLANS) },
@@ -460,7 +461,15 @@ fun ZhituApp(
                             .onFailure { viewModel.showError(it.message ?: "请检查通勤配置") }
                     },
                 )
-                ZhituDestination.CALENDAR -> LocalCalendarScreen(plans, dayOverrides, calendarState, viewModel::saveDayOverride, viewModel::refreshCalendar, { destination = ZhituDestination.SETTINGS })
+                ZhituDestination.CALENDAR -> LocalCalendarScreen(
+                    plans = plans,
+                    overrides = dayOverrides,
+                    calendarState = calendarState,
+                    loadEditorInputs = { planId, date -> viewModel.loadDayEditorInputs(planId, date) },
+                    onSave = viewModel::saveDayOverride,
+                    onRefresh = viewModel::refreshCalendar,
+                    onBack = { destination = ZhituDestination.SETTINGS },
+                )
                 ZhituDestination.SETTINGS -> SettingsScreen(
                     permissionSnapshot = permissionSnapshot,
                     permissionConfirmations = permissionViewModel.confirmations,

@@ -90,7 +90,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.AlarmScheduleResolver
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
-import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import java.time.Duration
 import kotlinx.coroutines.delay
 
@@ -545,7 +545,7 @@ private fun alarmCountdown(
             maxAdvanceMinutes = draft.maxAdvanceMinutes,
             commuteMode = CommuteMode.DRIVING, schedule = schedule,
         )
-        val overrides = calendarOverrides.map { (date, status) -> WorkdayOverride(draft.planId, date, status) }
+        val overrides = calendarOverrides.map { (date, status) -> SingleDayOverride(draft.planId, date, status) }
         val next = AlarmScheduleResolver.next(plan, now, calendar.days, overrides)
             ?: return "暂无下一次响铃"
         val minutes = (Duration.between(now, next).seconds + 59) / 60

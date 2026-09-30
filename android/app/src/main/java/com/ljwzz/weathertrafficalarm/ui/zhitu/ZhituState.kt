@@ -15,6 +15,8 @@ import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverride
 import com.ljwzz.weathertrafficalarm.core.data.repository.CommuteOverrideMutation
 import com.ljwzz.weathertrafficalarm.core.data.repository.PlanCommuteOverrideRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommuteResolver
+import com.ljwzz.weathertrafficalarm.core.data.repository.EffectiveCommute
+import com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.evaluation.EvaluationWorkScheduler
 import com.ljwzz.weathertrafficalarm.evaluation.EvaluationTaskState
@@ -24,7 +26,10 @@ import com.ljwzz.weathertrafficalarm.core.map.AmapSdkInitialization
 import com.ljwzz.weathertrafficalarm.core.map.MapLocationResult
 import com.ljwzz.weathertrafficalarm.core.map.isAmapNativeRendererSupported
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
-import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
+import com.ljwzz.weathertrafficalarm.core.model.EffectiveDailySettings
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
+import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfiles
 import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
@@ -68,6 +73,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -273,15 +279,55 @@ class ZhituViewModel @Inject constructor(
     fun snooze(occurrenceId: String) = safe { coordinator.snooze(occurrenceId) }
     fun recover() = viewModelScope.launch { coordinator.recover() }
     fun refreshCalendar(force: Boolean = false) = viewModelScope.launch { coordinator.refreshCalendar(force) }
-    fun setDayOverride(planId: String, date: String, status: DayStatus, wakeLocalTime: String? = null) = viewModelScope.launch {
-        coordinator.setDayOverride(WorkdayOverride(planId = planId, date = date, status = status, wakeLocalTime = wakeLocalTime))
-    }
+    fun setDayOverride(override: SingleDayOverride) = viewModelScope.launch { coordinator.setDayOverride(override) }
     fun clearDayOverride(planId: String, date: String) = viewModelScope.launch { coordinator.clearDayOverride(planId, date) }
-    fun saveDayOverride(planId: String, date: String, status: DayStatus?, wake: String?, onComplete: (String?) -> Unit) = viewModelScope.launch {
-        runCatching { if (status == null) coordinator.clearDayOverride(planId, date) else coordinator.setDayOverride(WorkdayOverride(planId, date, status, wake)) }.onSuccess { onComplete(null) }.onFailure { onComplete(it.message ?: "日历保存失败") }
+
+    /**
+     * Saves the single-day draft. An empty draft removes the override so the date inherits
+     * again; both paths only touch the target plan and date. `onComplete` receives null on
+     * success so the caller keeps the page open and shows the failure otherwise.
+     */
+    fun saveDayOverride(override: SingleDayOverride, onComplete: (String?) -> Unit) = viewModelScope.launch {
+        runCatching {
+            if (override.isInheritingEverything) {
+                // A stored row without user-visible values must not survive as an empty override.
+                coordinator.clearDayOverride(override.planId, override.date)
+            } else {
+                coordinator.setDayOverride(override)
+            }
+        }.onSuccess { onComplete(null) }.onFailure { onComplete(it.message ?: "日历保存失败") }
     }
-    fun updateSettings(transform: (LocalSettings) -> LocalSettings) = safe { settingsStore.update(transform) }
-    fun updateSettingsWithCompletion(settings: LocalSettings, onComplete: (String?) -> Unit) = viewModelScope.launch { runCatching { settingsStore.update { settings } }.onSuccess { onComplete(null) }.onFailure { onComplete(it.message ?: "设置保存失败") } }
+    /**
+     * Loads the persisted plan, the plan-level commute and the global buffers for one
+     * plan and date. The calendar editor uses this to seed the draft and to label each
+     * value with the tier it currently inherits from.
+     */
+    suspend fun loadDayEditorInputs(planId: String, date: String): DayEditorInputs? {
+        val plan = plans.value.firstOrNull { it.id == planId } ?: return null
+        val stored = settingsStore.loadInitial()
+        val commute = effectiveCommuteResolver.resolveForPlan(planId, stored)
+        val dayOverride = overrideRepository.getForPlanDate(planId, date)
+        return DayEditorInputs(
+            plan = plan,
+            settings = stored,
+            dayOverride = dayOverride,
+            planCommute = commute,
+            effective = DailySettingsResolver.resolve(
+                plan = plan,
+                date = LocalDate.parse(date),
+                override = dayOverride,
+                officialDays = calendar.state.value.days,
+                profiles = WeatherBufferProfiles(
+                    workday = stored.workdayWeatherBuffers.toWeatherProfile(),
+                    weekend = stored.weekendWeatherBuffers.toWeatherProfile(),
+                    statutoryRest = stored.holidayWeatherBuffers.toWeatherProfile(),
+                ),
+                commute = commute,
+            ),
+        )
+    }
+
+    fun updateSettings(transform: (LocalSettings) -> LocalSettings) = safe { settingsStore.update(transform) }    fun updateSettingsWithCompletion(settings: LocalSettings, onComplete: (String?) -> Unit) = viewModelScope.launch { runCatching { settingsStore.update { settings } }.onSuccess { onComplete(null) }.onFailure { onComplete(it.message ?: "设置保存失败") } }
     fun saveCredentials(input: CredentialInput) = safe { credentials.save(input) }
     fun clearCredentials() = safe { credentials.clear() }
     fun saveCredentialsWithCompletion(input: CredentialInput, onComplete: (String?) -> Unit) = viewModelScope.launch {
@@ -770,9 +816,6 @@ class ZhituViewModel @Inject constructor(
         )
     }
 
-    private fun com.ljwzz.weathertrafficalarm.core.data.preferences.WeatherBuffers.toWeatherBufferProfile() =
-        WeatherBufferProfile(lightMinutes, moderateMinutes, severeMinutes)
-
     private fun weatherProviderMessage(failure: Throwable): String = when (failure) {
         is ProviderError -> when (failure.category) {
             ProviderError.Category.MISSING_KEY -> "请先配置彩云 App Key 和 Secret"
@@ -925,6 +968,24 @@ data class PlanCommuteEditorState(
     val loading: Boolean = false,
     val loadError: String? = null,
 )
+
+/**
+ * Everything the single-day editor needs for one plan and date: the live row, the plan and
+ * global tiers it inherits from, and the already-resolved effective values.
+ */
+data class DayEditorInputs(
+    val plan: AlarmPlan,
+    val settings: LocalSettings,
+    val dayOverride: SingleDayOverride?,
+    val planCommute: EffectiveCommute?,
+    val effective: EffectiveDailySettings,
+)
+
+private fun WeatherBuffers.toWeatherProfile() =
+    WeatherBufferProfile(lightMinutes = lightMinutes, moderateMinutes = moderateMinutes, severeMinutes = severeMinutes)
+
+private fun WeatherBuffers.toWeatherBufferProfile() =
+    WeatherBufferProfile(lightMinutes = lightMinutes, moderateMinutes = moderateMinutes, severeMinutes = severeMinutes)
 
 data class EditorDraft(
     val id: String? = null,

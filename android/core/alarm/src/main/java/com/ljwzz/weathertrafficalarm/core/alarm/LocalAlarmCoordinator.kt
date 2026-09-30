@@ -28,7 +28,7 @@ import com.ljwzz.weathertrafficalarm.core.model.AlarmScheduleResolver
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
-import com.ljwzz.weathertrafficalarm.core.model.WorkdayOverride
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Clock
 import java.time.Instant
@@ -331,20 +331,34 @@ class LocalAlarmCoordinator @Inject constructor(
         return true
     }
 
-    suspend fun setDayOverride(override: WorkdayOverride) = mutex.withLock {
-        overrideRepository.save(override)
-        planRepository.getById(override.planId)?.takeIf { it.enabled }?.let { plan ->
-            cancelEvaluationOccurrencesForDate(plan, override.date, "日期规则已更新")
-            armNext(plan.id, Instant.now())
-        }
+    /**
+     * Persists the single-day override and re-derives this plan's next local instance.
+     * Only the target plan and date change: the day revision is incremented atomically,
+     * stale evaluation advances for that date are discarded, and the regular instance is
+     * re-armed from the schedule resolver. Returns the stored row, or `null` when the plan
+     * no longer exists.
+     */
+    suspend fun setDayOverride(override: SingleDayOverride): SingleDayOverride? = mutex.withLock {
+        val stored = overrideRepository.save(override)
+        applyDayOverrideChange(override.planId, override.date)
+        stored
     }
 
-    suspend fun clearDayOverride(planId: String, date: String) = mutex.withLock {
-        overrideRepository.delete(planId, date)
-        planRepository.getById(planId)?.takeIf { it.enabled }?.let { plan ->
-            cancelEvaluationOccurrencesForDate(plan, date, "日期规则已更新")
-            armNext(plan.id, Instant.now())
-        }
+    /**
+     * Removes the single-day override so the date inherits the calendar again. Returns the
+     * removed day revision, or `null` when the date already inherited everything, which
+     * keeps repeated undo idempotent.
+     */
+    suspend fun clearDayOverride(planId: String, date: String): Long? = mutex.withLock {
+        val removed = overrideRepository.delete(planId, date)
+        applyDayOverrideChange(planId, date)
+        removed
+    }
+
+    private suspend fun applyDayOverrideChange(planId: String, date: String) {
+        val plan = planRepository.getById(planId)?.takeIf { it.enabled } ?: return
+        cancelEvaluationOccurrencesForDate(plan, date, "日期规则已更新")
+        armNext(plan.id, Instant.now())
     }
 
     /** Rehydrates DB state written in device-protected storage before unlock. */

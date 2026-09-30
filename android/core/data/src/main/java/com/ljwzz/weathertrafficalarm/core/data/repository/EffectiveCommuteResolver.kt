@@ -1,21 +1,19 @@
 package com.ljwzz.weathertrafficalarm.core.data.repository
 
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
-import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
-import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
+import com.ljwzz.weathertrafficalarm.core.model.CommuteResolution
+import com.ljwzz.weathertrafficalarm.core.model.CommuteSource
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class CommuteSource { GLOBAL, PLAN_OVERRIDE }
+/** Effective commute for the pre-N004 callers that only know a plan. */
+typealias EffectiveCommute = CommuteResolution
 
-data class EffectiveCommute(
-    val origin: PlaceRef,
-    val destination: PlaceRef,
-    val commuteMode: CommuteMode,
-    val source: CommuteSource,
-)
-
-/** Resolves map-ready coordinates without treating legacy text-only favorites as locations. */
+/**
+ * Resolves map-ready coordinates without treating legacy text-only favorites as locations.
+ * The single-day override wins over the plan override, which wins over the global pair.
+ */
 @Singleton
 class EffectiveCommuteResolver @Inject constructor(
     private val overrides: PlanCommuteOverrideRepository,
@@ -32,5 +30,31 @@ class EffectiveCommuteResolver @Inject constructor(
         return override?.let {
             EffectiveCommute(it.origin, it.destination, it.commuteMode, CommuteSource.PLAN_OVERRIDE)
         } ?: resolveGlobal(settings)
+    }
+
+    /**
+     * Resolves the target date for one plan. A day-level combination replaces the plan and
+     * global pair as a whole; an incomplete combination falls through to the next tier
+     * instead of mixing origins from different tiers.
+     */
+    suspend fun resolveForPlanDate(
+        planId: String,
+        date: String,
+        settings: LocalSettings,
+        dayOverride: SingleDayOverride? = null,
+    ): EffectiveCommute? {
+        if (dayOverride != null &&
+            dayOverride.planId == planId &&
+            dayOverride.date == date &&
+            dayOverride.hasCompleteCommute
+        ) {
+            return EffectiveCommute(
+                origin = requireNotNull(dayOverride.origin),
+                destination = requireNotNull(dayOverride.destination),
+                commuteMode = requireNotNull(dayOverride.commuteMode),
+                source = CommuteSource.DAY_OVERRIDE,
+            )
+        }
+        return resolveForPlan(planId, settings)
     }
 }

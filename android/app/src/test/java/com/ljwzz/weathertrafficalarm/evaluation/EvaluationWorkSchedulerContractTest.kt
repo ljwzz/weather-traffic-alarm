@@ -87,7 +87,7 @@ class EvaluationWorkSchedulerContractTest {
         settings.update { it.copy(amapConsentGranted = true) }
         scheduler = EvaluationWorkScheduler(
             context, plans, occurrences, settings, overrides,
-            WorkdayOverrideRepository(database.workdayOverrideDao()), WorkdayCalendarRepository(context), credentials,
+            WorkdayOverrideRepository(database.workdayOverrideDao(), database.workdayOverrideWriteDao()), WorkdayCalendarRepository(context), credentials,
             EffectiveCommuteResolver(overrides), Clock.systemUTC(),
         )
         scheduler.credentialStatusReaderForTest = {

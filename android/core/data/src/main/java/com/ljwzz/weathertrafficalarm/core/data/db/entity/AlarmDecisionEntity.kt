@@ -45,6 +45,9 @@ data class AlarmDecisionEntity(
     @ColumnInfo(name = "actual_wake_at") val actualWakeAt: String? = null,
     @ColumnInfo(name = "calendar_source") val calendarSource: String? = null,
     @ColumnInfo(name = "weather_data_source") val weatherDataSource: String? = null,
+    /** Effective target arrival of this evaluation; null for rows written before N004. */
+    @ColumnInfo(name = "arrival_local_time") val arrivalLocalTime: String? = null,
+    @ColumnInfo(name = "day_revision", defaultValue = "0") val dayRevision: Long = 0,
     @ColumnInfo(name = "plan_name") val planName: String? = null,
     @ColumnInfo(name = "zone_id") val zoneId: String? = null,
 )

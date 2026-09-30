@@ -117,10 +117,10 @@ class Converters {
     fun toOccurrenceKind(value: String): OccurrenceKind = OccurrenceKind.valueOf(value)
 
     @ColumnTypeConverter
-    fun fromDayStatus(value: DayStatus): String = value.name
+    fun fromDayStatus(value: DayStatus?): String? = value?.name
 
     @ColumnTypeConverter
-    fun toDayStatus(value: String): DayStatus = DayStatus.valueOf(value)
+    fun toDayStatus(value: String?): DayStatus? = value?.let(DayStatus::valueOf)
 
     @ColumnTypeConverter
     fun fromAlarmArmedState(value: AlarmArmedState): String = value.name

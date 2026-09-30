@@ -69,7 +69,7 @@ class DecisionDetailViewModelTest {
             occurrences = occurrences,
             settings = LocalSettingsStore(context),
             commuteOverrides = overrides,
-            dayOverrides = WorkdayOverrideRepository(database.workdayOverrideDao()),
+            dayOverrides = WorkdayOverrideRepository(database.workdayOverrideDao(), database.workdayOverrideWriteDao()),
             calendar = WorkdayCalendarRepository(context),
             credentials = CredentialStore(context),
             commuteResolver = EffectiveCommuteResolver(overrides),
