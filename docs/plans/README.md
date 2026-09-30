@@ -15,7 +15,7 @@
 | N001 | [原型退役与开发流程调整](N001.md) | P0 | [x] 验收完成 | 无 | L008、L011、T110、任务完成定义；[交接记录](N001-handoff.md) |
 | N002 | [评估测试基线修复](N002.md) | P0 | [x] 验收完成 | N001 | T100、T104、T130；[验收记录](../../android/qa/evaluation-baseline-2026-09-28/README.md) |
 | N003 | [高德设备实网验收](N003.md) | P1 | [x] 验收完成 | N002；合适的设备及有效凭据 | T086、T114、T131、T132；[验收记录](../../android/qa/amap-device-2026-09-29/README.md)（[补充验证](../../android/qa/amap-device-2026-09-29/supplement/README.md)；SDK Key 边界见 SPEC FR-012） |
-| N004 | [单日覆盖扩展](N004.md) | P1 | [x] 验收完成（AVD 与物理设备均通过） | N002 | T010、T011、T025、T076、T100、T103；[AVD 验收记录](../../android/qa/single-day-override-2026-09-29/README.md)、[物理设备验收记录](../../android/qa/single-day-override-2026-09-30/README.md) |
+| N004 | [单日覆盖扩展](N004.md) | P1 | [x] 验收完成（含[逻辑修复](N004-fixes.md)复验） | N002 | T010、T011、T025、T076、T100、T103；[AVD 验收记录](../../android/qa/single-day-override-2026-09-29/README.md)、[物理设备验收记录](../../android/qa/single-day-override-2026-09-30/README.md)、[逻辑修复记录](../../android/qa/n004-logic-fixes-2026-09-30/README.md) |
 | N005 | [通勤通知与胶囊呈现](N005.md) | P2 | [ ] 待执行 | N002；通知行为和设备能力核实 | FR-009、T036、T124、T132 |
 | N006 | [天气预报地图](N006.md) | P2 | [ ] 待执行 | N003；雷达授权、协议及坐标验证 | T090–T097、T112A、T114、T131 |
 
@@ -31,7 +31,7 @@
 | 验证入口 | 根验证脚本运行 Android 构建及 JVM 测试 | [verify-all.sh](../../scripts/verify-all.sh)、[verify-android.sh](../../scripts/verify-android.sh) |
 | 素材依赖 | 导入工具仍读取原型字体及 SVG，Android 使用已导入资源 | [素材导入脚本](../../scripts/import-prototype-assets.py) |
 | 高德实网 | Web Key 连接测试、SDK 初始化与原生地图渲染、五种出行方式真实路线与地点选型已在 Xiaomi `25019PNF3C`（API 36）实测；公交折线缺陷已修复 | [N003 验收记录](../../android/qa/amap-device-2026-09-29/README.md)、[只读设备用例](../../android/app/src/androidTest/java/com/ljwzz/weathertrafficalarm/AmapReadOnlyDeviceTest.kt) |
-| 单日覆盖 | 单日到岗、准备、三档缓冲与完整通勤覆盖已接入日历、评估、调度和决策详情；数据库 v7 原地扩展日期覆盖表；JVM 432 项通过，用例修订后在 AVD 与 Xiaomi `25019PNF3C` 均 `OK (4 tests)`（物理设备需先允许 MIUI 后台弹出界面，重装 APK 会重置该权限） | [N004 AVD 记录](../../android/qa/single-day-override-2026-09-29/README.md)、[N004 物理设备记录](../../android/qa/single-day-override-2026-09-30/README.md)、[设备用例](../../android/app/src/androidTest/java/com/ljwzz/weathertrafficalarm/ui/zhitu/SingleDayOverrideDeviceTest.kt) |
+| 单日覆盖 | 单日到岗、准备、三档缓冲与完整通勤覆盖已接入日历、评估、调度和决策详情；数据库 v8 以独立修订表保存日级修订并按候选协议提交；F1–F8 修复后 JVM 460 项、物理设备与 AVD 均 `OK (9 tests)`（物理设备需先允许 MIUI 后台弹出界面，重装 APK 会重置该权限） | [N004 逻辑修复记录](../../android/qa/n004-logic-fixes-2026-09-30/README.md)、[N004 物理设备记录](../../android/qa/single-day-override-2026-09-30/README.md)、[设备用例](../../android/app/src/androidTest/java/com/ljwzz/weathertrafficalarm/ui/zhitu/SingleDayOverrideDeviceTest.kt) |
 | 目标差异 | 天气地图、锁屏出发提醒和通知胶囊仍需专项计划 | [设计交接](../design-handoff.md)、[规格](../../SPEC.md) |
 
 2026-09-28、代码 `48ed778` 的审查快照如下。该提交时间为 16:48:35 +08:00；失败套件报告时间为 16:50:57 +08:00。本表记录当时结果，不能直接作为后续提交的验收结果。
