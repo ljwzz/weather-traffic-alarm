@@ -296,6 +296,7 @@ class ZhituViewModel @Inject constructor(
     fun saveDayOverride(change: DayOverrideChange, onComplete: (DayOverrideSaveResult) -> Unit) = viewModelScope.launch {
         val result = runCatching { coordinator.setDayOverride(change) }
             .getOrElse { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
                 DayOverrideSaveResult.Failure(
                     DayOverrideFailureCode.STORAGE_FAILED,
                     failure.message ?: "日历保存失败",

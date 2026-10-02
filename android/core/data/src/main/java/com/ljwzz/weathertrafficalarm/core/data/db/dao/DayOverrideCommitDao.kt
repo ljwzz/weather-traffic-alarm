@@ -9,6 +9,7 @@ import com.ljwzz.weathertrafficalarm.core.data.db.entity.DayOverrideCommitEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayDayRevisionEntity
 import com.ljwzz.weathertrafficalarm.core.data.db.entity.WorkdayOverrideEntity
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
+import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import kotlinx.coroutines.flow.Flow
 
 /** Override row plus the independently persisted revision, read from one transaction snapshot. */
@@ -77,6 +78,19 @@ abstract class DayOverrideCommitDao {
         dayRevision: Long,
         now: Long,
     )
+
+    @Query("UPDATE day_override_commits SET candidate_occurrence_id = NULL WHERE change_id = :changeId")
+    protected abstract suspend fun detachCandidateOccurrence(changeId: String)
+
+    @Query("UPDATE alarm_plans SET armed_state = :state, schedule_error = :error, updated_at = :now WHERE id = :planId")
+    protected abstract suspend fun updatePlanArmedState(planId: String, state: AlarmArmedState, error: String?, now: Long)
+
+    /** Missing device capability drops only the platform candidate, preserving the day draft. */
+    @Transaction
+    open suspend fun abandonRegistration(changeId: String, occurrenceId: String, now: Long) {
+        updateOccurrenceState(occurrenceId, OccurrenceState.FAILED, now)
+        detachCandidateOccurrence(changeId)
+    }
 
     /** Every recoverable change, oldest first; recovery replays them in allocation order. */
     @Query("SELECT * FROM day_override_commits ORDER BY created_at ASC")
@@ -160,6 +174,9 @@ abstract class DayOverrideCommitDao {
         changeId: String,
         revisedOccurrenceIds: List<String>,
         now: Long,
+        armedState: AlarmArmedState? = null,
+        scheduleError: String? = null,
+        candidateDayRevision: Long? = null,
     ): DayOverrideCommitState? {
         val commit = commitRow(changeId) ?: return null
         if (commit.isDeletion) {
@@ -182,7 +199,11 @@ abstract class DayOverrideCommitDao {
         )
         commit.cancelledIds.forEach { updateOccurrenceState(it, OccurrenceState.CANCELLED, now) }
         revisedOccurrenceIds.forEach { updateOccurrenceDayRevision(it, commit.candidateRevision, now) }
-        commit.candidateOccurrenceId?.let { updateOccurrenceState(it, OccurrenceState.SCHEDULED, now) }
+        commit.candidateOccurrenceId?.let {
+            candidateDayRevision?.let { revision -> updateOccurrenceDayRevision(it, revision, now) }
+            updateOccurrenceState(it, OccurrenceState.SCHEDULED, now)
+        }
+        armedState?.let { updatePlanArmedState(commit.planId, it, scheduleError, now) }
         deleteCommit(changeId)
         return readState(commit.planId, commit.date)
     }

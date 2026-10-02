@@ -40,6 +40,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 val store = NextAlarmSnapshotStore(context.applicationContext)
                 val action = intent.getStringExtra(PendingIntentFactory.EXTRA_ACTION)
                 val unlocked = context.getSystemService(UserManager::class.java).isUserUnlocked
+                if (unlocked) {
+                    handleUnlockedAction(context, store, occurrenceId, action)
+                    return@launch
+                }
                 directBootMutex.withLock {
                     // Read under the same lock as state transition. Otherwise two
                     // rapid snooze broadcasts can both observe FIRING and create
@@ -57,20 +61,9 @@ class AlarmReceiver : BroadcastReceiver() {
                     AlarmAction.ALARM.path -> {
                         when (triggerHandling(snapshot)) {
                             AlarmHandling.TRIGGERED -> {
-                                if (unlocked) {
-                                    if (coordinator(context).handleTrigger(snapshot.occurrenceId)) {
-                                        store.getByOccurrenceId(snapshot.occurrenceId)?.let { firing ->
-                                            startRinging(context, firing)
-                                        }
-                                    } else {
-                                        recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
-                                    }
-                                } else {
-                                    handleLockedAlarm(context, store, snapshot)
-                                }
+                                handleLockedAlarm(context, store, snapshot)
                             }
-                            AlarmHandling.MISSED -> if (unlocked) coordinator(context).handleMissed(snapshot.occurrenceId)
-                            else {
+                            AlarmHandling.MISSED -> {
                                 store.save(snapshot.copy(occurrenceState = STATE_MISSED, firedAtMillis = System.currentTimeMillis()))
                                 recordDiagnostic(context, DiagnosticEventType.ALARM_MISSED, DiagnosticResultCode.MISSED, snapshot)
                             }
@@ -79,14 +72,12 @@ class AlarmReceiver : BroadcastReceiver() {
                     }
                     AlarmAction.DISMISS.path -> {
                         if (canApplyRingingAction(snapshot)) {
-                            if (unlocked) coordinator(context).dismiss(snapshot.occurrenceId)
-                            else handleDismiss(context, store, snapshot)
+                            handleDismiss(context, store, snapshot)
                         } else recordValidationFailure(context, DiagnosticEventType.ALARM_DISMISS, snapshot)
                     }
                     AlarmAction.SNOOZE.path -> {
                         if (canApplyRingingAction(snapshot)) {
-                            if (unlocked) coordinator(context).snooze(snapshot.occurrenceId)
-                            else handleSnooze(context, store, snapshot)
+                            handleSnooze(context, store, snapshot)
                         } else recordValidationFailure(context, DiagnosticEventType.ALARM_SNOOZE, snapshot)
                     }
                     else -> recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
@@ -95,6 +86,32 @@ class AlarmReceiver : BroadcastReceiver() {
             } finally {
                 pendingResult.finish()
             }
+        }
+    }
+
+    /** Read DP briefly, then enter the coordinator without holding the reverse-order lock. */
+    private suspend fun handleUnlockedAction(context: Context, store: NextAlarmSnapshotStore, occurrenceId: String, action: String?) {
+        val snapshot = withDirectBootLock { store.getByOccurrenceId(occurrenceId) } ?: run {
+            recordDiagnostic(context, eventTypeFor(action), DiagnosticResultCode.NOT_FOUND, occurrenceId = occurrenceId)
+            return
+        }
+        when (action) {
+            AlarmAction.ALARM.path -> when (triggerHandling(snapshot)) {
+                AlarmHandling.TRIGGERED -> {
+                    if (coordinator(context).handleTrigger(snapshot.occurrenceId)) {
+                        withDirectBootLock {
+                            store.getByOccurrenceId(occurrenceId)?.takeIf { it.occurrenceState == STATE_FIRING }?.let { startRinging(context, it) }
+                        }
+                    } else recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
+                }
+                AlarmHandling.MISSED -> coordinator(context).handleMissed(occurrenceId)
+                AlarmHandling.IGNORED -> recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
+            }
+            AlarmAction.DISMISS.path -> if (canApplyRingingAction(snapshot)) coordinator(context).dismiss(occurrenceId)
+                else recordValidationFailure(context, DiagnosticEventType.ALARM_DISMISS, snapshot)
+            AlarmAction.SNOOZE.path -> if (canApplyRingingAction(snapshot)) coordinator(context).snooze(occurrenceId)
+                else recordValidationFailure(context, DiagnosticEventType.ALARM_SNOOZE, snapshot)
+            else -> recordValidationFailure(context, DiagnosticEventType.ALARM_TRIGGER, snapshot)
         }
     }
 

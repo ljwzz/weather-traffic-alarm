@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.ljwzz.weathertrafficalarm.core.model.DayCommitCredential
 import com.ljwzz.weathertrafficalarm.core.model.NextAlarmSnapshot
+import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -45,7 +46,7 @@ open class NextAlarmSnapshotStore @Inject constructor(
     )
 
     /**
-     * Returns every armed or ringing occurrence snapshot.
+     * Returns occurrence snapshots, including inactive snapshots awaiting commit cleanup.
      *
      * Keys are based on occurrence IDs rather than plan IDs so a regular alarm
      * can safely coexist with its independent snooze child while an edit is
@@ -82,15 +83,11 @@ open class NextAlarmSnapshotStore @Inject constructor(
 
     /**
      * Publishes a candidate snapshot and its commit credential in one device-protected update.
-     * Either both are visible after an interruption or neither is, which is what recovery needs
-     * to decide between completing the change and discarding the candidate.
+     * The candidate, inactive old snapshots, retained revisions and rollback image become
+     * visible together, so recovery can complete the commit or restore its previous state.
      */
     open suspend fun publishCandidate(snapshot: NextAlarmSnapshot, credential: DayCommitCredential) {
-        dataStore.edit { prefs ->
-            removeDuplicateOccurrenceKeys(prefs, snapshot.occurrenceId)
-            prefs[snapshotKey(snapshot.occurrenceId)] = json.encodeToString(snapshot)
-            prefs[commitKey(credential.changeId)] = json.encodeToString(credential)
-        }
+        publish(snapshot, credential)
     }
 
     suspend fun commitCredential(changeId: String): DayCommitCredential? =
@@ -103,19 +100,65 @@ open class NextAlarmSnapshotStore @Inject constructor(
 
     /** Publishes only the credential, used when the change needs no new local instance. */
     open suspend fun publishCommitCredential(credential: DayCommitCredential) {
+        publish(null, credential)
+    }
+
+    /** Replacement and its rollback image become durable in the same DP transaction. */
+    private suspend fun publish(snapshot: NextAlarmSnapshot?, credential: DayCommitCredential) {
         dataStore.edit { prefs ->
+            val affected = (credential.cancelledOccurrenceIds + credential.revisedOccurrenceIds).toSet()
+            val previous = decodeSnapshots(prefs).filter { it.occurrenceId in affected }
+            if (prefs[rollbackKey(credential.changeId)] == null) {
+                prefs[rollbackKey(credential.changeId)] = json.encodeToString(previous)
+            }
+            previous.forEach { old ->
+                removeDuplicateOccurrenceKeys(prefs, old.occurrenceId)
+                val updated = if (old.occurrenceId in credential.cancelledOccurrenceIds) {
+                    old.copy(occurrenceState = OccurrenceState.CANCELLED.name)
+                } else {
+                    old.copy(dayRevision = credential.dayRevision)
+                }
+                prefs[snapshotKey(old.occurrenceId)] = json.encodeToString(updated)
+            }
+            snapshot?.let {
+                removeDuplicateOccurrenceKeys(prefs, it.occurrenceId)
+                prefs[snapshotKey(it.occurrenceId)] = json.encodeToString(it)
+            }
             prefs[commitKey(credential.changeId)] = json.encodeToString(credential)
         }
     }
 
+    /** An uncommitted publish restores all affected snapshots before revoking its credential. */
+    suspend fun rollbackCandidate(changeId: String) {
+        dataStore.edit { prefs ->
+            val credential = prefs[commitKey(changeId)]?.let(::decodeCredential)
+            credential?.occurrenceId?.let { id ->
+                removeDuplicateOccurrenceKeys(prefs, id)
+                prefs.remove(snapshotKey(id))
+            }
+            prefs[rollbackKey(changeId)]?.let { encoded ->
+                json.decodeFromString<List<NextAlarmSnapshot>>(encoded).forEach { previous ->
+                    removeDuplicateOccurrenceKeys(prefs, previous.occurrenceId)
+                    prefs[snapshotKey(previous.occurrenceId)] = json.encodeToString(previous)
+                }
+            }
+            prefs.remove(commitKey(changeId))
+            prefs.remove(rollbackKey(changeId))
+        }
+    }
+
     suspend fun removeCommitCredential(changeId: String) {
-        dataStore.edit { prefs -> prefs.remove(commitKey(changeId)) }
+        dataStore.edit { prefs ->
+            prefs.remove(commitKey(changeId))
+            prefs.remove(rollbackKey(changeId))
+        }
     }
 
     private fun decodeCredential(value: String): DayCommitCredential? =
         runCatching { json.decodeFromString<DayCommitCredential>(value) }.getOrNull()
 
     private fun commitKey(changeId: String) = stringPreferencesKey("$COMMIT_PREFIX$changeId")
+    private fun rollbackKey(changeId: String) = stringPreferencesKey("$ROLLBACK_PREFIX$changeId")
 
     private fun removeDuplicateOccurrenceKeys(prefs: androidx.datastore.preferences.core.MutablePreferences, occurrenceId: String) {
         prefs.asMap().entries
@@ -139,12 +182,15 @@ open class NextAlarmSnapshotStore @Inject constructor(
                     }.getOrDefault(false)
                 }
                 .forEach { (key, _) -> prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>) }
-            prefs.asMap().entries
+            val credentials = prefs.asMap().entries
                 .filter { (key, value) ->
                     key.name.startsWith(COMMIT_PREFIX) &&
                         decodeCredential(value.toString())?.planId == planId
                 }
-                .forEach { (key, _) -> prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>) }
+            credentials.forEach { (key, value) ->
+                decodeCredential(value.toString())?.let { prefs.remove(rollbackKey(it.changeId)) }
+                prefs.remove(key as androidx.datastore.preferences.core.Preferences.Key<String>)
+            }
         }
     }
 
@@ -198,7 +244,9 @@ open class NextAlarmSnapshotStore @Inject constructor(
      */
     suspend fun clear() {
         dataStore.edit { prefs ->
-            val oldKeys = prefs.asMap().keys.filter { it.name.startsWith(SNAPSHOT_PREFIX) || it.name.startsWith(COMMIT_PREFIX) }
+            val oldKeys = prefs.asMap().keys.filter {
+                it.name.startsWith(SNAPSHOT_PREFIX) || it.name.startsWith(COMMIT_PREFIX) || it.name.startsWith(ROLLBACK_PREFIX)
+            }
             oldKeys.forEach { prefs.remove(it) }
         }
     }
@@ -242,6 +290,7 @@ open class NextAlarmSnapshotStore @Inject constructor(
     internal companion object {
         const val SNAPSHOT_PREFIX = "snapshot_"
         const val COMMIT_PREFIX = "commit_"
+        const val ROLLBACK_PREFIX = "rollback_"
         val stores = ConcurrentHashMap<String, DataStore<Preferences>>()
     }
 }

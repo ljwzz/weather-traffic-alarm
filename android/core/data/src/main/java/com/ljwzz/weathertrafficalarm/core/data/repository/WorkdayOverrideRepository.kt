@@ -7,6 +7,7 @@ import com.ljwzz.weathertrafficalarm.core.data.mapper.toEntity
 import com.ljwzz.weathertrafficalarm.core.model.DayOverrideChange
 import com.ljwzz.weathertrafficalarm.core.model.DayOverrideState
 import com.ljwzz.weathertrafficalarm.core.model.DayRevision
+import com.ljwzz.weathertrafficalarm.core.model.AlarmArmedState
 import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -129,6 +130,9 @@ class WorkdayOverrideRepository @Inject constructor(
     /** Records that the device-protected snapshot and commit credential are published. */
     suspend fun markCandidatePublished(changeId: String) = commitDao.markCandidatePublished(changeId)
 
+    suspend fun abandonRegistration(changeId: String, occurrenceId: String, now: Long) =
+        commitDao.abandonRegistration(changeId, occurrenceId, now)
+
     /**
      * Publishes the candidate as the committed revision and applies the occurrence transitions of
      * the same change in one transaction. Returns `null` when the change was already committed.
@@ -137,10 +141,16 @@ class WorkdayOverrideRepository @Inject constructor(
         changeId: String,
         revisedOccurrenceIds: List<String> = emptyList(),
         now: Long,
+        armedState: AlarmArmedState? = null,
+        scheduleError: String? = null,
+        candidateDayRevision: Long? = null,
     ): DayOverrideState? = commitDao.commitCandidate(
         changeId = changeId,
         revisedOccurrenceIds = revisedOccurrenceIds,
         now = now,
+        armedState = armedState,
+        scheduleError = scheduleError,
+        candidateDayRevision = candidateDayRevision,
     )?.let { DayOverrideState(it.override?.toDomain(), it.committedRevision, it.date) }
 
     /** Drops a candidate without changing the committed values; its number is not reused. */

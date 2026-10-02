@@ -90,6 +90,9 @@ class SingleDayOverrideDeviceTest {
                 originId = home.poiId,
                 destinationId = office.poiId,
                 commuteMode = CommuteMode.DRIVING,
+                // Keep the inherited fixture independent of the device's raw date category.
+                weekendWeatherBuffers = it.workdayWeatherBuffers,
+                holidayWeatherBuffers = it.workdayWeatherBuffers,
             )
         }
         compose.activityRule.scenario.recreate()
@@ -469,7 +472,13 @@ class SingleDayOverrideDeviceTest {
     fun customGlobalWeatherProfileDrivesTheFirstStep() = runBlocking {
         val plan = createPlan("单日覆盖验收-全局缓冲")
         val target = today
-        dependencies.settings().update { it.copy(workdayWeatherBuffers = WeatherBuffers(1, 2, 3)) }
+        // The device date may be a workday, weekend or statutory holiday. All inherited tiers
+        // use this fixture so the first-step assertion does not depend on the civil date.
+        dependencies.settings().update {
+            it.copy(workdayWeatherBuffers = WeatherBuffers(1, 2, 3),
+                weekendWeatherBuffers = WeatherBuffers(1, 2, 3),
+                holidayWeatherBuffers = WeatherBuffers(1, 2, 3))
+        }
         openCalendar(plan)
 
         scrollDayTo("day_origin_${home.poiId}")

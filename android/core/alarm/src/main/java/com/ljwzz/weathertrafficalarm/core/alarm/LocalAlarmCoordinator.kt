@@ -49,6 +49,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -170,6 +172,7 @@ class LocalAlarmCoordinator @Inject constructor(
             state = OccurrenceState.REGISTERING,
             decisionId = decision.decisionId,
             kind = OccurrenceKind.ADVANCE,
+            dayRevision = inputs.committedRevision,
         )
         val advanceSnapshot = snapshot(plan, advance).copy(defaultWakeAtMillis = regular.scheduledWakeAt)
         occurrenceRepository.save(advance)
@@ -365,7 +368,8 @@ class LocalAlarmCoordinator @Inject constructor(
      * registered while the previous instance is still armed, the published snapshot and commit
      * credential are written in one device-protected update, and only then does one aggregated
      * transaction commit the override, the committed revision and the occurrence transitions.
-     * Any failure keeps the stored values and the existing effective instance.
+     * A failure before commit restores the existing values and effective instance. Post-commit
+     * cleanup is retried from the credential without changing the successful save result.
      */
     suspend fun setDayOverride(change: DayOverrideChange): DayOverrideSaveResult = mutex.withLock {
         commitDayChange(change, clock.millis())
@@ -397,26 +401,27 @@ class LocalAlarmCoordinator @Inject constructor(
         }
 
         val occurrences = occurrenceRepository.getByPlanId(plan.id)
-        val invalidated = invalidatedOccurrences(plan, change.date, occurrences)
         // A plan that cannot be armed at all still stores the day values: only an attempted
         // registration that the platform actually refused may fail the save.
-        val projected = if (plan.enabled && plan.schedule != null && scheduler.canScheduleExactAlarms()) {
+        val projected = if (plan.enabled && plan.schedule != null) {
             projectNextInstance(plan, change.date, replacement, occurrences, now)
         } else {
             null
         }
         val superseded = projected?.supersededOccurrenceIds.orEmpty()
             .mapNotNull { id -> occurrences.firstOrNull { it.occurrenceId == id } }
+        val invalidated = invalidatedOccurrences(plan, change.date, occurrences, projected?.supersededOccurrenceIds.orEmpty())
         val cancelledByChange = (invalidated + superseded).distinctBy { it.occurrenceId }
 
         val changeId = UUID.randomUUID().toString()
-        var candidateOccurrence = projected?.takeIf { it.requiresRegistration }?.let { candidate ->
+        val canRegister = plan.enabled && plan.schedule != null && scheduler.canScheduleExactAlarms()
+        var candidateOccurrence = projected?.takeIf { it.requiresRegistration && canRegister }?.let { candidate ->
             AlarmOccurrence(
                 occurrenceId = UUID.randomUUID().toString(),
                 planId = plan.id,
                 planRevision = plan.revision,
-                targetDate = candidate.targetDate,
-                scheduledWakeAt = candidate.wakeAt.toEpochMilli(),
+                targetDate = requireNotNull(candidate.targetDate),
+                scheduledWakeAt = requireNotNull(candidate.wakeAt).toEpochMilli(),
                 state = OccurrenceState.REGISTERING,
                 kind = OccurrenceKind.REGULAR,
             )
@@ -438,13 +443,16 @@ class LocalAlarmCoordinator @Inject constructor(
             )
             is DayOverrideAllocation.Allocated -> allocation.candidateRevision
         }
+        candidateOccurrence = candidateOccurrence?.let {
+            it.copy(dayRevision = if (it.targetDate == change.date) candidateRevision else overrideRepository.committedRevision(plan.id, it.targetDate))
+        }
 
-        var registered = false
+        var capabilityFailure: AlarmRegistrationResult.Rejected? = null
         if (candidateOccurrence != null) {
             val candidateSnapshot = snapshot(plan, candidateOccurrence)
-            occurrenceRepository.save(candidateOccurrence)
-            snapshotStore.save(candidateSnapshot)
             val registration = try {
+                occurrenceRepository.save(candidateOccurrence)
+                snapshotStore.save(candidateSnapshot)
                 scheduler.schedule(candidateSnapshot)
             } catch (cancelled: CancellationException) {
                 discardDayCandidate(plan, changeId, candidateOccurrence, now)
@@ -457,7 +465,7 @@ class LocalAlarmCoordinator @Inject constructor(
                 )
             }
             when (registration) {
-                AlarmRegistrationResult.Registered -> registered = true
+                AlarmRegistrationResult.Registered -> Unit
                 is AlarmRegistrationResult.Rejected -> {
                     val message = registrationMessage(registration)
                     if (registration.reason == RegistrationFailure.PLATFORM_REJECTED) {
@@ -476,12 +484,42 @@ class LocalAlarmCoordinator @Inject constructor(
                     // The device cannot arm right now (missing capability or a past trigger):
                     // keep the day values, drop the candidate and let the armed state carry the
                     // reason instead of failing the edit.
-                    discardDayCandidate(plan, changeId, candidateOccurrence, now)
+                    try {
+                        withContext(NonCancellable) {
+                            scheduler.cancelOccurrence(candidateOccurrence.occurrenceId)
+                            snapshotStore.removeOccurrence(candidateOccurrence.occurrenceId)
+                            overrideRepository.abandonRegistration(changeId, candidateOccurrence.occurrenceId, now)
+                        }
+                    } catch (cancelled: CancellationException) {
+                        discardDayCandidate(plan, changeId, candidateOccurrence, now)
+                        throw cancelled
+                    } catch (_: Exception) {
+                        discardDayCandidate(plan, changeId, candidateOccurrence, now)
+                        return DayOverrideSaveResult.Failure(
+                            DayOverrideFailureCode.STORAGE_FAILED,
+                            "无法清理注册候选，已保留原设置",
+                        )
+                    }
+                    capabilityFailure = registration
                     candidateOccurrence = null
                 }
             }
         }
 
+        val armedState = when {
+            !plan.enabled -> AlarmArmedState.DISABLED
+            plan.schedule == null -> AlarmArmedState.NEEDS_RULE
+            projected?.wakeAt == null -> AlarmArmedState.COMPLETED
+            capabilityFailure != null -> armedFailureState(capabilityFailure)
+            !canRegister -> AlarmArmedState.NEEDS_PERMISSION
+            else -> AlarmArmedState.SCHEDULED
+        }
+        val scheduleError = when {
+            capabilityFailure != null -> registrationMessage(capabilityFailure)
+            armedState == AlarmArmedState.NEEDS_PERMISSION -> "精确闹钟权限不可用"
+            armedState == AlarmArmedState.NEEDS_RULE -> "请先选择日期或重复规则"
+            else -> null
+        }
         val credential = DayCommitCredential(
             changeId = changeId,
             planId = plan.id,
@@ -490,80 +528,86 @@ class LocalAlarmCoordinator @Inject constructor(
             occurrenceId = candidateOccurrence?.occurrenceId,
             targetDate = candidateOccurrence?.targetDate,
             triggerAtMillis = candidateOccurrence?.scheduledWakeAt,
+            cancelledOccurrenceIds = cancelledByChange.map { it.occurrenceId },
+            revisedOccurrenceIds = projected?.revisedOccurrenceIds.orEmpty(),
+            armedState = armedState,
+            scheduleError = scheduleError,
         )
+        var committed = false
         try {
-            if (candidateOccurrence == null) {
-                snapshotStore.publishCommitCredential(credential)
-            } else {
-                snapshotStore.publishCandidate(
-                    snapshot(plan, candidateOccurrence).copy(
-                        occurrenceState = AlarmReceiver.STATE_SCHEDULED,
-                        dayRevision = candidateRevision,
-                    ),
-                    credential,
-                )
+            val result = AlarmReceiver.withDirectBootLock {
+                currentCoroutineContext().ensureActive()
+                // Publication decides recovery and must either commit or restore its rollback image.
+                withContext(NonCancellable) {
+                    try {
+                        if (candidateOccurrence == null) {
+                            snapshotStore.publishCommitCredential(credential)
+                        } else {
+                            snapshotStore.publishCandidate(
+                                snapshot(plan, candidateOccurrence).copy(occurrenceState = AlarmReceiver.STATE_SCHEDULED),
+                                credential,
+                            )
+                        }
+                        overrideRepository.markCandidatePublished(changeId)
+                    } catch (cancelled: CancellationException) {
+                        discardDayCandidate(plan, changeId, candidateOccurrence, now)
+                        throw cancelled
+                    } catch (_: Exception) {
+                        discardDayCandidate(plan, changeId, candidateOccurrence, now)
+                        return@withContext DayOverrideSaveResult.Failure(DayOverrideFailureCode.STORAGE_FAILED, "无法发布日期变更，已保留原设置")
+                    }
+                    val state = try {
+                        requireNotNull(overrideRepository.commitCandidate(
+                            changeId = changeId,
+                            revisedOccurrenceIds = credential.revisedOccurrenceIds,
+                            now = now,
+                            armedState = armedState,
+                            scheduleError = scheduleError,
+                            candidateDayRevision = candidateOccurrence?.dayRevision,
+                        )) { "日期候选记录不存在" }
+                    } catch (cancelled: CancellationException) {
+                        compensatePublishedCandidate(plan, changeId, candidateOccurrence, now)
+                        throw cancelled
+                    } catch (_: Exception) {
+                        compensatePublishedCandidate(plan, changeId, candidateOccurrence, now)
+                        return@withContext DayOverrideSaveResult.Failure(DayOverrideFailureCode.STORAGE_FAILED, "无法提交日期变更，已保留原设置")
+                    }
+                    committed = true
+                    finishDayCommit(credential)
+                    DayOverrideSaveResult.Success(
+                        state.override,
+                        state.committedRevision,
+                        when {
+                            armedState != AlarmArmedState.SCHEDULED -> DayRegistrationState.NOT_ARMED
+                            candidateOccurrence != null -> DayRegistrationState.SCHEDULED
+                            else -> DayRegistrationState.UNCHANGED
+                        },
+                    )
+                }
             }
-            overrideRepository.markCandidatePublished(changeId)
+            currentCoroutineContext().ensureActive()
+            return result
         } catch (cancelled: CancellationException) {
-            discardDayCandidate(plan, changeId, candidateOccurrence, now)
+            if (!committed) discardDayCandidate(plan, changeId, candidateOccurrence, now)
+            throw cancelled
+        }
+    }
+
+    /** Keep the credential until all post-commit effects finish; a cleanup error cannot undo a save. */
+    private suspend fun finishDayCommit(credential: DayCommitCredential) {
+        try {
+            credential.cancelledOccurrenceIds.forEach { id ->
+                scheduler.cancelOccurrence(id)
+                snapshotStore.removeOccurrence(id)
+                eventRepository.record(credential.planId, id, AlarmEventType.CANCELLED, "日期规则已更新")
+            }
+            credential.occurrenceId?.let { eventRepository.record(credential.planId, it, AlarmEventType.REGISTERED, "本地闹钟已更新") }
+            snapshotStore.removeCommitCredential(credential.changeId)
+        } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            discardDayCandidate(plan, changeId, candidateOccurrence, now)
-            return DayOverrideSaveResult.Failure(
-                DayOverrideFailureCode.STORAGE_FAILED,
-                "无法发布日期变更，已保留原设置",
-            )
+            // The inactive DP snapshots and credential remain durable for the next recovery.
         }
-
-        val committed = try {
-            overrideRepository.commitCandidate(
-                changeId = changeId,
-                revisedOccurrenceIds = projected?.revisedOccurrenceIds.orEmpty(),
-                now = now,
-            )
-        } catch (cancelled: CancellationException) {
-            compensatePublishedCandidate(plan, changeId, candidateOccurrence, now)
-            throw cancelled
-        } catch (_: Exception) {
-            compensatePublishedCandidate(plan, changeId, candidateOccurrence, now)
-            return DayOverrideSaveResult.Failure(
-                DayOverrideFailureCode.STORAGE_FAILED,
-                "无法提交日期变更，已保留原设置",
-            )
-        }
-        if (committed == null) {
-            // A previous attempt already committed this change; keep the current state.
-            snapshotStore.removeCommitCredential(changeId)
-            val state = overrideRepository.getState(plan.id, change.date)
-            return DayOverrideSaveResult.Success(state.override, state.committedRevision, DayRegistrationState.UNCHANGED)
-        }
-
-        snapshotStore.removeCommitCredential(changeId)
-        cancelledByChange.forEach { invalidatedOccurrence ->
-            scheduler.cancelOccurrence(invalidatedOccurrence.occurrenceId)
-            snapshotStore.removeOccurrence(invalidatedOccurrence.occurrenceId)
-            eventRepository.record(plan.id, invalidatedOccurrence.occurrenceId, AlarmEventType.CANCELLED, "日期规则已更新")
-        }
-        projected?.revisedOccurrenceIds.orEmpty().forEach { occurrenceId ->
-            snapshotStore.getByOccurrenceId(occurrenceId)?.let {
-                snapshotStore.save(it.copy(dayRevision = candidateRevision))
-            }
-        }
-        if (candidateOccurrence != null) {
-            eventRepository.record(plan.id, candidateOccurrence.occurrenceId, AlarmEventType.REGISTERED, "本地闹钟已更新")
-        }
-        val registration = when {
-            registered -> DayRegistrationState.SCHEDULED
-            !plan.enabled -> DayRegistrationState.NOT_ARMED
-            candidateOccurrence == null -> {
-                // Bookkeeping for "could not arm": NEEDS_PERMISSION / NEEDS_RULE / FAILED while
-                // the stored day values stay committed.
-                val armed = armNext(plan.id, Instant.ofEpochMilli(now))
-                if (armed.armedState == AlarmArmedState.SCHEDULED) DayRegistrationState.SCHEDULED else DayRegistrationState.NOT_ARMED
-            }
-            else -> DayRegistrationState.UNCHANGED
-        }
-        return DayOverrideSaveResult.Success(committed.override, committed.committedRevision, registration)
     }
 
     /**
@@ -574,11 +618,13 @@ class LocalAlarmCoordinator @Inject constructor(
         plan: AlarmPlan,
         date: String,
         occurrences: List<AlarmOccurrence>,
+        replacedRegularIds: List<String>,
     ): List<AlarmOccurrence> {
         val affected = occurrences
             .filter { it.kind == OccurrenceKind.ADVANCE && it.targetDate == date }
             .map { it.occurrenceId }
             .toMutableSet()
+        affected.addAll(replacedRegularIds)
         var added: Boolean
         do {
             added = occurrences
@@ -592,8 +638,8 @@ class LocalAlarmCoordinator @Inject constructor(
 
     /** Which regular instance the changed date needs after the candidate snapshot is applied. */
     private data class ProjectedInstance(
-        val wakeAt: Instant,
-        val targetDate: String,
+        val wakeAt: Instant?,
+        val targetDate: String?,
         val requiresRegistration: Boolean,
         val supersededOccurrenceIds: List<String>,
         val revisedOccurrenceIds: List<String>,
@@ -620,20 +666,22 @@ class LocalAlarmCoordinator @Inject constructor(
                 it.state in ARMABLE_STATES
         }
         if (nextWake == null) {
-            return null
+            return ProjectedInstance(null, null, false, regulars.map { it.occurrenceId } + occurrences.filter {
+                it.kind == OccurrenceKind.REGULAR && it.targetDate == date && it.state in ACTIVE_STATES
+            }.map { it.occurrenceId }, emptyList())
         }
         val zone = plan.zoneIdInstance()
         val targetDate = nextWake.atZone(zone).toLocalDate().toString()
         val retained = regulars.filter {
             it.scheduledWakeAt == nextWake.toEpochMilli() && it.targetDate == targetDate
-        }.minByOrNull { it.occurrenceId }
+        }.minByOrNull { it.occurrenceId }?.takeIf { plan.armedState == AlarmArmedState.SCHEDULED }
         val superseded = regulars.filter { it.occurrenceId != retained?.occurrenceId }
         return ProjectedInstance(
             wakeAt = nextWake,
             targetDate = targetDate,
             requiresRegistration = retained == null,
             supersededOccurrenceIds = superseded.map { it.occurrenceId },
-            revisedOccurrenceIds = listOfNotNull(retained?.occurrenceId),
+            revisedOccurrenceIds = if (targetDate == date) listOfNotNull(retained?.occurrenceId) else emptyList(),
         )
     }
 
@@ -648,7 +696,7 @@ class LocalAlarmCoordinator @Inject constructor(
         // Cleanup must still run while the caller is being cancelled, otherwise a killed save
         // would leave a REGISTERING candidate behind.
         withContext(NonCancellable) {
-            if (revokeCredential) runCatching { snapshotStore.removeCommitCredential(changeId) }
+            if (revokeCredential) snapshotStore.rollbackCandidate(changeId)
             candidateOccurrence?.let { candidate ->
                 runCatching { scheduler.cancelOccurrence(candidate.occurrenceId) }
                 runCatching { snapshotStore.removeOccurrence(candidate.occurrenceId) }
@@ -863,12 +911,18 @@ class LocalAlarmCoordinator @Inject constructor(
      * and an unpublished candidate never becomes an effective instance.
      */
     private suspend fun recoverDayChangeCandidates(now: Long) {
+        AlarmReceiver.withDirectBootLock {
+            withContext(NonCancellable) { recoverPublishedDayChanges(now) }
+        }
+    }
+
+    private suspend fun recoverPublishedDayChanges(now: Long) {
         val pending = overrideRepository.pendingCandidates()
         val pendingIds = pending.map { it.changeId }.toSet()
         // Credentials without a change record belong to a commit that already finished.
         snapshotStore.commitCredentials()
             .filterNot { it.changeId in pendingIds }
-            .forEach { stale -> snapshotStore.removeCommitCredential(stale.changeId) }
+            .forEach { committed -> finishDayCommit(committed) }
         pending.forEach { candidate ->
             val credential = snapshotStore.commitCredential(candidate.changeId)
             val candidateOccurrence = candidate.candidateOccurrenceId?.let { occurrenceRepository.getById(it) }
@@ -885,12 +939,36 @@ class LocalAlarmCoordinator @Inject constructor(
                 snapshotStore.removeCommitCredential(candidate.changeId)
                 return@forEach
             }
-            overrideRepository.commitCandidate(changeId = candidate.changeId, now = now)
-            snapshotStore.removeCommitCredential(candidate.changeId)
-            candidate.cancelledOccurrenceIds.forEach { occurrenceId ->
-                scheduler.cancelOccurrence(occurrenceId)
-                snapshotStore.removeOccurrence(occurrenceId)
+            val recoveryCredential = credential.copy(
+                cancelledOccurrenceIds = (candidate.cancelledOccurrenceIds + credential.cancelledOccurrenceIds).distinct(),
+            )
+            val candidateRevision = candidateOccurrence?.let {
+                if (it.targetDate == candidate.date) candidate.candidateRevision else overrideRepository.committedRevision(candidate.planId, it.targetDate)
             }
+            val publishedSnapshot = candidateOccurrence?.let { snapshotStore.getByOccurrenceId(it.occurrenceId) }
+            try {
+                if (publishedSnapshot != null) {
+                    snapshotStore.publishCandidate(publishedSnapshot.copy(dayRevision = requireNotNull(candidateRevision)), recoveryCredential)
+                } else {
+                    snapshotStore.publishCommitCredential(recoveryCredential)
+                }
+                requireNotNull(overrideRepository.commitCandidate(
+                    changeId = candidate.changeId,
+                    revisedOccurrenceIds = credential.revisedOccurrenceIds,
+                    now = now,
+                    armedState = credential.armedState ?: candidateOccurrence?.let { AlarmArmedState.SCHEDULED },
+                    scheduleError = credential.scheduleError,
+                    candidateDayRevision = candidateRevision,
+                )) { "日期候选记录不存在" }
+            } catch (cancelled: CancellationException) {
+                discardDayCandidate(planRepository.getById(candidate.planId), candidate.changeId, candidateOccurrence, now)
+                throw cancelled
+            } catch (_: Exception) {
+                discardDayCandidate(planRepository.getById(candidate.planId), candidate.changeId, candidateOccurrence, now)
+                // The normal snapshot pass below re-registers the restored original instance.
+                return@forEach
+            }
+            finishDayCommit(recoveryCredential)
         }
     }
 
