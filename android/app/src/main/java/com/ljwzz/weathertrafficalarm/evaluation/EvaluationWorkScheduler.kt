@@ -271,10 +271,21 @@ class EvaluationWorkScheduler @Inject constructor(
         val zone = plan.zoneIdInstance()
         val localTime = now.atZone(zone).toLocalTime()
         val immediate = replace && !localTime.isBefore(LocalTime.of(19, 0)) && localTime.isBefore(LocalTime.of(23, 30))
-        val starts = setOf(
+        val starts = mutableSetOf(
             if (immediate) now else EvaluationWorkPolicy.nextNight(now, zone, jitter),
             EvaluationWorkPolicy.nextNight(now, zone, jitter, futureOnly = true),
         )
+        // Future day-only commutes need a persisted window even when no rolling work exists.
+        val targetDates = changedDates + dayOverrides.getForPlan(plan.id).map { LocalDate.parse(it.date) } +
+            listOfNotNull((plan.schedule as? AlarmSchedule.Once)?.date?.let(LocalDate::parse))
+        targetDates.forEach { target ->
+            val evaluationDate = target.minusDays(1)
+            val deadline = EvaluationWorkPolicy.deadline(evaluationDate, zone)
+            if (!now.isBefore(deadline)) return@forEach
+            val at = if (replace && evaluationDate == now.atZone(zone).toLocalDate() && immediate) now
+                else maxOf(now, evaluationDate.atTime(19, 0).atZone(zone).plusMinutes(jitter.toLong()).toInstant())
+            if (starts.none { it.atZone(zone).toLocalDate() == evaluationDate }) starts.add(at)
+        }
         starts.forEach { at ->
             val evaluationDate = at.atZone(zone).toLocalDate()
             val target = evaluationDate.plusDays(1)
