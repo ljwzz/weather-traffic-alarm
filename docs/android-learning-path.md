@@ -1,20 +1,20 @@
 # Android 学习路径（面向零基础，服务于通勤闹钟项目）
 
-目标：学完后能先完成本地闹钟的可靠实现，再核对 [`facts-to-verify.md`](./facts-to-verify.md) 中的后续 Provider 项。
+目标：完成本地闹钟的可靠实现，并按 [SPEC.md](../SPEC.md) 核对平台行为与 Provider 前置条件。
 
 原则：
 
 - 全部使用官方文档，按序学习，不跳步。
 - 每个阶段有"完成标志"：能用自己的话回答标志问题才算过。
-- 学习过程中随手把官方原文中的关键事实补充到 facts-to-verify.md。
+- 学习过程中将仍有效的平台约束及官方出处维护到规格中。
 
 ---
 
 ## 阶段 0：先读项目文档（半天）
 
 - 通读 `SPEC.md`（重点：header 架构变更说明、第 2 章依赖表、第 5 章领域模型、FR-001/003/006/007、第 8 章 UI、第 14 章未决项）。
-- 通读 `README.md`、`docs/configuration.md` 与 [`design-handoff.md`](./design-handoff.md)；页面开发与界面验收参照本地 `prototype/`，除非用户明确要求不得自行改动原型。
-- 通读 `docs/facts-to-verify.md`，标记你不确定的断言——它们是学习动机清单。
+- 通读 `README.md`、`docs/configuration.md` 与 [`design-handoff.md`](./design-handoff.md)；页面行为以 `SPEC.md` 为准，验证使用 [项目验证](validation.md)。
+- 通读规格第 14 章，标记尚待确认的平台与服务条件。
 
 完成标志：能解释本 App 如何为单次、每周和工作日规则计算下一次本地响铃，以及为什么未接入路线和天气时不应生成模拟提前量。
 
@@ -75,7 +75,7 @@
 4. Direct Boot：
    - https://developer.android.com/privacy-and-security/direct-boot
 
-对照核对：读完以上四组文档后，逐条核对 facts-to-verify.md 的 A、B 组；`❓` 项给出原文出处，`🔬` 项设计最小验证实验。
+对照核对：读完以上四组文档后，核对项目的闹钟调度、后台任务和恢复方案；不确定的行为查阅官方原文，设备差异用最小实验验证。
 
 完成标志：
 
@@ -110,7 +110,7 @@
 - 彩云官网入口：https://caiyunapp.com/api/weather
 - holiday-cn：https://github.com/NateScarlet/holiday-cn/blob/master/README.md
 
-对照核对：Provider 接入前逐条核对 facts-to-verify.md 的 E 组；当前本地闹钟功能不依赖这些结论。
+对照核对：Provider 接入前核对规格中的协议、坐标与账号前置条件。
 
 完成标志：能写出"彩云请求 → HMAC 签名 → 解析 → 错误分类（对照 SPEC 7.3）"的伪代码。
 
@@ -132,7 +132,7 @@
 
 ## 学成后正向输出（回到项目）
 
-1. 用已核实的事实更新 `docs/facts-to-verify.md`，删除/改写不成立的断言。
+1. 用已核实的事实更新规格中的技术依据与外部条件。
 2. 把结论同步回 `SPEC.md` 第 2 章技术依据与第 14 章未决项。
 3. 基于事实正向输出实现方案：优先处理 `android/` 下仍是旧架构的 Kotlin 骨架（`core/model/AlarmOccurrence.kt`、`OccurrenceStateMachine.kt`、`NextAlarmSnapshot.kt`、`ExactAlarmScheduler.kt`）与新架构（v3.0）的差距，再对照 `IMPLEMENTATION_TASKS.md` 排实施顺序。
 

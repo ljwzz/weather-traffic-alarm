@@ -1,13 +1,8 @@
-# 开发环境记录
+# 开发环境
 
-- 日期：2026-08-07
-- macOS 架构：darwin/arm64
-- JDK：Corretto-21.0.12.8.1 (OpenJDK 21.0.12 LTS)
-- Git：2.55.0
-- Android SDK：Platform 36、Build Tools 36.0.0、platform-tools、模拟器（如缺失记录为阻塞项）
+工具版本与安装入口见 [README.md](../README.md)，构建及设备验证见 [项目验证](validation.md)。
 
-## 说明
-
-- 本仓库为纯 Android 工程，不需要 Docker 或任何本地服务。
-- Android 构建与验证：`./scripts/verify-all.sh`。
-- 缺失工具只记录阻塞项，不把本机绝对路径写入 Gradle 文件。
+- 使用 Android 工程自带 Gradle wrapper；JDK、SDK 和 Build Tools 与工程配置匹配。
+- 本机 SDK 路径配置在 Git 忽略的 `android/local.properties`，凭据配置见 [configuration.md](configuration.md)。
+- 本项目为纯 Android 工程，本地验证无需启动后端服务。
+- 缺失工具或设备时说明具体前置条件；本机绝对路径只用于本机配置。

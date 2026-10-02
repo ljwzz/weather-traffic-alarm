@@ -5,13 +5,9 @@ import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
-import android.os.SystemClock
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -35,8 +31,6 @@ import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.core.model.WorkdayStatus
 import com.ljwzz.weathertrafficalarm.ui.zhitu.AlarmRingingActivity
 import dagger.hilt.android.EntryPointAccessors
-import java.io.File
-import java.io.FileOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -117,16 +111,13 @@ class LockedRingingDeviceTest {
             assertTrue("Device unlocked before lock-screen presentation could be verified", keyguardManager.isKeyguardLocked)
             awaitNode("ringing_dismiss", 15_000)
             fired = true
-            screenshotDevice("locked-firing-device.png")
-            screenshotRoot("locked-firing-root.png")
 
             compose.onNodeWithTag("ringing_dismiss").performClick()
             await(15_000) { deps.occurrences().getById(occurrence.occurrenceId)?.state == OccurrenceState.DISMISSED }
             await(15_000) { AlarmRingingService.activeAlarms.value.none { it.occurrenceId == occurrence.occurrenceId } }
             awaitText("本次响铃已停止", 15_000)
             stopped = true
-            screenshotDevice("locked-stopped-device.png")
-            screenshotRoot("locked-stopped-root.png")
+
         } catch (error: Throwable) {
             bodyFailure = error
         }
@@ -220,8 +211,6 @@ class LockedRingingDeviceTest {
             await(15_000) { AlarmRingingService.activeAlarms.value.any { it.occurrenceId == advance.occurrenceId } }
             await(15_000) { activeRingingActivities().any { it.intentOccurrenceId() == advance.occurrenceId } }
             awaitNode("ringing_open_advance_detail", 15_000)
-            screenshotDevice("locked-advance-firing-device.png")
-            screenshotRoot("locked-advance-firing-root.png")
 
             compose.onNodeWithTag("ringing_open_advance_detail").performClick()
             unlockWithTemporaryPinIfRequested(keyguardManager)
@@ -229,7 +218,6 @@ class LockedRingingDeviceTest {
             assertEquals(decision.decisionId, deps.decisions().getById(decision.decisionId)?.decisionId)
             assertEquals(OccurrenceState.FIRING, deps.occurrences().getById(advance.occurrenceId)?.state)
             assertTrue(AlarmRingingService.activeAlarms.value.any { it.occurrenceId == advance.occurrenceId })
-            screenshotDevice("locked-advance-decision-device.png")
 
             Espresso.pressBack()
             awaitNode("ringing_dismiss", 15_000)
@@ -321,7 +309,6 @@ class LockedRingingDeviceTest {
         await(10_000) { !keyguardManager.isKeyguardLocked }
     }
 
-
     private fun finishOwnedRingingActivities(occurrenceId: String) {
         instrumentation.runOnMainSync {
             val monitor = ActivityLifecycleMonitorRegistry.getInstance()
@@ -352,35 +339,6 @@ class LockedRingingDeviceTest {
     private fun awaitText(text: String, timeoutMillis: Long) {
         compose.waitUntil(timeoutMillis) {
             compose.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-        }
-    }
-
-    private fun screenshotDevice(fileName: String) {
-        settleForScreenshot()
-        val bitmap = instrumentation.uiAutomation.takeScreenshot()
-        writePng(fileName, bitmap)
-        bitmap.recycle()
-    }
-
-    private fun screenshotRoot(fileName: String) {
-        settleForScreenshot()
-        val bitmap = compose.onNodeWithTag("ringing_screen", useUnmergedTree = true)
-            .captureToImage()
-            .asAndroidBitmap()
-        writePng(fileName, bitmap)
-    }
-
-    private fun settleForScreenshot() {
-        compose.waitForIdle()
-        SystemClock.sleep(750)
-        compose.waitForIdle()
-    }
-
-    private fun writePng(fileName: String, bitmap: Bitmap) {
-        val directory = requireNotNull(context.getExternalFilesDir("ringing-qa"))
-        directory.mkdirs()
-        FileOutputStream(File(directory, fileName)).use {
-            assertTrue("Unable to write screenshot $fileName", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         }
     }
 

@@ -1,12 +1,9 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import android.content.Intent
-import android.graphics.Bitmap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -35,8 +32,6 @@ import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
 import com.ljwzz.weathertrafficalarm.core.model.WeatherBufferProfile
 import dagger.hilt.android.EntryPointAccessors
-import java.io.File
-import java.io.FileOutputStream
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -45,7 +40,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -134,7 +128,6 @@ class SingleDayOverrideDeviceTest {
         compose.onNodeWithTag("day_arrival_row_value").assertTextEquals("${plan.arrivalLocalTime}（计划配置）")
         scrollDayTo("day_summary")
         compose.onNodeWithTag("day_summary").assertIsDisplayed()
-        screenshot("day-override-inherited.png")
 
         tapDayControl("day_status_work")
         // The buffer profile is edited by three relative steps so the test does not depend
@@ -154,7 +147,7 @@ class SingleDayOverrideDeviceTest {
         tapDayControl("day_wake_row_value")
         compose.onNodeWithTag("day_wake_picker_confirm").assertIsDisplayed().performClick()
         compose.waitForIdle()
-        screenshot("day-override-edited.png")
+
         compose.onNodeWithTag("day_override_save").performClick()
 
         compose.waitUntil(10_000) {
@@ -188,7 +181,7 @@ class SingleDayOverrideDeviceTest {
         // The day override never bumps the plan revision: the save in setUp did it once.
         val storedPlan = requireNotNull(dependencies.plans().getById(plan.id))
         assertEquals(plan.revision + 1, storedPlan.revision)
-        screenshot("day-override-saved.png")
+
     }
 
     /** Leaving the page without saving must not change the stored day at all. */
@@ -209,7 +202,7 @@ class SingleDayOverrideDeviceTest {
 
         tapDayControl("day_status_rest")
         tapDayControl("day_preparation_60")
-        screenshot("day-override-cancel-draft.png")
+
         waitForAppInForeground()
         compose.onNodeWithTag("day_top_back").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("settings-screen").fetchSemanticsNodes().isNotEmpty() }
@@ -221,12 +214,12 @@ class SingleDayOverrideDeviceTest {
         assertEquals(DayStatus.WORKDAY, afterCancel?.status)
         assertEquals("07:05", afterCancel?.wakeLocalTime)
         assertNull(afterCancel?.preparationMinutes)
-        screenshot("day-override-cancelled.png")
+
     }
 
     /** Clearing every day field removes the row, restores inheritance and bumps the revision on save. */
     @Test
-    fun clearingEveryFieldRemovesTheRowAndRestoresInheritance() = runBlocking {
+    fun clearingEveryFieldRemovesTheRowAndRestoresInheritance() = runBlocking<Unit> {
         val plan = createPlan("单日覆盖验收-撤销")
         val target = today
         seed(
@@ -244,7 +237,6 @@ class SingleDayOverrideDeviceTest {
         scrollDayTo("day_wake_row_value")
         compose.onNodeWithTag("day_wake_row_value").assertTextEquals("07:15")
         compose.onNodeWithTag("day_arrival_row_value").assertTextEquals("08:50")
-        screenshot("day-override-stored.png")
 
         tapDayControl("day_status_auto")
         tapDayControl("day_wake_row_clear")
@@ -259,7 +251,7 @@ class SingleDayOverrideDeviceTest {
         assertNull(dependencies.workdayOverrides().getForPlanDate(plan.id, target.toString()))
         compose.onNodeWithTag("day_wake_row_value").performScrollTo()
             .assertTextEquals("${plan.defaultWakeLocalTime}（计划配置）")
-        screenshot("day-override-restored.png")
+
     }
 
     /** Saving the same day twice stays scoped to that date and keeps incrementing the revision. */
@@ -288,7 +280,7 @@ class SingleDayOverrideDeviceTest {
         val own = requireNotNull(dependencies.workdayOverrides().getForPlanDate(plan.id, today.toString()))
         assertEquals(revisionBefore + 2, own.dayRevision)
         assertEquals(neighbour.override, dependencies.workdayOverrides().getForPlanDate(plan.id, other.toString()))
-        screenshot("day-override-neighbour-safe.png")
+
     }
 
     private fun openCalendar(plan: AlarmPlan) {
@@ -383,7 +375,7 @@ class SingleDayOverrideDeviceTest {
         assertNull("restoring wake inheritance must clear the stored wake", stored.wakeLocalTime)
         assertEquals(45, stored.preparationMinutes)
         assertEquals(2L, stored.dayRevision)
-        screenshot("day-override-single-field.png")
+
     }
 
     /** Restoring the day-level commute removes the stored combination as one unit. */
@@ -416,7 +408,7 @@ class SingleDayOverrideDeviceTest {
         assertNull(stored.destination)
         assertNull(stored.commuteMode)
         assertEquals(45, stored.preparationMinutes)
-        screenshot("day-override-commute-restored.png")
+
     }
 
     /** An incomplete commute is a field error: the page must not call the save or write anything. */
@@ -435,7 +427,7 @@ class SingleDayOverrideDeviceTest {
         val after = dependencies.workdayOverrides().getForPlanDate(plan.id, target.toString())
         assertEquals("an invalid draft must not write", stored.committedRevision, after?.dayRevision)
         assertNull(after?.commuteMode)
-        screenshot("day-override-invalid-commute.png")
+
     }
 
     /** A conflicting save keeps the draft, reports the reason and offers an explicit reload. */
@@ -458,7 +450,6 @@ class SingleDayOverrideDeviceTest {
         // The user's draft is still selected while the stored row keeps the other surface's value.
         scrollDayTo("day_preparation_60")
         compose.onAllNodesWithText("本日 60 分钟").assertCountEquals(1)
-        screenshot("day-override-conflict.png")
 
         tapDayControl("day_override_reload")
         awaitDayRow("day_preparation_15")
@@ -490,7 +481,7 @@ class SingleDayOverrideDeviceTest {
         }
         val stored = requireNotNull(dependencies.workdayOverrides().getForPlanDate(plan.id, target.toString()))
         assertEquals(WeatherBufferProfile(6, 2, 3), stored.weatherProfile)
-        screenshot("day-override-global-buffers.png")
+
     }
 
     private suspend fun createPlan(name: String): AlarmPlan {
@@ -543,29 +534,4 @@ class SingleDayOverrideDeviceTest {
         )
     }
 
-    private fun screenshot(name: String) {
-        waitForAppInForeground()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bitmap: Bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val directory = screenshotDirectory(instrumentation.targetContext)
-        directory.mkdirs()
-        FileOutputStream(File(directory, name)).use {
-            assertTrue("无法保存截图", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        bitmap.recycle()
-    }
-
-    /**
-     * `additionalTestOutputDir` lives on shared storage so Gradle can copy the screenshots
-     * into the build's test-result directory before the test APKs are uninstalled.
-     */
-    private fun screenshotDirectory(context: android.content.Context): File {
-        val arguments = InstrumentationRegistry.getArguments()
-        val outputDir = arguments.getString("additionalTestOutputDir")
-        if (!outputDir.isNullOrBlank()) {
-            val target = File(outputDir)
-            if (target.isDirectory || target.mkdirs()) return target
-        }
-        return requireNotNull(context.getExternalFilesDir("single-day-override-qa"))
-    }
 }

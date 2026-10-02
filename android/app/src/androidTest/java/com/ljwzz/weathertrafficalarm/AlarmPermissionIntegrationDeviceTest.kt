@@ -2,7 +2,6 @@ package com.ljwzz.weathertrafficalarm
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -26,7 +25,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 import java.util.UUID
 
 /** Requires notifications already denied; never changes permissions or deletes other plans. */
@@ -66,7 +64,6 @@ class AlarmPermissionIntegrationDeviceTest {
         compose.onNodeWithTag("save_alarm").performClick()
         compose.onNodeWithTag("permission_guide").assertExists()
         assertTrue(runBlocking { deps.plans().observeAll().first().none { it.name == planName } })
-        screenshot("permission-guide-integrated.png")
 
         compose.onNodeWithTag("permission_cancel").performClick()
         compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", planName)
@@ -89,15 +86,5 @@ class AlarmPermissionIntegrationDeviceTest {
         }
         compose.waitUntil(10_000) { compose.onAllNodesWithText(planName).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(1, runBlocking { deps.plans().observeAll().first().count { it.name == planName } })
-    }
-
-    private fun screenshot(name: String) {
-        compose.waitForIdle()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val image = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val directory = requireNotNull(instrumentation.targetContext.getExternalFilesDir("permission-qa"))
-        directory.mkdirs()
-        File(directory, name).outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        image.recycle()
     }
 }

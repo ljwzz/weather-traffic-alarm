@@ -1,6 +1,6 @@
 # 设计交接与原型参照
 
-> 冻结说明（2026-09-28，代码基线 `48ed778`）：本文件和对应 Figma 原页面 [`218:2464`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)、本地 `prototype/` 原位保留，记录当时的设计与离线验收。后续产品契约见 [`SPEC.md`](../SPEC.md)，Android 交付以原生构建、测试及设备记录为准；节点差异和后续任务见 [`N001 交接记录`](plans/N001-handoff.md)。以下“当前”“必须同步”等措辞均按历史基线阅读。
+> 冻结说明（2026-09-28）：本文件和对应 Figma 原页面 [`218:2464`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)、本地 `prototype/` 原位保留，记录当时的设计与离线验收。后续产品契约见 [`SPEC.md`](../SPEC.md)，Android 交付以原生构建、测试及设备记录为准；节点差异和后续任务见 [`N001 交接记录`](plans/N001-handoff.md)。以下“当前”“必须同步”等措辞均按历史基线阅读。
 
 ## 交接基线
 
@@ -8,12 +8,12 @@
 - 当前设计页：[`知途 · 完整设计 · 2026-09-28`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。主流程、交互状态和扩展页面集中在此页；页面内的「组件 / 知途基础」保留导航、工作日日历和路线选项组件。天气缓冲以 `253:3146` 为当前页面节点。
 - 当前设计稿决定页面级需求；`SPEC.md` 决定领域、安全、调度和验收约束。
 - 本地原型位于 [`prototype/`](../prototype/)。开发和界面验收必须参照其页面结构、布局、组件、文案与交互；除非用户明确要求修改，不得自行改动原型或另行设计。
-- 原型路由以 `prototype/app.js` 的 `ROUTES` 为准：主页是 `home`，地点选择是 `place-search`，基础／提前响铃离线演示分别为 `ringing-basic`／`ringing`。Web 响铃交互见 [`原型验收`](../prototype/qa/ringing-2026-09-02/README.md)，Android 真实响铃与动作确认见 [`原生验收`](../android/qa/native-ringing-2026-09-02/README.md)；两类结果不互相替代。
+- 原型路由以 `prototype/app.js` 的 `ROUTES` 为准：主页是 `home`，地点选择是 `place-search`，基础／提前响铃离线演示分别为 `ringing-basic`／`ringing`。
 - Figma 根节点不定义导航；下表的进入、返回和状态更新是实现契约，不从组件悬停或变体推断。
 
 ### 2026-09-07 当前有效设计／原型基线
 
-本节保留设计合并追溯；第一阶段已在 Android 同步设置与闹钟编辑的信息组织、当前计划通勤草稿和必要导航。测试及设备证据见 [`第一阶段验收`](../android/qa/settings-editor-2026-09-07/README.md)。
+本节保留设计合并追溯；第一阶段已在 Android 同步设置与闹钟编辑的信息组织、当前计划通勤草稿和必要导航。
 
 | Figma 页面 | 页面节点 | 本轮用途 |
 |---|---|---|
@@ -32,7 +32,7 @@
 #### 第一阶段 Android 交接
 
 - 设置：`SettingsScreen.kt` 复用现有主题与导航，显示权限与诊断入口、独立天气缓冲入口、App 图标和实际版本数据；诊断中按设备条件显示人工确认项。
-- 天气缓冲：独立页面展示工作日、周末、法定休息日，0–60 分钟校验后分别保存；现有 `LocalSettingsStore` 字段及 `EvaluationCoordinatorPolicy.weatherProfile` 消费路径继续使用。合并设置屏 `219:3948` 补入口 `242:3136`，设计及原型证据见 [`原型补齐验收`](../prototype/qa/phase1-android-2026-09-07/README.md)。
+- 天气缓冲：独立页面展示工作日、周末、法定休息日，0–60 分钟校验后分别保存；现有 `LocalSettingsStore` 字段及 `EvaluationCoordinatorPolicy.weatherProfile` 消费路径继续使用。合并设置屏 `219:3948` 补入口 `242:3136`。
 - 编辑：`AlarmEditorScreen` 默认收起“通勤与提前提醒”，保留全部字段与四周预览。`PLAN_COMMUTE` 绑定当前草稿，子页完成只回填，整份保存才写入；返回、取消与首次启用引导分别验证。
 - 新建使用稳定草稿 ID；计划及通勤覆盖通过原协调器的保存边界同事务提交，已有计划编辑失败保留原配置。数据库表与版本保持现有契约。
 - 状态与权限实现依据：https://developer.android.com/develop/ui/compose/state-hoisting https://developer.android.com/training/permissions/requesting-special
@@ -44,7 +44,6 @@
 - 详情结论与基础／建议／实际时间在前；分解、应用结果及实例状态随后；来源按需展开。计划名和时区由本次快照提供，旧记录不补当前配置或演示数据。数据库 v4→v5→v6 保留删除计划后的历史关联并增加可空展示快照字段。
 - “重新评估”复用 `evaluateNow` 当前配置检查和 WorkManager 队列；重复请求合并，新任务不覆盖历史。只有与该决策明确关联的真实 retry Work 才提供下一次时间。凭据、授权、当前计划通勤和诊断返回原详情。
 - 提前响铃只显示快照摘要与“查看提前原因”，解锁后查看完整详情，返回仍可操作原响铃；Direct Boot 快照、停止、贪睡和动作确认边界沿用既有实现。Android 系统解锁回执依据：https://developer.android.com/reference/android/app/KeyguardManager.KeyguardDismissCallback
-- 合并页三个指定节点已同步为本阶段已实现界面；[Figma 台账](../android/qa/decision-details-2026-09-07/figma/README.md)、[Android 验证](../android/qa/decision-details-2026-09-07/README.md)、[原型测试与截图](../prototype/qa/decision-details-2026-09-07/README.md) 分别记录其验证边界。
 
 #### 04 合并页主流程节点映射
 
@@ -86,7 +85,7 @@
 | [`228:3078`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3078) | 通知摘要／锁屏摘要设计目标说明板 |
 | [`228:3086`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=228-3086) | 提前响铃详情入口（第二阶段已实现；源节点 `95:763`） |
 
-合并页节点布局、72 项原型测试和浏览器 QA 已在 [`设计合并验收`](../prototype/qa/design-merge-2026-09-07/README.md) 记录。最新 Figma 导航审计确认主流程静态样例没有跨页失效的 `NAVIGATE` 连接；连续交互以浏览器 QA 为准。本节不将其表述为 Android 导航或功能验收。
+最新 Figma 导航审计确认主流程静态样例没有跨页失效的 `NAVIGATE` 连接；连续交互以浏览器 QA 为准。本节不将其表述为 Android 导航或功能验收。
 
 ### 2026-09-05 统一诊断记录
 
@@ -99,18 +98,18 @@
 
 ### 2026-09-05 首页天气与路线状态（稳定追溯组）
 
-首页主节点为 [`57:480`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=57-480)，稳定状态组为 [`195:2153`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=195-2153)。该组覆盖主首页原有占位展示；节点、连接和截图见 [Figma 台账](../prototype/qa/home-preview-2026-09-05/figma-state.json) 与 [主首页截图](../prototype/qa/home-preview-2026-09-05/figma-home-success.png)。当前有效页面组织见本文件开头的 2026-09-07 基线。
+首页主节点为 [`57:480`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=57-480)，稳定状态组为 [`195:2153`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=195-2153)。该组覆盖主首页原有占位展示。当前有效页面组织见本文件开头的 2026-09-07 基线。
 
 - 页面顺序为天气、最近自动评估、最近有效闹钟、通勤路线。天气显示等级、地点、数据时间和来源，路线显示方式、距离和耗时；来源以实际网络／缓存结果为准。
 - 配置读取、凭据缺失／存储错误、彩云待测试／测试失败、高德未授权、地点缺失、加载、成功、缓存、空路线、失败及有效旧结果保留分别呈现。配置、地点、授权、重试入口按当前原因显示。
 - 首页进入／返回／前台恢复及输入变化时检查有效期；下拉刷新当前天气和路线。刷新动作进入加载态并返回结果，详情入口与刷新入口分别连接；Android 预览与后台评估使用独立操作。
-- Figma 和 Web 原型使用标记为离线 fixture 的示例数据；Android 状态、并发、下拉和数据隔离验收见 [设备验收](../android/qa/home-preview-2026-09-05/README.md)。
+- Figma 和 Web 原型使用标记为离线 fixture 的示例数据。
 
 ### 2026-08-31 本地闹钟实施状态
 
-> 2026-09-01 高德已接入：Android 已实现授权、加密运行时 Key、地图、单次定位、POI／输入提示、五种路线、最多三条备选、路况和计划覆盖；待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。`prototype/` 使用确定性离线 fixture 验收页面状态。彩云天气 Android 实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](../android/qa/caiyun-device-2026-09-02.md)；自动评估 fixture 与决策记录见下方状态组。
+> 2026-09-01 高德已接入：Android 已实现授权、加密运行时 Key、地图、单次定位、POI／输入提示、五种路线、最多三条备选、路况和计划覆盖；待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。`prototype/` 使用确定性离线 fixture 验收页面状态。
 
-本状态组覆盖下表中相同页面的旧“系统时钟参考／提前闹钟／模拟 Provider”语义。Figma 节点均位于 `2026-08-31 / 基础本地闹钟（当前实施）`（`57:479`）；对应截图与节点台账位于 [`prototype/design/implementation-2026-08-31/`](../prototype/design/implementation-2026-08-31/)。
+本状态组覆盖下表中相同页面的旧“系统时钟参考／提前闹钟／模拟 Provider”语义。
 
 | 功能 | Figma 节点 | 原型路由 | 当前交互契约 |
 |---|---|---|---|
@@ -127,7 +126,7 @@
 
 ### 2026-09-03 法定工作日日历预览
 
-2026-09-05 Android 已实现该预览，入口为计划编辑的“法定工作日”；卡片独立填充编辑内容区，七列等宽排列。实现与模拟器截图见 [Android 四周日历验收](../android/qa/workday-preview-2026-09-05/README.md)。
+2026-09-05 Android 已实现该预览，入口为计划编辑的“法定工作日”；卡片独立填充编辑内容区，七列等宽排列。
 
 Figma 状态组为 [`183:2152`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=183-2152)，选中态为 [`176:2139`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=176-2139)，日期组件为 `177:2132`。计划编辑入口 `57:1083` 与 `171:2437` 的“法定工作日”选项已连接选中态；选中态点击“指定日期”返回收起预览的页面。
 
@@ -157,7 +156,7 @@ Figma 状态组为 [`167:2099`](https://www.figma.com/design/wN04BlxRelbJyBVF35D
 
 ### 2026-09-02 基础与提前响铃交互（离线演示）
 
-Figma 状态组为 [`95:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=95-600)，位于文件 `wN04BlxRelbJyBVF35DyXE`、页面 `0:1`。原 `3:73` 已同步提前响铃文案与首轮按钮连接；当前交接以本状态组的八个状态为准。Figma 覆盖响铃、停止、首次贪睡及首次子实例的状态跳转；子实例之后的连续操作和跨日由 Web 原型验收。截图与验证记录见 [`prototype/qa/ringing-2026-09-02/`](../prototype/qa/ringing-2026-09-02/README.md)。
+Figma 状态组为 [`95:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=95-600)，位于文件 `wN04BlxRelbJyBVF35DyXE`、页面 `0:1`。原 `3:73` 已同步提前响铃文案与首轮按钮连接；当前交接以本状态组的八个状态为准。Figma 覆盖响铃、停止、首次贪睡及首次子实例的状态跳转；子实例之后的连续操作和跨日由 Web 原型验收。
 
 | 状态 | Figma 节点 | 原型路由 | 当前交互契约 |
 |---|---|---|---|
@@ -174,7 +173,7 @@ Figma 状态组为 [`95:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyX
 
 ### 2026-09-03 权限与可靠性引导（稳定追溯组）
 
-Figma 权限状态组为 [`133:632`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=133-632)，位于文件 `wN04BlxRelbJyBVF35DyXE`、页面 `0:1`。本组保留为权限主要分支的稳定追溯依据；当前设置页 `3:49` 与诊断页 `57:1226` 已接入本组。设置层级和设备条件项的当前有效组织以本文件开头的 2026-09-07 基线为准。Figma 固定演示场景用于追溯权限主要分支；连续组合与数据生命周期以可运行原型测试为准。节点与连接台账见 [`figma-state.json`](../prototype/qa/permissions-2026-09-03/figma-state.json)，浏览器离线流程记录见 [`权限原型浏览器验收`](../prototype/qa/permissions-2026-09-03/README.md)。
+Figma 权限状态组为 [`133:632`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=133-632)，位于文件 `wN04BlxRelbJyBVF35DyXE`、页面 `0:1`。本组保留为权限主要分支的稳定追溯依据；当前设置页 `3:49` 与诊断页 `57:1226` 已接入本组。设置层级和设备条件项的当前有效组织以本文件开头的 2026-09-07 基线为准。Figma 固定演示场景用于追溯权限主要分支；连续组合与数据生命周期以可运行原型测试为准。
 
 | 功能 | Figma 节点 | 交互契约 |
 |---|---|---|
@@ -196,20 +195,20 @@ Figma 权限状态组为 [`133:632`](https://www.figma.com/design/wN04BlxRelbJyB
 
 Android 原生交接：`PermissionAccess` 提供标准 Android 能力快照和设置页回退；`PermissionScreens`／`ZhituApp` 在设置返回后刷新快照。`AlarmPermissionFlow` 保留启用前的草稿或待执行动作并处理会话内继续／取消；`LocationPermissionFlow` 只处理“使用当前位置”的用途说明、粗精位置、拒绝、定位服务关闭和设置恢复。小米手工确认是当前会话状态，和 Android 能力快照分别呈现。`miui.intent.action.APP_PERM_EDITOR` 仅按 MIUI 官方 FAQ 作为通用应用权限页尝试；HyperOS 的版本覆盖与两项专项设置效果以真机记录确认。https://dev.mi.com/docs/appsmarket/technical_docs/adaptation_FAQ/ https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1625
 
-Android 权限实现与验收见 [`2026-09-03 原生权限记录`](../android/qa/permissions-2026-09-03/README.md)。本次实现复用 Compose 组件与知途主题；系统授权使用 Android 原生界面，应用内启用引导和定位说明沿用设计稿底部弹层。
+本次实现复用 Compose 组件与知途主题；系统授权使用 Android 原生界面，应用内启用引导和定位说明沿用设计稿底部弹层。
 
 ## 主页面契约
 
 ### Android 响铃实现映射（2026-09-02）
 
-Android 复用 `95:601`、`95:655`、`95:709`、`119:624` 的基础／贪睡视觉结构。时间、日期和计划名称来自真实设备保护快照；状态栏与导航手势由系统绘制。原型的“重新演示／模拟再次响铃”属于 Web fixture，原生结果页对应为“返回闹钟／关闭”；再次响铃由已注册子实例真实触发。第二阶段已接入真实 ADVANCE 摘要及解锁详情入口；原有离线演示仍单独标记。构建、设备结果和验证边界见 [`原生响铃验收`](../android/qa/native-ringing-2026-09-02/README.md)。
+Android 复用 `95:601`、`95:655`、`95:709`、`119:624` 的基础／贪睡视觉结构。时间、日期和计划名称来自真实设备保护快照；状态栏与导航手势由系统绘制。原型的“重新演示／模拟再次响铃”属于 Web fixture，原生结果页对应为“返回闹钟／关闭”；再次响铃由已注册子实例真实触发。第二阶段已接入真实 ADVANCE 摘要及解锁详情入口；原有离线演示仍单独标记。
 
 下表的 21 个旧 Figma 页面是历史视觉素材清单，非 Android 页面完成清单。对应实施证据和后续差异见 [`N001 交接记录`](plans/N001-handoff.md)。
 
 | 编号 | 页面 / Figma 节点 | 原型 route | SPEC | 原型导航/交互 | 关键状态 |
 |---:|---|---|---|---|---|
 | 01 | 今日·出行总览 `3:10` | `home` | 8.2 | 首次引导完成或底部“今日”进入；本地闹钟空态进入添加；底部导航不返回上一页。 | 下一次有效本地闹钟、真实注册状态、天气与高德 fixture 状态。 |
-| 02 | 天气·预报地图 `3:15` | `weather` | 8.2、8.4 | 从今日天气进入；返回今日。 | 原型为离线天气 fixture；Android 彩云实网与界面验证见 `android/qa/caiyun-device-2026-09-02.md`。 |
+| 02 | 天气·预报地图 `3:15` | `weather` | 8.2、8.4 | 从今日天气进入；返回今日。 | 原型为离线天气 fixture；Android 天气摘要由彩云 Provider 提供。 |
 | 03 | 路线·上班通勤维护 `3:20` | `route` | 8.4 | 从今日或底部“路线”进入；管理全局通勤并查看最多三条路线 fixture。 | 驾车、公交、步行、骑行、电动车五选一；展示当前路况 fixture。 |
 | 04 | 路线·编辑与选点 `3:25` | `route-edit` | 8.4、FR-011 | 从路线页或闹钟计划覆盖进入；起点/终点进入 `place-search`；保存回所属页面。 | 运行时 SDK Key 与授权均满足时允许地图选点／单次定位 fixture。 |
 | 05 | 闹钟·计划总览 `3:34` | `plans` | 8.3 | 从底部“闹钟”进入；空态进入添加、列表进入编辑；底部导航离开。 | 启用意图与实际注册状态、下一次响铃、单日覆盖摘要。 |

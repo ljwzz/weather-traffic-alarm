@@ -1,6 +1,5 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,7 +21,6 @@ import com.ljwzz.weathertrafficalarm.core.data.local.CredentialInput
 import com.ljwzz.weathertrafficalarm.core.data.local.IsolatedDeviceTestStores
 import com.ljwzz.weathertrafficalarm.core.data.preferences.FavoritePlace
 import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
-import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.PlaceRef
 import com.ljwzz.weathertrafficalarm.core.network.amap.AmapWebApi
 import com.ljwzz.weathertrafficalarm.core.network.amap.AmapWebKey
@@ -178,7 +176,7 @@ class AmapRouteContractDeviceTest {
         compose.waitUntil(10_000) { viewModel.routeState.value.message == message }
         assertTrue(viewModel.routeState.value.alternatives.isEmpty())
         compose.onNodeWithText(message).performScrollTo().assertIsDisplayed()
-        screenshot("$name.png")
+
         transport.enqueue(success(600))
         refresh()
         awaitDuration(600)
@@ -186,7 +184,7 @@ class AmapRouteContractDeviceTest {
         assertEquals("DRIVING:0", viewModel.routeState.value.selectedRouteId)
         assertEquals(1200L, viewModel.routeState.value.alternatives.single().distanceMeters)
         compose.onNodeWithText("10 分钟").performScrollTo().assertIsDisplayed()
-        screenshot("$name-recovered.png")
+
         assertEquals(2, transport.requests.size)
     }
 
@@ -201,7 +199,7 @@ class AmapRouteContractDeviceTest {
             compose.waitUntil(10_000) { viewModel.routeState.value.refreshError == message }
             assertEquals(600L, viewModel.routeState.value.alternatives.single().durationSeconds)
             compose.onNodeWithText("更新失败，保留上次结果：$message").performScrollTo().assertIsDisplayed()
-            screenshot("cached-error-$index.png")
+
         }
         transport.enqueue(success(720))
         refresh()
@@ -209,7 +207,7 @@ class AmapRouteContractDeviceTest {
         assertEquals(null, viewModel.routeState.value.refreshError)
         compose.onNodeWithText("更新失败，保留上次结果", substring = true).assertDoesNotExist()
         compose.onNodeWithText("12 分钟").performScrollTo().assertIsDisplayed()
-        screenshot("cached-recovered.png")
+
     }
 
     @Test
@@ -235,7 +233,6 @@ class AmapRouteContractDeviceTest {
         assertEquals(900L, viewModel.routeState.value.alternatives.single().durationSeconds)
         assertEquals("116.41,39.92", transport.requests[0].destination)
         assertEquals("116.42,39.92", transport.requests[1].destination)
-        screenshot("same-name-coordinate-change.png")
 
         val delayedDriving = success(1200, delayed = true)
         transport.enqueue(delayedDriving)
@@ -258,7 +255,7 @@ class AmapRouteContractDeviceTest {
         assertTrue(transport.requests.last().path.endsWith("electrobike"))
         compose.onNodeWithText("电动车").assertIsSelected()
         compose.onNodeWithText("30 分钟").performScrollTo().assertIsDisplayed()
-        screenshot("final-mode-after-late-responses.png")
+
     }
 
     private fun refresh() { compose.onNodeWithText("刷新").performScrollTo().performClick() }
@@ -269,15 +266,6 @@ class AmapRouteContractDeviceTest {
     }
     private fun awaitStarted(fixture: Fixture) { assertTrue("Request did not start", fixture.started.await(10, TimeUnit.SECONDS)) }
     private fun awaitFinished(fixture: Fixture) { assertTrue("Request did not finish", fixture.finished.await(10, TimeUnit.SECONDS)) }
-
-    private fun screenshot(name: String) {
-        compose.waitForIdle()
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val folder = requireNotNull(instrumentation.targetContext.getExternalFilesDir("qa/amap-supplement"))
-        folder.mkdirs()
-        File(folder, name).outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        bitmap.recycle()
-    }
 
     private class Fixture(val status: Int, val body: String, delayed: Boolean = false) {
         val started = CountDownLatch(1)

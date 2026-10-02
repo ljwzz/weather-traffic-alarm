@@ -12,7 +12,6 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarUiState
 import com.ljwzz.weathertrafficalarm.core.model.DayStatus
 import org.junit.Assert.assertEquals
@@ -20,8 +19,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.abs
@@ -45,11 +42,10 @@ class WorkdayPreviewDeviceTest {
         compose.onNodeWithTag("repeat_workdays").performClick()
         compose.waitForIdle()
         assertEquals(1, refreshes.value)
-        writeDeviceScreenshot("workday-preview-editor-selected.png")
+
         compose.onNodeWithTag("workday_preview").performScrollTo().assertExists()
         compose.onNodeWithTag("workday_preview_status").assertExists()
         compose.onNodeWithText("日历数据不可用，使用星期规则", substring = true).assertExists()
-        writeDeviceScreenshot("workday-preview-editor-calendar.png")
 
         val today = LocalDate.now(ZoneId.of(draft.value.zoneId))
         val nextWorkday = today.plusDays(7)
@@ -147,7 +143,7 @@ class WorkdayPreviewDeviceTest {
         assertContainsArgb(image, cardBounds, dayBounds("2026-09-25"), 0xFF79BBFF.toInt(), "特殊节假日文字")
         assertContainsArgb(image, cardBounds, dayBounds("2026-09-25"), 0xFFECF5FF.toInt(), "特殊节假日背景")
         assertContainsArgb(image, cardBounds, dayBounds("2026-09-25"), 0xFFECF5FF.toInt(), "今天仍保留特殊节假日背景")
-        writeScreenshot(image, "workday-preview-2026-09-25.png")
+
         image.recycle()
     }
 
@@ -217,22 +213,4 @@ class WorkdayPreviewDeviceTest {
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertTrue("$label：expected=$expected actual=$actual", abs(expected - actual) <= 1f)
     }
-
-    private fun writeScreenshot(image: Bitmap, fileName: String) {
-        FileOutputStream(screenshotFile(fileName)).use {
-            assertTrue("无法保存截图", image.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-    }
-
-    private fun writeDeviceScreenshot(fileName: String) {
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        FileOutputStream(screenshotFile(fileName)).use {
-            assertTrue("无法保存截图", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        bitmap.recycle()
-    }
-
-    private fun screenshotFile(fileName: String): File = requireNotNull(
-        InstrumentationRegistry.getInstrumentation().targetContext.externalCacheDir,
-    ).resolve("workday-preview-qa").also { it.mkdirs() }.resolve(fileName)
 }

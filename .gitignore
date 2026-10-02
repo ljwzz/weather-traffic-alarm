@@ -5,6 +5,8 @@ android/**/build/
 android/app/release/
 android/local.properties
 android/captures/
+/android/qa/
+/prototype/qa/
 *.iml
 .idea/
 

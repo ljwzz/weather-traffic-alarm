@@ -1,11 +1,9 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import android.graphics.Bitmap
 import android.content.Intent
 import com.ljwzz.weathertrafficalarm.core.model.AlarmOccurrence
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -41,7 +39,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -85,7 +82,7 @@ class DecisionNavigationDeviceTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
-    @Test fun homePlanAndHistoryOpenTheirExactRecordAndRetainSnapshotAfterEditAndDelete() = runBlocking {
+    @Test fun homePlanAndHistoryOpenTheirExactRecordAndRetainSnapshotAfterEditAndDelete() = runBlocking<Unit> {
         val a = plan("早班通勤")
         val b = plan("晚班通勤")
         val aOld = decision(a, "已应用提前提醒", -120)
@@ -99,7 +96,7 @@ class DecisionNavigationDeviceTest {
         compose.onNodeWithTag("home_decision_${bLatest.decisionId}").performClick()
         waitDetail(bLatest)
         compose.onAllNodesWithText("评估失败").onFirst().assertExists()
-        screenshot("history-failure-top.png")
+
         compose.onNodeWithTag("decision-detail-recovery-授权").performScrollTo().performClick()
         Espresso.pressBack()
         waitDetail(bLatest)
@@ -118,7 +115,6 @@ class DecisionNavigationDeviceTest {
         compose.onNodeWithTag("history_content").performScrollToNode(hasTestTag("history_decision_${aOld.decisionId}"))
         compose.onNodeWithTag("history_decision_${aOld.decisionId}").performClick()
         waitDetail(aOld)
-        screenshot("history-success-top.png")
 
         deps.coordinator().save(a.copy(name = "已修改名称", defaultWakeLocalTime = "08:10"))
         compose.onNodeWithTag("decision-detail-refresh").performScrollTo().performClick()
@@ -132,7 +128,7 @@ class DecisionNavigationDeviceTest {
         assertEquals(aOld, deps.decisions().getById(aOld.decisionId))
         compose.onNodeWithTag("decision-detail-${aOld.decisionId}").performScrollToIndex(0)
         compose.onNodeWithText("早班通勤").assertExists()
-        screenshot("deleted-plan-historical-detail.png")
+
     }
 
     @Test fun newOccurrenceIntentsAndMissingIdentifiersNeverFallBackToThePreviousDecision() = runBlocking {
@@ -169,7 +165,7 @@ class DecisionNavigationDeviceTest {
         waitDetail(bRecord)
         open(null)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("详情入口缺少唯一记录标识。").fetchSemanticsNodes().isNotEmpty() }
-        screenshot("missing-detail-identity.png")
+
         assertEquals(aRecord, deps.decisions().getById(aRecord.decisionId))
         assertEquals(bRecord, deps.decisions().getById(bRecord.decisionId))
     }
@@ -202,15 +198,5 @@ class DecisionNavigationDeviceTest {
 
     private fun waitDetail(decision: AlarmDecision) {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("decision-detail-${decision.decisionId}").fetchSemanticsNodes().isNotEmpty() }
-    }
-
-    private fun screenshot(name: String) {
-        compose.waitForIdle()
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "qa/phase2-decision-navigation")
-        directory.mkdirs()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
     }
 }

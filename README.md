@@ -10,9 +10,9 @@
 
 - **纯 Android 本地优先**：无后端；计划、实例、记录、设置和日历覆盖只存本机。
 - **本地响铃**：通过系统闹钟能力注册下一次实例，Receiver 与前台响铃服务按实例 ID 处理停止和贪睡。
-- **高德已接入**：Android 已实现专项授权、加密运行时 Web Service Key／Android SDK Key、地图、单次定位、POI／输入提示、五种路线、最多三条候选、路况与计划覆盖。待用户提供两项真实 Key 后完成设备实网验收。
+- **高德已接入**：Android 已实现专项授权、加密运行时 Web Service Key／Android SDK Key、地图、单次定位、POI／输入提示、五种路线、最多三条候选、路况与计划覆盖。
 - **高德归档演示**：原型含地图、输入提示／POI、地图选点、单次定位、五种路线、最多三条备选与当前路况的离线 fixture；真实能力按 Android 实现及设备记录验收。
-- **彩云天气已接入**：Android 已实现候选凭证连接测试、双地点小时天气评估、15 分钟故障缓存和手动天气预览；设备实网与界面验证结果见 [2026-09-02 验证记录](./android/qa/caiyun-device-2026-09-02.md)。天气 Provider 只返回天气结果；统一评估协调器接通工作日、路线、天气和独立提前提醒。v2.6 鉴权契约见 https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html 。
+- **彩云天气已接入**：Android 已实现候选凭证连接测试、双地点小时天气评估、15 分钟故障缓存和手动天气预览。天气 Provider 只返回天气结果；统一评估协调器接通工作日、路线、天气和独立提前提醒。v2.6 鉴权契约见 https://docs.caiyunapp.com/weather-api/v2/v2.6/auth.html 。
 
 ## 目录结构
 
@@ -67,7 +67,7 @@ node scripts/install-debug.mjs --skip-credentials
 ./scripts/verify-all.sh
 ```
 
-Debug APK、测试明细和截图见 [`android/qa/README.md`](./android/qa/README.md)。
+定向回归、设备执行及结果判定见 [项目验证](./docs/validation.md)。
 
 ## 文档
 

@@ -1,6 +1,5 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import android.graphics.Bitmap
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
@@ -14,7 +13,6 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
 import com.ljwzz.weathertrafficalarm.core.model.RouteAlternative
 import com.ljwzz.weathertrafficalarm.core.model.RouteDataSource
@@ -24,8 +22,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 import java.time.Instant
 
 /** Visual and gesture contract for home provider cards with deterministic state fixtures. */
@@ -43,7 +39,7 @@ class HomeProviderCardsDeviceTest {
         compose.onNodeWithText("轻度天气").assertExists()
         compose.onAllNodesWithText("数据来自本地缓存", substring = true).assertCountEquals(2)
         compose.onNodeWithTag("home_content").performScrollToIndex(0)
-        writeScreenshot("home-preview-success-top.png")
+
         compose.onNodeWithTag("home_route_card").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("驾车 · 12.4 km · 18 分钟").assertExists()
 
@@ -56,13 +52,11 @@ class HomeProviderCardsDeviceTest {
         compose.onNodeWithText("尚未配置彩云凭据").assertExists()
         compose.onNodeWithText("尚未配置高德 Web Key").performScrollTo().assertExists()
         compose.onNodeWithTag("home_content").performScrollToIndex(0)
-        writeScreenshot("home-preview-missing-configuration.png")
 
         compose.runOnIdle {
             state.value = successState().copy(route = HomeRouteCardState.Empty("家 → 公司", CommuteMode.DRIVING))
         }
         compose.onNodeWithText("未找到可用驾车路线").performScrollTo().assertExists()
-        writeScreenshot("home-preview-no-route.png")
 
         compose.runOnIdle {
             state.value = successState().copy(
@@ -71,7 +65,6 @@ class HomeProviderCardsDeviceTest {
         }
         compose.onNodeWithText("正在获取天气").assertExists()
         compose.onNodeWithTag("home_weather_card").performScrollTo()
-        writeScreenshot("home-preview-loading.png")
 
         compose.runOnIdle {
             state.value = successState().copy(
@@ -82,7 +75,6 @@ class HomeProviderCardsDeviceTest {
         compose.onNodeWithText("无法获取天气").assertExists()
         compose.onNodeWithText("更新失败，保留上次结果", substring = true).performScrollTo().assertExists()
         compose.onNodeWithTag("home_weather_card").performScrollTo()
-        writeScreenshot("home-preview-partial-error.png")
 
         compose.onNodeWithTag("home_content").performScrollToIndex(7)
         val routeBounds = compose.onNodeWithTag("home_route_card").fetchSemanticsNode().boundsInRoot
@@ -129,15 +121,4 @@ class HomeProviderCardsDeviceTest {
             source = RouteDataSource.CACHE,
         ),
     )
-
-    private fun writeScreenshot(fileName: String) {
-        compose.waitForIdle()
-        val image = requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
-        val directory = requireNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("qa/home-preview"))
-        directory.mkdirs()
-        FileOutputStream(File(directory, fileName)).use {
-            assertTrue("无法保存截图", image.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        image.recycle()
-    }
 }

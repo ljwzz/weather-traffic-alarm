@@ -1,12 +1,9 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -14,13 +11,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 
 /**
  * Pure screen coverage: data is supplied directly so that opening the detail
@@ -48,7 +42,7 @@ class DecisionDetailScreenDeviceTest {
         compose.onNodeWithTag("decision-detail-history").performClick()
         assertEquals(1, refreshes)
         assertEquals(1, histories)
-        screenshot("decision-detail-success.png")
+
     }
 
     @Test
@@ -83,7 +77,7 @@ class DecisionDetailScreenDeviceTest {
         compose.waitForIdle()
         assertEquals(1, credentials)
         assertEquals(1, diagnostics)
-        screenshot("decision-detail-failure.png")
+
     }
 
     @Test
@@ -129,13 +123,6 @@ class DecisionDetailScreenDeviceTest {
                 )
             }
         }
-    }
-
-    private fun screenshot(name: String) {
-        val image = compose.onNodeWithTag("decision-detail-decision-1").captureToImage().asAndroidBitmap()
-        val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "qa/phase2-decision-detail")
-        check(directory.exists() || directory.mkdirs())
-        FileOutputStream(File(directory, name)).use { output -> image.compress(Bitmap.CompressFormat.PNG, 100, output) }
     }
 
     private fun sample(

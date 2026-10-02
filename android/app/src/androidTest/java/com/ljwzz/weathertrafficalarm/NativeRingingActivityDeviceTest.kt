@@ -4,13 +4,9 @@ import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.os.ParcelFileDescriptor
-import android.os.SystemClock
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -31,8 +27,6 @@ import com.ljwzz.weathertrafficalarm.core.model.OccurrenceKind
 import com.ljwzz.weathertrafficalarm.core.model.OccurrenceState
 import com.ljwzz.weathertrafficalarm.ui.zhitu.AlarmRingingActivity
 import dagger.hilt.android.EntryPointAccessors
-import java.io.File
-import java.io.FileOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -97,14 +91,12 @@ class NativeRingingActivityDeviceTest {
         await { isAlarmAudioActive() }
         awaitNode("ringing_dismiss")
         compose.onNodeWithTag("ringing_snooze").assertExists()
-        screenshot("basic-firing.png")
 
         compose.onNodeWithTag("ringing_dismiss").performClick()
         await { deps.occurrences().getById(occurrence.occurrenceId)?.state == OccurrenceState.DISMISSED }
         await { AlarmRingingService.activeAlarms.value.none { it.occurrenceId == occurrence.occurrenceId } }
         awaitText("本次响铃已停止")
         compose.onNodeWithText("本次响铃已停止").assertExists()
-        screenshot("basic-stopped.png")
 
         scenario.recreate()
         awaitText("本次响铃已停止")
@@ -128,13 +120,11 @@ class NativeRingingActivityDeviceTest {
             it.kind == OccurrenceKind.SNOOZE && it.parentOccurrenceId == parent.occurrenceId
         }
         awaitText("已贪睡 1 分钟")
-        screenshot("basic-snoozed.png")
 
         await(80_000) { deps.occurrences().getById(child.occurrenceId)?.state == OccurrenceState.FIRING }
         await(80_000) { AlarmRingingService.activeAlarms.value.any { it.occurrenceId == child.occurrenceId } }
         awaitNode("ringing_dismiss", 80_000)
         compose.onNodeWithText("贪睡后再次响铃").assertExists()
-        screenshot("snooze-firing.png")
 
         compose.onNodeWithTag("ringing_dismiss").performClick()
         await { deps.occurrences().getById(child.occurrenceId)?.state == OccurrenceState.DISMISSED }
@@ -177,7 +167,7 @@ class NativeRingingActivityDeviceTest {
             assertTrue(deps.occurrences().getByPlanId(plan.id).none {
                 it.kind == OccurrenceKind.SNOOZE && it.state == OccurrenceState.SCHEDULED
             })
-            screenshot("snooze-retry-failed.png")
+
         } finally {
             shell("appops set ${context.packageName} POST_NOTIFICATION $originalMode")
         }
@@ -317,26 +307,6 @@ class NativeRingingActivityDeviceTest {
             .find(output)
             ?.groupValues
             ?.get(1)
-    }
-
-    private fun screenshot(fileName: String) {
-        compose.waitForIdle()
-        // Screenshot-only stabilization for the system heads-up exit animation.
-        SystemClock.sleep(750)
-        compose.waitForIdle()
-        val directory = context.getExternalFilesDir("ringing-qa") ?: return
-        directory.mkdirs()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        FileOutputStream(File(directory, fileName)).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
-        bitmap.recycle()
-        // Capture the app window separately; retain the full device screenshot
-        // above so system heads-up notifications are not hidden from evidence.
-        val content = compose.onNodeWithTag("ringing_screen").captureToImage().asAndroidBitmap()
-        FileOutputStream(File(directory, fileName.removeSuffix(".png") + "-content.png")).use {
-            content.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
     }
 
     private fun shell(command: String): String {

@@ -2,7 +2,6 @@ package com.ljwzz.weathertrafficalarm.ui.zhitu
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.location.LocationManager
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -16,8 +15,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 
 /**
  * Isolated location-permission UI contract. It uses a renderer-unavailable
@@ -51,7 +48,6 @@ class LocationPermissionScreenDeviceTest {
         compose.onNodeWithText("使用当前位置").performClick()
         compose.onNodeWithText("仅在本次点击后获取前台位置", substring = true).assertExists()
         assertEquals(0, locationCalls.intValue)
-        writeScreenshot("location-permission-purpose.png")
 
         compose.onNodeWithText("取消").performClick()
         assertEquals(0, locationCalls.intValue)
@@ -94,18 +90,5 @@ class LocationPermissionScreenDeviceTest {
                 )
             }
         }
-    }
-
-    private fun writeScreenshot(fileName: String) {
-        compose.mainClock.advanceTimeBy(1_000)
-        compose.waitForIdle()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val directory = requireNotNull(instrumentation.targetContext.getExternalFilesDir("permission-qa"))
-        directory.mkdirs()
-        FileOutputStream(File(directory, fileName)).use {
-            require(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        bitmap.recycle()
     }
 }

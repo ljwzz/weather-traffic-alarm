@@ -11,13 +11,13 @@
 - 可执行任务清单：[`IMPLEMENTATION_TASKS.md`](./IMPLEMENTATION_TASKS.md)
 - 设计与原型交接：[`docs/design-handoff.md`](./docs/design-handoff.md)
 
-> 2026-09-01 高德已接入：Android 已实现首次专项授权、Web Service Key／Android SDK Key的加密运行时存储、输入提示、POI 搜索、地图选点、单次定位、五种路线、最多三条备选、当前路况和计划覆盖。待用户提供两项真实 Key 后完成设备实网验收。`prototype/` 继续使用确定性离线 fixture，不发送请求、不使用真实 Key、不显示坐标。彩云天气的 Android 实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动评估由统一协调器接通路线、工作日和天气，仅在有效成功结果下调整独立提前提醒。
+> 2026-09-01 高德已接入：Android 已实现首次专项授权、Web Service Key／Android SDK Key的加密运行时存储、输入提示、POI 搜索、地图选点、单次定位、五种路线、最多三条备选、当前路况和计划覆盖。`prototype/` 继续使用确定性离线 fixture，不发送请求、不使用真实 Key、不显示坐标。自动评估由统一协调器接通路线、工作日和天气，仅在有效成功结果下调整独立提前提醒。
 >
 > 自 2026-09-28 起，本规格承载产品、交互、页面和安全契约；后续直接修改 Android，使用构建、测试及设备记录验收。现有 Figma 和 [`prototype/`](./prototype/) 原位冻结为历史参考；需求、用例与素材交接见 [`N001 交接记录`](./docs/plans/N001-handoff.md)。以下早期设计和原型叙述保留当时事实，不能作为新的同步要求。
 
 > 2026-09-28 冻结的设计页为 [`知途 · 完整设计`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464)。该页保留当时的主流程、交互状态、扩展目标和组件；交接结果见 [`N001 交接记录`](./docs/plans/N001-handoff.md)。
 
-> 2026-09-07 设计／原型合并基线：Figma 保留 `01 · 知途设计提案`（[`0:1`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=0-1)）、`02 · 可点击原型`（[`16:180`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=16-180)）和 `03 · 通勤路线方案`（[`79:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=79-600)）作为来源；新增 [`04 · 项目合并版 · 2026-09-07`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) 为本轮可审阅基线。合并页的当前主流程对齐已实现 Android，旧设计的有效未实现目标与必要状态继续保留。节点映射见 [`docs/design-handoff.md`](./docs/design-handoff.md)。第一阶段同步设置与闹钟编辑的 Android 信息组织、计划草稿及必要导航；执行结果与设备证据见 [`设置与编辑验收`](./android/qa/settings-editor-2026-09-07/README.md)。
+> 2026-09-07 设计／原型合并基线：Figma 保留 `01 · 知途设计提案`（[`0:1`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=0-1)）、`02 · 可点击原型`（[`16:180`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=16-180)）和 `03 · 通勤路线方案`（[`79:600`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=79-600)）作为来源；新增 [`04 · 项目合并版 · 2026-09-07`](https://www.figma.com/design/wN04BlxRelbJyBVF35DyXE?node-id=218-2464) 为本轮可审阅基线。合并页的当前主流程对齐已实现 Android，旧设计的有效未实现目标与必要状态继续保留。节点映射见 [`docs/design-handoff.md`](./docs/design-handoff.md)。第一阶段同步设置与闹钟编辑的 Android 信息组织、计划草稿及必要导航。
 
 ## 0. 当前本地闹钟实施基线
 
@@ -76,7 +76,7 @@ enum class AlarmArmedState {
 - 无用户账号；计划、决策与日历缓存全部保存在本机，不上传任何服务端。
 - 首次启动要求用户选择同意高德授权或仅用基础功能；只在用户主动点击“使用当前位置”后，先说明用途再请求前台定位。Android 12 及以上的精确定位请求与粗略定位同次发起，并接受用户只授予粗略定位的结果。https://developer.android.com/develop/sensors-and-location/location/permissions/runtime
 - 保存或启用闹钟按实际能力注册下一次本地实例；注册失败保留失败原因和可重新检查入口。
-- 高德 Web Service Key、Android SDK Key 与彩云 App Key/App Secret 均由用户在凭证页配置。Android 使用加密保存、Provider 连接测试、首页自动预览和下拉刷新；彩云设备实网与界面验证结果见 [2026-09-02 验证记录](./android/qa/caiyun-device-2026-09-02.md)，高德两项 Key 的设备实网验收仍待完成。原型仅使用离线 fixture。
+- 高德 Web Service Key、Android SDK Key 与彩云 App Key/App Secret 均由用户在凭证页配置。Android 使用加密保存、Provider 连接测试、首页自动预览和下拉刷新。原型仅使用离线 fixture。
 
 ### 1.2 非目标
 
@@ -112,7 +112,7 @@ enum class AlarmArmedState {
 | 凭证加密 | Android Keystore AES-GCM（密钥不可导出） | 密钥管理、密文格式、备份排除 | 采用平台能力 |
 | 崩溃/ANR | 本地脱敏诊断；不接入第三方采集 SDK | 环形诊断记录、凭证脱敏 | 首版采用 |
 
-技术依据：彩云链接已于 2026-09-01 核验；其余历史 Android/社区链接仍须按 `docs/facts-to-verify.md` 逐项核对。
+技术依据变更时核对当前官方文档；尚未确认的外部条件见第 14 章。
 
 - holiday-cn 数据格式、数据地址与注意事项：https://github.com/NateScarlet/holiday-cn/blob/master/README.md
 - holiday-cn 2025 年数据（示例）：https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/2025.json
@@ -620,7 +620,7 @@ android.permission.ACCESS_FINE_LOCATION
 1. **高德**：
    - Web 服务 Key（必填，用于路线、POI、输入提示）。
    - Android SDK Key（可选，用于地图选点与定位；若未配置，FR-011 相关功能隐藏）。
-   - 应用直接判定 SDK Key 是否配置，不将 SDK 初始化成功或地图渲染成功作为 Key 鉴权有效的证明。2026-09-29 在 Xiaomi 25019PNF3C、Android 16 与 SDK 11.2.100_loc11.2.100_sea9.8.1 的地图渲染路径中，无效 SDK Key 未产生已观察到的专属错误信号；此观察不推广至其他设备、版本、服务或错误条件。没有明确错误信号时，应用不得推断 Key 无效、未授权或签名／包名不符；单次定位返回不可用时报告“当前位置不可用”，不推断鉴权原因。实验依据见 android/qa/amap-device-2026-09-29/README.md。
+   - 应用直接判定 SDK Key 是否配置，不将 SDK 初始化成功或地图渲染成功作为 Key 鉴权有效的证明。没有明确错误信号时，应用不得推断 Key 无效、未授权或签名／包名不符；单次定位返回不可用时报告“当前位置不可用”，不推断鉴权原因。
    - 冻结的原型“验证 fixture”显示离线状态且不发送请求；Android 连接测试只使用 Web 服务 Key 的固定输入提示用例，不校验 SDK Key，也不记录输入值。
 2. **彩云天气**：
    - App Key（必填）与 App Secret（必填，HMAC 签名用）。
@@ -841,7 +841,7 @@ ProviderError(
 - 彩云连接测试固定使用重庆渝中区解放碑附近测试点（经度 106.574、纬度 29.561），不依赖通勤配置。参考区政府公布的解放碑步行街坐标：https://www.cqyz.gov.cn/zwxx_229/gggs/202501/P020250124353352402531.pdf 。请求经纬度顺序依据：https://docs.caiyunapp.com/weather-api/v2/v2.6/1-realtime.html 。
 - 验证、保存和清空结果通过横幅通知：成功使用浅绿背景，失败使用浅橙背景；出现 60 秒后自动关闭，新结果重新计时。
 
-- 高德区块提供 Web Service Key、Android SDK Key和 fixture 状态；原型仅会话保存，Android 已实现加密持久化。彩云区块提供凭据配置、连接测试与天气页入口；Android 验证记录见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)。
+- 高德区块提供 Web Service Key、Android SDK Key和 fixture 状态；原型仅会话保存，Android 已实现加密持久化。彩云区块提供凭据配置、连接测试与天气页入口。
 - 数据与凭据页在输入框内显示已保存的高德 Web Key、Android SDK Key 和彩云 App Key；彩云 Secret 在框内保持圆点遮罩。编辑页关闭后不保留用于显示的 Key 明文。高德 Web Key 测试入口位于高德区块内、两项 Key 下方。
 - 页面 `FLAG_SECURE`。
 - 高德原型验证固定不发送请求；“清空凭据”先进入确认覆盖层，取消不改变输入，确认只清除凭据且不得修改闹钟、日期覆盖、地点或出行方式。
@@ -880,7 +880,7 @@ ProviderError(
 - 重新评估通过现有 `evaluateNow` 发起当前计划的新任务，返回入队、已有任务或准确拒绝原因。读取当前计划和通勤／授权／凭据条件；缺少日期规则、有效基础实例、计划已删除或停用时明确反馈。页面请求处理中禁用重复点击，调度层保留已有非终态任务；新评估不覆盖正在查看的历史决策。
 - 凭据、地图授权、当前计划通勤编辑和诊断入口返回原详情。打开、返回和重新读取详情只读本地数据；不会触发首页预览、自动地图初始化或 `recover()`。既有后台评估按其独立任务生命周期运行。
 - 响铃页仍只读取设备保护快照与服务活动实例。ADVANCE 正在响铃且具备决策关联时显示“查看提前原因”；解锁取消时仍可停止／贪睡。主应用详情返回原响铃 Activity，不停止服务或调整提醒时间；Direct Boot 快照未加入地点、Provider 内容或凭据。
-- Figma 合并页 `218:2464` 中 `223:3919`、`223:4317`、`228:3086` 已同步，来源页面保留。Web 原型以明确标记的离线记录演示同一关联和往返语义。实现与测试证据见 [第二阶段 QA](android/qa/decision-details-2026-09-07/README.md)。
+- Figma 合并页 `218:2464` 中 `223:3919`、`223:4317`、`228:3086` 已同步，来源页面保留。Web 原型以明确标记的离线记录演示同一关联和往返语义。
 
 系统解锁及设备保护存储边界依据（本轮核验）：https://developer.android.com/reference/android/app/KeyguardManager.KeyguardDismissCallback https://developer.android.com/privacy-and-security/direct-boot?authuser=1
 

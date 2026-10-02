@@ -4,30 +4,25 @@
 - 起点：仓库已删除后端、contract、calendar-data、infra 与旧草稿；保留 `android/` 工程（app、core/{model,data,network,alarm,map}、feature/*）
 - 目标：从纯 Android 本地优先架构推进到可公开发布的 Android 应用
 - Android 包名：`com.ljwzz.weathertrafficalarm`
-- 当前天气 Provider：Android 的彩云天气实网与界面验证见 [`android/qa/caiyun-device-2026-09-02.md`](./android/qa/caiyun-device-2026-09-02.md)；自动提前计算已接入 P9 统一评估。高德 Android SDK、Web API、加密运行时 Key、专项授权、地图／定位／POI、五种路线、三条候选、路况和计划覆盖已实现。待用户提供 Web Service Key 与 Android SDK Key 后完成设备实网验收。
-- 后续验收：高德 Web 服务 API 与 Android SDK 的设备实网验收。
+- 当前天气 Provider：彩云天气；自动提前计算接入统一评估。高德地图、定位、路线、路况、计划覆盖与运行时凭据已接入。
 - 后续迭代计划：[`docs/plans/README.md`](./docs/plans/README.md)；N001–N006 为新增计划，其执行状态统一在该总览维护。
 - 工作日数据源：holiday-cn 年度 JSON（App 抓取缓存）
 - 历史设计与原型交接：见 [`docs/design-handoff.md`](./docs/design-handoff.md)；后续差异和原生验收映射见 [`N001 交接记录`](./docs/plans/N001-handoff.md)。
 
-> 2026-08-31 当前执行线先完成本地闹钟；2026-09-01 已完成 `P7` 高德 Provider；彩云天气验证记录见 `android/qa/caiyun-device-2026-09-02.md`。自动提前计算保留为后续能力，不得用模拟结果替代。每个任务是否完成必须以本轮构建、测试和设备记录为准。
-
-> 2026-09-01 高德实现：Android 已完成授权、运行时 Web／SDK Key加密存储、地图、单次定位、地点输入提示／搜索、五种路线、最多三条备选、路况和计划覆盖；原型继续以离线 fixture 验收相同页面状态。待用户提供两项真实 Key 后进行设备实网验收。
-
 ## 后续迭代计划入口
 
-2026-09-28 新增以下分项计划。N001 的流程切换和原位冻结已执行，交接与验收见 [`N001 交接记录`](./docs/plans/N001-handoff.md)；其余 N 系列执行状态只在 [计划总览](./docs/plans/README.md) 维护，本节提供关联，不复制执行状态。
+N 系列执行状态统一在 [计划总览](./docs/plans/README.md) 维护；本节列出与旧任务的关联。
 
 | 计划 | 承接内容 | 与现有任务的关系 |
 |---|---|---|
-| [N001 原型退役与开发流程调整](./docs/plans/N001.md) | 有效工作规则、需求／用例／素材交接、原位冻结 | 已调整本文件完成定义；L008、L011、T110 的历史交付保留，后续使用 [原生用例映射](./docs/plans/N001-handoff.md) |
-| [N002 评估测试基线修复](./docs/plans/N002.md) | 固定日期和配置、校准天气缓冲期望、恢复测试通过 | T100、T104、T130 的专项回归 |
-| [N003 高德设备实网验收](./docs/plans/N003.md) | 凭据／签名核对、地图／定位／路线真实验证 | 承接 T086，补充 T114、T131、T132 的证据 |
-| [N004 单日覆盖扩展](./docs/plans/N004.md) | 到岗、准备、天气及通勤的日级覆盖与迁移 | 补齐 T010、T011、T025、T076、T100、T103 的增量范围 |
+| N001 原型退役与开发流程调整 | 有效工作规则、需求／用例／素材交接、原位冻结 | 已调整本文件完成定义；L008、L011、T110 的历史交付保留，后续使用 [原生用例映射](./docs/plans/N001-handoff.md) |
+| N002 评估测试基线修复 | 固定日期和配置、校准天气缓冲期望、恢复测试通过 | T100、T104、T130 的专项回归 |
+| N003 高德设备实网验收 | 凭据／签名核对、地图／定位／路线真实验证 | 承接 T086，补充 T114、T131、T132 的证据 |
+| N004 单日覆盖扩展 | 到岗、准备、天气及通勤的日级覆盖与迁移 | 补齐 T010、T011、T025、T076、T100、T103 的增量范围 |
 | [N005 通勤通知与胶囊呈现](./docs/plans/N005.md) | 标准通知、设置消费及设备能力分阶段验证 | 关联 FR-009、T036、T124、T132 |
 | [N006 天气预报地图](./docs/plans/N006.md) | 雷达接口前置核实、图层、时间轴及地图验收 | 扩展 T090–T096、T112A、T114、T131；T097 外部条件单独跟踪 |
 
-每项完成后在对应旧任务下引用实际验收记录和覆盖范围；不能以单项 N 计划完成推定关联旧任务的全部范围已完成。
+完成后更新实现与正式测试入口；不能以单项 N 计划完成推定关联旧任务的全部范围已完成。验证规则见 [项目验证](./docs/validation.md)。
 
 ## 1A. 本地闹钟优先执行线
 
@@ -54,7 +49,7 @@
 ### [x] L005 本地页面与真实状态
 
 - 闹钟 CRUD、首页下一次有效闹钟、记录空态／实际事件、日期与结果筛选、真实日历月份和按计划按日期覆盖。
-- 设置持久化、全局通勤与计划覆盖、地点与出行方式保存；天气的 Android 实网与界面验证见 `android/qa/caiyun-device-2026-09-02.md`，自动提前计算已接入 P9 统一评估与独立提前实例；高德地图与路线按 2026-09-01 离线 fixture 契约验收。
+- 设置持久化、全局通勤与计划覆盖、地点与出行方式保存；天气和路线接入真实 Provider，自动提前计算使用统一评估与独立提前实例。
 
 ### [x] L006 凭据与能力诊断
 
@@ -64,9 +59,7 @@
 ### [x] L007 本地验收
 
 - 单元、迁移、UI 和 API 36 模拟器覆盖计划范围；设备响铃、锁屏、停止、贪睡、进程回收、重启恢复单独记录。
-- Debug APK、测试结果和截图是交付物；未做的真机验证不得标记通过。
-
-验收记录：[`android/qa/README.md`](./android/qa/README.md)。JVM 129 项、Android 36 设备 7 项、原型 15 项通过；另完成 holiday-cn 设备联网验证和未解锁重启响铃验证。实体设备及发布环境仍按验收记录中的边界处理。
+- 构建及相关回归通过；交付说明报告实际设备验证范围与结果。
 
 ### [x] L008 同步基础／提前响铃离线演示
 
@@ -76,8 +69,6 @@
 - 两个 fixture 均为独立全屏离线会话：停止、贪睡、再次响铃及按实例 ID 幂等；贪睡创建演示子实例并校验 1–30 分钟。不得写入 `alarmPlans`、`alarmEvents` 或 `dateOverrides`，不得调用系统闹钟、音频、振动或网络。
 - Android 基础闹钟与独立提前提醒按真实实例分别标示；离线响铃 fixture 与真实自动评估验收分开记录。
 
-验收：2026-09-02 执行 `node --test prototype/tests/*.test.mjs`，共 31 项通过（含本机回环服务测试）。浏览器实点与 Figma 校验见 [`响铃同步验证记录`](./prototype/qa/ringing-2026-09-02/README.md)。
-
 ### [x] L009 Android 真实响铃界面与动作确认
 
 - 将原型布局接入 `AlarmRingingActivity`，展示真实计划、日期与时间；基础和贪睡子实例分别显示对应文案。
@@ -85,15 +76,9 @@
 - 原生结果页返回闹钟／关闭；先解锁再进入计划页。真实贪睡由系统到点触发，不提供模拟触发按钮。
 - 自动提前实例的生成和评估编排继续按 T032／T038 执行，不以固定 fixture 代替真实调度。
 
-验收：Android 构建通过；205 项单元测试、12 项设备测试及 31 项原型测试通过。注册失败→重试由单元和 Compose 测试覆盖；设备故障注入未生效，该用例明确跳过，不计入通过数。APK、截图和其余边界见 [`原生响铃验收`](./android/qa/native-ringing-2026-09-02/README.md)。
+### [x] L010 锁屏设备回归
 
-### [x] L010 小米真机基础响铃与锁屏验证
-
-- Xiaomi `25019PNF3C`、Android 16 / API 36 真机通过 6 项界面测试、真实停止／重建、1 分钟贪睡再次响铃、持续锁屏下系统自然全屏响铃，共 9 项。
-- Android 全屏提醒经用户授权开启；小米“锁屏显示／后台弹出界面”由用户修改后读回允许。
-- 新增显式 opt-in 的锁屏设备测试，普通测试默认跳过；仅创建、清理 UUID 自有计划，保留其他计划与设备设置。
-
-验收：[`真机响铃记录与 12 张截图`](./android/qa/physical-ringing-2026-09-02/README.md)。实体听感／振动待人工确认；本次不代表重启、Doze、长期待机或完整厂商矩阵完成。
+- [LockedRingingDeviceTest](android/app/src/androidTest/java/com/ljwzz/weathertrafficalarm/LockedRingingDeviceTest.kt) 使用显式 opt-in，仅创建、清理 UUID 自有计划，并在结束后恢复临时设备设置。
 
 ### [x] L011 权限引导设计与离线原型
 
@@ -103,16 +88,12 @@
 - 小米锁屏显示与后台弹出页面使用手工设置说明和用户确认状态；位置权限从“使用当前位置”单次入口发起，并覆盖大致位置、精确位置、拒绝和定位服务关闭的演示结果。
 - 离线原型为每个系统授权入口演示说明、系统跳转和返回状态；工具栏支持设备和场景切换。运行时演示状态与待续操作只保留在当前会话。同一会话内，明确点按继续启用后，同一缺失状态不再重复提示；返回保留草稿，取消不写入也不消费确认，后续主动保存仍需确认；继续操作按当前计划和会话幂等。
 
-验收：开发工作区原型测试 `50/50` 通过；提交前仅导出权限暂存快照重新验证，`39/39` 通过。浏览器离线流程验证通过；Figma QA 实读验证 33 个固定场景、109 条预期连接及全部覆盖层边界，字体仅 Noto Sans SC／Roboto。启用、位置请求与小米最长确认文案完成关键视觉复核。Figma 图形连线用于离线交互追溯，不构成实际系统权限验证。台账与浏览器记录见 [`figma-state.json`](./prototype/qa/permissions-2026-09-03/figma-state.json) 和 [`权限原型浏览器验收`](./prototype/qa/permissions-2026-09-03/README.md)。
-
 ### [x] L012 Android 原生权限引导
 
 - `PermissionAccess`、`PermissionScreens` 与 `ZhituApp` 读取并展示通知运行时授权、通知渠道、精确闹钟、全屏提醒、前台粗精位置和定位服务状态；标准设置入口逐项尝试，返回前台后重新读取状态，并提供应用详情页回退。
 - `AlarmPermissionFlow` 在启用／保存前保留草稿或待执行计划动作；“继续启用”仅在当前会话对相同缺失签名去重，取消不提交动作或确认。小米锁屏显示与后台弹出页面的手工确认保存在会话内，和 Android 能力快照分别呈现。
 - `LocationPermissionFlow` 只由“使用当前位置”触发：先展示用途说明，再请求前台粗精位置；粗略授权、拒绝、定位服务关闭和设置返回均回到对应状态，待续单次定位只消费一次。
 - Android 官方依据：通知 https://developer.android.com/develop/ui/compose/notifications/notification-permission ；精确闹钟 https://developer.android.com/develop/background-work/services/alarms ；全屏提醒 https://developer.android.com/about/versions/14/behavior-changes-14 ；位置 https://developer.android.com/develop/sensors-and-location/location/permissions/runtime 。小米通用权限页示例与无查询接口边界：https://dev.mi.com/docs/appsmarket/technical_docs/adaptation_FAQ/ 。HyperOS 后台弹出页面默认拒绝与特殊白名单：https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1625 。
-
-验收：开发工作区 Debug APK 与测试 APK 构建通过；233 项 JVM 测试通过；Android 16 / API 36 只读模拟器的 7 项权限专项测试通过，覆盖取消、诊断回程、Activity 重建、单次保存及定位用途说明。提交前另行导出权限暂存快照，构建及 218 项 JVM 测试通过；两版 APK 与验证结果分别记录于 [`Android 权限验收`](./android/qa/permissions-2026-09-03/README.md)。随后小米 `OS3.0.312.0.WOACNXM` 真机完成系统入口、状态读取、独立手工确认及草稿取消验证；获准临时切换权限后，验证了通知申请／拒绝恢复、位置申请／拒绝恢复入口及小米两项拒绝状态，见 [`真机权限记录`](./android/qa/physical-permissions-2026-09-03/README.md)。定位从设置授权后续办未完成观察；中断后小米两项最终恢复核对待解锁完成，其他 MIUI／HyperOS 版本仍需覆盖。
 
 ## 1. 执行约定
 
@@ -202,8 +183,6 @@ flowchart LR
 2. 检查 `.gitignore`、`NOTICE`、`SECURITY.md` 中是否残留 Spring Boot/PostgreSQL/Redis/OpenAPI 表述并清理。
 3. 确认仓库根目录只剩 `android/`、`docs/`、`scripts/` 与根文档。
 
-验收：
-
 ```bash
 test ! -d backend && test ! -d contract && test ! -d calendar-data && test ! -d infra
 git status --short | grep -E "backend|contract|calendar-data|infra" || echo clean
@@ -222,8 +201,6 @@ git status --short | grep -E "backend|contract|calendar-data|infra" || echo clea
 1. 确认 JDK 21 可用。
 2. 确认 Android SDK Platform 36、Build Tools 36.0.0、platform-tools 和模拟器可用。
 3. 记录 macOS 架构和 Android Studio 版本；缺失工具只记录阻塞项，不把本机绝对路径写入 Gradle 文件。
-
-验收：
 
 ```bash
 java -version
@@ -247,8 +224,6 @@ test -f docs/environment.md
 3. 移除 Tink（`tink-android`）依赖：日历签名职责已删除，从 version catalog 与所有模块删除。
 4. 确认 `minSdk = 36`（与 SPEC 第 14 章未确认项一致，变更需在 SPEC 记录）。
 
-验收：
-
 ```bash
 grep -r "tink" android/gradle/libs.versions.toml || echo "tink removed"
 grep -q "minSdk = 36" android/app/build.gradle.kts
@@ -267,8 +242,6 @@ grep -q "minSdk = 36" android/app/build.gradle.kts
 
 1. 脚本使用 `set -euo pipefail`；不写死绝对路径。
 2. 验证脚本在 CI 与本地均可运行。
-
-验收：
 
 ```bash
 ./scripts/verify-all.sh
@@ -290,8 +263,6 @@ grep -q "minSdk = 36" android/app/build.gradle.kts
 1. 删除旧文档中 POSTGRES_PASSWORD/REDIS_PASSWORD 等变量。
 2. 明确“仓库中不得出现任何第三方密钥”的扫描口径（配合 T121 的自动 secret 扫描）。
 
-验收：
-
 ```bash
 grep -riE "postgres|redis|spring" docs/configuration.md || echo clean
 ```
@@ -304,8 +275,6 @@ grep -riE "postgres|redis|spring" docs/configuration.md || echo clean
 
 1. 空模块（`core/security`、`feature/credentials`）加入后全量构建通过。
 2. 提交并记录构建耗时与依赖下载指纹。
-
-验收：
 
 ```bash
 ./scripts/verify-all.sh
@@ -330,8 +299,6 @@ grep -riE "postgres|redis|spring" docs/configuration.md || echo clean
 2. 约束（`preparationMinutes` 0–240、`maxAdvanceMinutes` 0–180、`snoozeMinutes` 1–30、`origin != destination`、非驾车无途经点）有测试。
 3. `DayClassification` 必须记录 `date`、`baseDayKind`、`source` 与有效状态；`SingleDayOverride` 必须记录原始日期类别/来源和可选的默认起床、到岗、准备时长、三档天气缓冲。缺省日级字段继承日常计划/profile，日级 profile 不得改写全局 profile。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:model:test
 ```
@@ -353,8 +320,6 @@ cd android && ./gradlew :core:model:test
 3. 未列出的日期按周一至五 `WORKDAY`、周六日普通周末自动兜底，不要求用户确认。
 4. 兜底原因可追溯（`CALENDAR_FALLBACK`）；单日加班覆盖仅影响指定日期，并保留原始休息日分类选择缓冲与记录来源。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:model:test
 ```
@@ -374,8 +339,6 @@ cd android && ./gradlew :core:model:test
 1. 不变量测试：结果不得晚于默认起床时间；不得晚于已注册时间；用户新 `revision` 才允许推迟。
 2. 跨日、跨时区、夏令时边界与 `LocalTime` 跨日减法禁止规则测试。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:model:test
 ```
@@ -393,8 +356,6 @@ cd android && ./gradlew :core:model:test
 
 1. 非法迁移（如从 `DISMISSED` 再次 `FIRING`）拒绝并记录原因。
 2. 状态机纯函数，无 Android 依赖。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:model:test
@@ -414,8 +375,6 @@ cd android && ./gradlew :core:model:test
 
 1. `NETWORK`、`TIMEOUT` 与 `RATE_LIMITED` 标记为可重试；`INVALID_KEY`、`QUOTA_EXCEEDED`、参数与解析错误不可重试，429 的 `Retry-After` 单独保存。
 2. 实现方在 `core/network`，端口在 `core/model`。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:model:test
@@ -437,8 +396,6 @@ cd android && ./gradlew :core:model:test
 2. 规则表必须与 `weatherRuleVersion` 绑定，规则变更时版本号递增。
 3. 调休上班使用工作日 profile；法定休息日优先于周末；日历缺失时按周几选择工作日或周末 profile。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:model:test
 ```
@@ -457,8 +414,6 @@ cd android && ./gradlew :core:model:test
 1. 编排器不直接调用 AlarmManager；调度修改由上层（P9）基于 `AlarmDecision` 执行。
 2. 全部输入输出可注入 fake provider 进行测试。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:model:test
 ```
@@ -473,8 +428,6 @@ cd android && ./gradlew :core:model:test
 
 1. 确认 `app` 与各模块 Hilt 装配可用；`@HiltAndroidApp` 已存在于 `CommuteAlarmApplication`。
 2. 依赖注入作用域：凭证存储单例、Room 单例、各 Provider 单例。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -495,8 +448,6 @@ cd android && ./gradlew :app:assembleDebug
 1. `CalendarYearCacheEntity` 以 year 为主键，支持原子覆盖与“删除所有 year < X”的批量删除。
 2. 坐标只存计划表；凭证表不存在（凭证走 `core/security` 文件存储）。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
 ```
@@ -509,8 +460,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 
 1. 导出 schema 到 `core/data/schemas/`，打开 `room.schemaLocation`。
 2. 从 `AppDatabase` 当前版本为基准备 migration 测试；后续每变更 schema 必须新增迁移路径与回滚测试。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
@@ -529,8 +478,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 1. 凭证不进入 DataStore。
 2. 快照字段限定为 `occurrenceId, planId, planRevision, triggerAt, soundUri, vibrationPattern, snoozeMinutes`。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
 ```
@@ -548,8 +495,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 1. 快照写入与 occurrence 写入在同一事务语义下提交（注册前写快照，成功后更新状态）。
 2. 快照不含地点坐标。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
 ```
@@ -566,8 +511,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 
 1. 事务用例：计划保存（写计划 → revision++ → 计算下一工作日 → 写系统闹钟引导状态；**不创建 occurrence、不注册闹钟**）。
 2. 评估结果落库（成功/失败都写 `AlarmDecision`）；成功且需提前时创建/替换当日临时 occurrence 并注册，无需提前时取消待触发 occurrence。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
@@ -587,15 +530,13 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 1. 脱敏拦截器有单元测试（含明文泄漏回归：任何日志输出不得包含测试密钥）。
 2. 不打印完整 URL；即使记录 host + path，也必须先脱敏彩云 App Key 路径段。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
 ## 5. P3：提前闹钟扩展与离线可靠性
 
-> `L003`／`L004` 记录本 App 已有基础调度、Receiver、前台响铃服务、停止、贪睡与恢复；保存或启用计划会注册下一次基础实例。以下分别列出基础契约／验收缺口与自动提前扩展，不得回退或替换基础本地闹钟的既有职责。2026-09-02 的原生全屏页面、动作回执和设备回归见 `L009` 及 [`原生响铃验收`](./android/qa/native-ringing-2026-09-02/README.md)；本次增量不代表下列扩展或完整设备矩阵已经完成。
+> `L003`／`L004` 记录基础调度、Receiver、前台响铃服务、停止、贪睡与恢复；保存或启用计划会注册下一次基础实例。后续扩展须保留基础本地闹钟的既有职责。
 
 ### [ ] T030 实现提前扩展能力诊断
 
@@ -606,8 +547,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. 复用基础本地闹钟的通知、精确闹钟和全屏 Intent 诊断；提前扩展不可用时只标记扩展降级，不阻止基础计划启用或已注册基础实例响铃。
 2. 每次回到前台与启用提前扩展前重新诊断；提供现有系统设置入口。
 3. 不引入系统时钟 App 引导或 `getNextAlarmClock()` 启发式核对：正常起床闹钟由本 App 的基础本地实例注册。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:alarm:testDebugUnitTest
@@ -623,8 +562,6 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 2. 身份校验不依赖 extras。
 3. 当前基础实现已有显式、不可变 PendingIntent 与 data URI；requestCode 哈希不保证满足第 1 条的独立唯一要求，仍需核对该契约，并使 Receiver 身份校验不依赖 extras。此项是契约差异，不据此断言已有唯一 data URI 的实例会相互覆盖。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
@@ -639,8 +576,6 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 2. 提前实例重新计算时“先注册新、成功后再取消旧”，异常时保留既有提前实例和基础实例；同一目标日期最多一个待触发提前实例。
 3. 评估成功且无需提前时，仅取消该目标日期待触发的提前实例（幂等），不得取消基础实例。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
@@ -653,8 +588,6 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 1. Manifest 权限与 SPEC FR-009 清单一致；`AlarmReceiver` 与 `AlarmRingingService`（`foregroundServiceType="systemExempted"`）声明正确。
 2. `RECEIVE_BOOT_COMPLETED` 等 receiver 按 FR-010 注册；Direct Boot receiver `directBootAware=true`。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -670,8 +603,6 @@ cd android && ./gradlew :app:assembleDebug
 2. 校验失败只记录诊断并结束。
 3. 当前基础实现已校验可用快照并启动响铃服务；仍需补齐失败诊断，以及未解锁时 plan revision 校验的证据与验收。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
@@ -684,8 +615,6 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 1. `RingtoneManager.TYPE_ALARM` 解析；自定义 URI 失效时回退系统 alarm → notification → 内置声音。
 2. `AudioAttributes.USAGE_ALARM` 循环播放；按计划振动。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -700,8 +629,6 @@ cd android && ./gradlew :app:assembleDebug
 1. 当前 `minSdk = 36`，基础实现使用 `FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED` 启动。API 29–33 兼容不属于当前完成范围；如确认下探，须另行实现并完成专项验收。
 2. 通知提供停止与贪睡动作；操作 Intent 显式、不可变、带 occurrence 身份；幂等。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:assembleDebug
 ```
@@ -714,8 +641,6 @@ cd android && ./gradlew :app:assembleDebug
 
 1. 停止 → `DISMISSED`；贪睡 → 新 `SNOOZE` 子实例并 `setAlarmClock()`，不改写后续重复实例。
 2. 重复点击不创建多个 occurrence。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:alarm:testDebugUnitTest
@@ -750,8 +675,6 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 4. 当前基础实现已覆盖重启、解锁、时间／时区变化与覆盖安装；语言变化处理及专项验收尚未覆盖。
 5. 提前实例的恢复扩展在 T032、T038 完成后补充，不影响基础恢复路径。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:alarm:testDebugUnitTest
 ```
@@ -764,8 +687,6 @@ cd android && ./gradlew :core:alarm:testDebugUnitTest
 
 1. 模拟器／设备矩阵（API 36）：进程被杀、锁屏、Doze、无网场景下提前实例响铃；评估成功注册提前实例、成功无需提前时仅取消提前实例、失败不注册或修改提前实例。
 2. 记录：断网保存计划后本 App 仍注册基础本地实例；提前扩展的失败不得影响基础实例。强制停止后的基础与提前实例边界按 SPEC FR-010 验收。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:connectedDebugAndroidTest
@@ -787,8 +708,6 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 1. 模块加入 `settings.gradle.kts`；不允许依赖 UI。
 2. 接口文档明确“明文只在调用方线程短暂存在”。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:security:testDebugUnitTest
 ```
@@ -803,8 +722,6 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 2. 每次加密随机 12 字节 IV；密文格式 `[版本 1B][IV 12B][GCM 密文+tag]`，base64。
 3. 密钥缺失（卸载重装后）时：解密失败必须抛明确错误并引导用户重新配置，不得崩溃或静默返回空。
 4. 损坏密文拒绝解密并记录诊断（不含密文内容）。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:security:testDebugUnitTest
@@ -822,8 +739,6 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 2. `ProviderCredential` 元数据（configuredAt、lastTestedAt、lastTestResult）存专用 DataStore/SharedPreferences（不含明文）。
 3. “清除凭证”删除文件与元数据，可选删除 Keystore 别名。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:security:testDebugUnitTest
 ```
@@ -837,8 +752,6 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 1. Manifest：`android:fullBackupContent`（API 29–30）与 `android:dataExtractionRules`（API 31+）。
 2. 排除规则覆盖 `filesDir/credentials/`、凭证元数据存储路径。
 3. 备份恢复测试：备份/恢复后凭证文件不存在、应用可正常打开并提示重新配置。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -856,8 +769,6 @@ cd android && ./gradlew :app:assembleDebug
 2. 崩溃路径：不接入第三方崩溃 SDK；确认本地崩溃堆栈不含凭证（无凭证明文静态字段）。
 3. 导出/分享功能清单确认不含凭证（配合 P11 的导出审计）。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:security:testDebugUnitTest :core:network:testDebugUnitTest
 ```
@@ -870,8 +781,6 @@ cd android && ./gradlew :core:security:testDebugUnitTest :core:network:testDebug
 
 1. 端到端验收：配置 → 重启 → 解密可用；备份恢复 → 凭证消失且应用不崩溃；篡改密文文件 → 拒绝并提示。
 2. 截图防护由凭证页实现（P5），此处只验证存储层行为。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:security:testDebugUnitTest
@@ -892,8 +801,6 @@ cd android && ./gradlew :core:security:testDebugUnitTest
 1. 依赖 `core/security`、`core/network`（连接测试）、`core/data`。
 2. 不依赖其他 feature。
 
-验收：
-
 ```bash
 cd android && ./gradlew :feature:credentials:assembleDebug
 ```
@@ -907,8 +814,6 @@ cd android && ./gradlew :feature:credentials:assembleDebug
 1. 测试动作：用待保存的 Web Key 调用一次高德 v3 输入提示（固定测试用例，不记录输入值）。
 2. 判定：`infocode=10000` → 通过；`10001` → key 无效；`10003/10044` → 配额超限；`10019–10021` → QPS 超限；网络/超时/解析 → 对应错误提示。
 3. 测试期间凭证只存在于内存，不落盘；失败不保存凭证。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
@@ -924,8 +829,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnit
 2. 判定：仅 HTTP 200、`status=ok` 且可解析 → 通过；鉴权、HTTP 429、网络、解析失败分别提示，429 读取 `Retry-After`。
 3. 优先使用已配置家庭地，缺失时使用工作地；无坐标不请求。测试期间不落盘，成功后才原子保存候选凭证；失败不覆盖旧凭证。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
@@ -940,8 +843,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnit
 2. 密码掩码输入；新的彩云候选凭证必须连接测试通过后保存；提供带确认 dialog 的“清除凭证”。
 3. 页面 Activity 设置 `FLAG_SECURE`（防截图/录屏）；确认在截图测试中截图结果为空白。
 
-验收：
-
 ```bash
 cd android && ./gradlew :feature:credentials:assembleDebug
 ```
@@ -955,8 +856,6 @@ cd android && ./gradlew :feature:credentials:assembleDebug
 1. 未配置/测试失败/被清除的 Provider 在评估流水线中标记不可用：评估跳过该步骤并写 `evaluationOutcome=FAILED` 或对应 fallback；不注册/不修改提前闹钟，系统闹钟不受影响。
 2. 首页与凭证页联动显示“凭证缺失”横幅。
 3. 清理旧实现：删除 `core/network/api/BackendApi.kt` 等后端 API 客户端与相关测试 fixture。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -973,8 +872,6 @@ cd android && ./gradlew :app:assembleDebug
 1. `CalendarYearCacheEntity`（SPEC 5.4）与 DAO：按 year 主键、原子覆盖、批量删除旧年份、按年份查询。
 2. `CalendarRepository`：缓存读写 + 兜底规则访问；评估流水线只读缓存（FR-006）。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
 ```
@@ -988,8 +885,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 1. DTO 与 SPEC 2.1 格式一致：`year`、`papers`、`days[{name,date,isOffDay}]`；日期用 ISO 解析为 `LocalDate`。
 2. 校验器（SPEC FR-015 第 4 步）：year 匹配、date 合法且年份一致（12 月合并场景另行处理）、isOffDay 布尔、name 非空、days ≥ 5、papers 非空。
 3. 校验失败返回具体原因类别（用于诊断与 UI）。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
@@ -1007,8 +902,6 @@ fixture：真实 2025/2026 数据子集 + 构造的脏数据（错年份、坏�
 2. 连接/读超时固定；前一源失败（网络/超时/HTTP/校验）自动切换下一源。
 3. 单日同源失败超过 3 次后当天不再尝试（次日恢复），连续失败次数写入诊断。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
 ```
@@ -1024,8 +917,6 @@ MockWebServer 用例：源 1 挂 → 源 2 成功；三源全挂 → 失败且�
 1. 入口：打开日历相关页面（日历覆盖页、计划编辑工作日预览）时触发一次刷新。
 2. 算法：清理 `year < 当前年` → 目标年份集合（<10-01 仅当年；≥10-01 当年+次年）→ 每年份“已有校验通过缓存则跳过”→ 抓取 → 校验 → 原子覆盖。
 3. 刷新结果（成功/失败类别/耗时/本次是否跳过）写入诊断并可被日历页读取展示。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
@@ -1043,8 +934,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 2. 次年缺失时仅用当年数据并记录“已知窗口”诊断。
 3. 兜底：无任何年份数据时用周规则，UI 标注“日历数据不可用，使用默认规则”。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
 ```
@@ -1057,8 +946,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 
 1. 刷新与评估并发：写事务原子覆盖；同一年份并发抓取以最后成功者为准。
 2. 页面重复打开不重复拉取（校验通过缓存跳过）；请求节制计数与诊断一致。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:data:testDebugUnitTest
@@ -1075,8 +962,6 @@ cd android && ./gradlew :core:data:testDebugUnitTest
 3. 日历缺失时按周一至周五工作日、周六日普通周末自动选择并标注兜底来源，无额外确认。
 4. 单日覆盖、单日加班与“恢复官方规则”使用日期详情 bottom sheet；单日加班只影响指定日期，不改变每周安排，可选覆写本日默认起床、到岗、准备时长和三档天气缓冲。
 
-验收：
-
 ```bash
 cd android && ./gradlew :feature:calendar:assembleDebug
 ```
@@ -1089,8 +974,6 @@ cd android && ./gradlew :feature:calendar:assembleDebug
 
 1. 移除 Tink 相关代码（如存在残留）、签名校验、后端日历同步逻辑与对应测试。
 2. 确认 `core/data`、`feature/calendar` 无 `CalendarVersion/payloadSha256/signature` 引用。
-
-验收：
 
 ```bash
 grep -riE "tink|payloadSha256|signatureAlgorithm" android/ --include="*.kt" || echo clean
@@ -1108,8 +991,6 @@ grep -riE "tink|payloadSha256|signatureAlgorithm" android/ --include="*.kt" || e
 2. DTO 用命名字段转换，禁止裸数组传播。
 3. 错误分类：`infocode` → `ProviderError` 映射表（10000/10001/10002/10003/10004/10019/10020/10021/10044/20800–20803 等，SPEC 7.1）。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1123,8 +1004,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. v5 驾车路径规划：从到岗前 180 分钟按 15 分钟步长生成候选，选可准时到达的最晚出发点；`durationSeconds` 转换。
 2. 失败/配额/无路 → 对应 `ProviderError`；未来驾车能力不作为依赖，未开通时用当前耗时并标记 `CURRENT_TRAFFIC_FALLBACK`。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1137,8 +1016,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 1. 传入目标日期与时间；以历史缓存或 90 分钟为初始估算，最多前移重试 3 次（每次 15 分钟），选可准时到达的最晚方案。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1150,8 +1027,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 实施：
 
 1. 各模式独立缓存 key 与失败统计；电动车使用 `/v5/direction/electrobike`。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
@@ -1166,8 +1041,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. `place/text` 关键字搜索 + 分页（每页 ≤20）；`assist/inputtips` 用于地点选择页输入。
 2. 结果转 `PlaceRef`（GCJ-02 坐标、adcode、citycode）；不记录查询词与坐标到日志/统计。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1180,8 +1053,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 1. 复用 T061 测试路径（输入提示探活）；错误码映射见 SPEC 7.1。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1190,9 +1061,7 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 依赖：T080–T085、T111、T114。
 
-后续设备矩阵、步骤和验收条件由 [N003](./docs/plans/N003.md) 承接；新计划执行状态见 [计划总览](./docs/plans/README.md)，此处状态保留为交接时记录。
-
-2026-09-29 已在 Xiaomi `25019PNF3C`（Android 16 / API 36）完成实网验收：授权、地图渲染、单次定位（精确／粗略／拒绝／定位关闭／设置返回）、POI 与输入提示、五种路线、三条候选与路况、计划覆盖与断网恢复均已实测；公交折线缺陷已修复。SDK Key 的可判定边界经判定实验写入 SPEC FR-012（实验观察限定于本次设备、版本和地图路径）。证据见 [N003 验收记录](./android/qa/amap-device-2026-09-29/README.md)。补充受控异常验证与两处修复见 [补充验收](./android/qa/amap-device-2026-09-29/supplement/README.md)。
+设备验证按 [项目验证](./docs/validation.md) 执行；增量状态见 [计划总览](./docs/plans/README.md)，SDK Key 可判定边界见 SPEC FR-012。
 
 ## 10. P8：彩云天气 Provider
 
@@ -1205,8 +1074,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. App Key 进入 `/v2.6/{app_key}/...` 路径；App Key + App Secret 生成 `x-cy-nonce` / `x-cy-timestamp` / `x-cy-signature`（HMAC-SHA256 与 URL-safe Base64，明文规则见 SPEC 3.2/7.2）。
 2. 使用官方固定向量，覆盖 query 排序、URL 编码、含 App Key 的 path 和 nonce 唯一性。
 3. 签名器不落日志；Secret 只在内存存在。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
@@ -1222,8 +1089,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 2. DTO：`status`、`api_version`、`api_status`、`unit`、`timezone`、`tzshift`、`location`、`server_time`、`result.hourly`；location 数组必须命名字段转换，小时字段按 `datetime` 对齐。
 3. 仅 HTTP 200 为成功；处理非 JSON 错误体、400/401/403/422/429/500，429 读取 `Retry-After`。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1236,8 +1101,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 1. MockWebServer fixture：成功、过期 `server_time`、未知 `skycon`、缺失小时、重复时间戳，以及 HTML/TXT 错误体、400/401/403/422/429（含 `Retry-After`）/500 响应。
 2. fixture 不含真实密钥。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
@@ -1252,8 +1115,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. 从 `[defaultWake-maxAdvance, arrivalTime]` 窗口取小时数据；`hourlysteps` 按当前时间到 arrivalTime 动态计算；超出 360 小时或返回小时数不足以覆盖窗口 → `WEATHER_HORIZON_UNAVAILABLE` + 0 缓冲。
 2. 保存参与决策的小时时间范围，不保存完整响应。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
@@ -1266,8 +1127,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 1. 全 `skycon` 枚举 → 等级 0–3（SPEC FR-004 表；`LIGHT_HAZE` 为 1，`MODERATE_HAZE`/`HEAVY_HAZE` 为 2）；未知代码 → `WEATHER_UNKNOWN_CODE`。
 2. 输入含降水概率/强度、风速、能见度；两地取高；冻雨不推断（只接受预警明确冰冻类）。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
@@ -1282,8 +1141,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. `WeatherProvider.evaluate`：返回等级、缓冲、`server_time` 与时间窗口；只生成 Provider 评估结果，不得创建、取消或修改本地闹钟。本阶段固定 `alert=false`，预警不参与核心计算；取得权限并另行定义规则后才允许作为上调输入。
 2. 缓存：家庭地/工作地分别按坐标和请求参数作进程内 15 分钟成功结果缓存；不落盘，失败不写缓存。仅网络、超时、HTTP 5xx 或 429 可回退完整覆盖窗口的有效缓存；其他失败直接返回错误。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
 ```
@@ -1295,8 +1152,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnit
 实施：
 
 1. 复用 T062 测试路径；HTTP 429（读取 `Retry-After`）与鉴权错误映射到凭证页提示。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnitTest :app:testDebugUnitTest
@@ -1311,15 +1166,11 @@ cd android && ./gradlew :core:network:testDebugUnitTest :core:data:testDebugUnit
 1. 控制点测试仅可记录风险证据；不得以 `location` 回显或实况差异推定坐标基准，也不得关闭门禁。
 2. 门禁未关闭前：`core/network` 标记“未确认”，Provider 可用于开发测试但不得用于生产发布（SPEC 14 章）。
 
-验收：
-
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
 ```
 
 ## 11. P9：统一评估和 WorkManager 夜间任务
-
-2026-09-03 已接入；验证范围和运行结果见 [`自动评估验收`](android/qa/evaluation-2026-09-03/README.md)。
 
 ### [x] T100 实现评估流水线装配
 
@@ -1329,8 +1180,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 
 1. `EvaluationCoordinator` 装配真实 Provider；凭证缺失/失败时对应步骤输出失败原因。
 2. 输出 `AlarmDecision`（含 `evaluationOutcome`）并落库。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
@@ -1345,8 +1194,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 1. 唯一 `OneTimeWorkRequest` 计算下一次本地 19:00 + 0–15 分钟抖动；完成后安排下一天任务。
 2. 网络约束 `CONNECTED`；输入只含计划 ID；幂等键 `planId:revision:targetDate`。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
 ```
@@ -1360,8 +1207,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 1. 失败后 15/30/60 分钟重试；本地 23:30 后停止主动重试；遵守更长的 Retry-After，截止后的任务和结果只记为过期。
 2. 执行时读取最新 `revision`；stale 结果丢弃。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
 ```
@@ -1373,8 +1218,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 实施：
 
 1. 19:00 后保存/启用计划时立即触发一次评估（同样遵循“成功才注册/替换/取消提前闹钟”）。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
@@ -1389,8 +1232,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 1. 端到端用例（注入 fake provider）：天气失败 / 路线失败 / 网络失败 / 配额错误 → `scheduledWakeAt` 不变、不新注册、occurrence 状态不变；全部成功且需提前 → 独立 ADVANCE 只提前；成功且无需提前 → 待触发 ADVANCE 被取消，REGULAR 保留。
 2. 首页对失败评估展示原因与“基础闹钟按原计划响铃”说明；已有提前提醒按实际实例状态展示。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
 ```
@@ -1403,8 +1244,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 
 1. 本地保留最近 30 天决策，超限清理；展示计算分解、`evaluationOutcome`、fallback、occurrence 最终状态。
 2. 不显示或导出完整坐标与凭证。
-
-验收：
 
 ```bash
 cd android && ./gradlew :feature:history:assembleDebug
@@ -1424,8 +1263,6 @@ cd android && ./gradlew :feature:history:assembleDebug
 2. 通用组件：错误横幅、加载态、脱敏文本组件（用于凭证掩码显示）、日期详情、时间/时长、声音/振动、通勤方式、清除凭证确认等复用 bottom sheet/dialog。
 3. 当时路由和组件按本地原型及 Figma 节点核对；后续新增导航按 `SPEC.md` 明确入口、返回和状态，不从历史静态节点推断。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:assembleDebug
 ```
@@ -1438,8 +1275,6 @@ cd android && ./gradlew :app:assembleDebug
 
 1. 对应页面 18：隐私政策页（高德 SDK 披露、彩云数据来源、数据只存本机说明）。
 2. 同意前不初始化高德 SDK；能力诊断；引导凭证配置（可跳过）并允许进入只读首页。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -1458,8 +1293,6 @@ cd android && ./gradlew :app:assembleDebug
 5. 首页刷新不创建评估任务、不写入决策、不改变闹钟实例；成功结果包含实际数据来源与原始更新时间。
 6. 同步 Figma 首页状态组、原型交互和规格 8.2；用状态、缓存边界、并发与 Compose 下拉测试验收。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest :core:data:testDebugUnitTest :core:network:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --offline --console=plain
 ```
@@ -1467,8 +1300,6 @@ cd android && ./gradlew :app:testDebugUnitTest :core:data:testDebugUnitTest :cor
 ### [x] T112A 首页天气与路线状态整合
 
 2026-09-05：首页与详情共享天气／路线预览，已接入配置前置状态、自动刷新、下拉强刷、凭据版本和缓存隔离，以及旧请求与旧任务清理保护。Figma 状态组 `195:2153`、原型和规格 8.2 已同步。
-
-验收覆盖真实 ViewModel 延迟响应、重复下拉和 Room／WorkManager 隔离。完整工作树与独立提交快照的结果分别记录，日志与截图见 [首页状态验收](android/qa/home-preview-2026-09-05/README.md)。原型测试与浏览器交互见 [原型验收](prototype/qa/home-preview-2026-09-05/README.md)。
 
 ### [x] T113 实现计划列表和编辑
 
@@ -1479,8 +1310,6 @@ cd android && ./gradlew :app:testDebugUnitTest :core:data:testDebugUnitTest :cor
 1. 对应页面 05–07、15–17：计划 CRUD、启用开关；保存后展示本 App 基础本地实例的实际注册状态。最近成功评估展示建议与实际已注册提前提醒，注册失败不显示已就绪。
 2. 提供工作日、普通周末、法定休息日三套独立天气缓冲；保存缓冲不自动开启休息日计划。
 3. 工作日预览区域触发日历刷新（T073）但不等网络。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -1495,8 +1324,6 @@ cd android && ./gradlew :app:assembleDebug
 1. 对应页面 03–04 与全屏地点选择子状态：POI 搜索 + 输入提示；已配置 SDK Key 时提供地图选点（`AndroidView` 包装 `MapView`，生命周期完整转发）与“使用当前位置”。
 2. 固定提供驾车、公交、步行、骑行、电动车五种方式；未配置 SDK Key 时隐藏地图与定位入口。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:assembleDebug
 ```
@@ -1510,8 +1337,6 @@ cd android && ./gradlew :app:assembleDebug
 1. 对已接入 Android 的设置、凭据、日历、记录、诊断、决策详情和响铃页面完成路由、状态及验收；N004–N006 的增量页面在各自任务交付时分别验收。
 2. 字体缩放、TalkBack 语义、对比度检查；横竖屏与多尺寸。
 3. 按 `SPEC.md` 核对页面结构、布局、组件、文案和交互；用原生自动化测试及适用设备记录验收。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:assembleDebug
@@ -1528,8 +1353,6 @@ cd android && ./gradlew :app:assembleDebug
 1. 文档记录全部数据流：计划/决策/日历/凭证密文；确认无任何上传路径。
 2. 隐私政策文本与数据安全表草稿（彩云数据来源标注、高德 SDK 用途）。
 
-验收：
-
 ```bash
 test -f docs/privacy-flow.md
 ```
@@ -1542,8 +1365,6 @@ test -f docs/privacy-flow.md
 
 1. 扫描脚本：仓库全量（含 fixtures、测试）匹配高德/彩云 key 形态与常见密钥模式；加入 CI。
 2. 扫描结果为零泄漏。
-
-验收：
 
 ```bash
 ./scripts/scan-secrets.sh
@@ -1558,8 +1379,6 @@ test -f docs/privacy-flow.md
 1. 测试：运行典型操作序列后收集 logcat 与诊断导出，断言不含 key/secret/坐标/地址。
 2. 导出功能（如有）断言不含凭证明文/密文。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
 ```
@@ -1573,8 +1392,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 1. 验收矩阵：截图防护、备份排除、日志脱敏、崩溃堆栈无凭证、导出无凭证。
 2. 记录结果到 `docs/`。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:connectedDebugAndroidTest
 ```
@@ -1587,10 +1404,6 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 
 1. 环形诊断字段核对（eventType/resultCode/appVersion/sdkInt/哈希 ID/durationMs/timestamp），确认无敏感字段。
 2. 日历刷新、评估结果、闹钟事件都写入诊断。
-
-2026-09-05：统一设备保护存储的 200 条环形记录，补齐 8 个约定字段与 ID 哈希；接入日历、评估、闹钟生命周期、恢复和播放结果。诊断页显示版本/API、铃声可读性、统一最近记录及日历详情。提交快照的 274 项相关 JVM 测试、7 项模拟器测试及 66 项原型测试通过；开发工作树结果与验证边界见 [统一诊断验收](android/qa/diagnostics-2026-09-05/README.md)。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:testDebugUnitTest
@@ -1606,8 +1419,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 
 1. 全模块 `testDebugUnitTest` 通过；覆盖率检查（新增行为路径必须覆盖）。
 
-验收：
-
 ```bash
 ./scripts/verify-all.sh
 ```
@@ -1620,8 +1431,6 @@ cd android && ./gradlew :app:testDebugUnitTest
 
 1. 高德：成功、超时、空路线、错误码全表、配额、跨城公交。
 2. 彩云：签名向量、成功、过期时间戳、未知 `skycon`、缺失小时、超时、鉴权失败、配额。
-
-验收：
 
 ```bash
 cd android && ./gradlew :core:network:testDebugUnitTest
@@ -1636,8 +1445,6 @@ cd android && ./gradlew :core:network:testDebugUnitTest
 1. 设备矩阵：API 36（模拟器 + 真机如有）；进程被杀、锁屏、Doze、省电、无网、弱网。
 2. 通知权限、全屏能力、精确闹钟能力撤销：对应功能降级，提前闹钟不可用但计划可启用、系统闹钟不受影响。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:connectedDebugAndroidTest
 ```
@@ -1650,8 +1457,6 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 
 1. 重启未解锁恢复未触发的提前闹钟、解锁重算；系统时间/时区/语言变化；应用覆盖安装（数据与凭证密文保留）。
 2. 备份/恢复后凭证消失且应用正常引导重新配置；强制停止后的本 App 本地闹钟恢复边界按 SPEC FR-010 验收。
-
-验收：
 
 ```bash
 cd android && ./gradlew :app:connectedDebugAndroidTest
@@ -1666,8 +1471,6 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 1. 静音、不同闹钟音量、蓝牙耳机、来电占用、损坏的自定义铃声。
 2. 停止、连续停止、贪睡、重复 Intent、同分钟多计划。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:connectedDebugAndroidTest
 ```
@@ -1680,8 +1483,6 @@ cd android && ./gradlew :app:connectedDebugAndroidTest
 
 1. 精确闹钟、全屏 Intent、隐私政策、数据安全表等 Google Play 材料。
 2. 高德隐私初始化顺序网络抓包验证；“数据来自彩云天气”标注验收。
-
-验收：
 
 ```bash
 test -f docs/release-check.md
@@ -1696,8 +1497,6 @@ test -f docs/release-check.md
 1. release keystore 不在仓库；`local.properties`/CI secrets 注入；构建产物可复现（锁定依赖、禁动态版本）。
 2. 发布包检查：无密钥、无调试开关、无测试端点。
 
-验收：
-
 ```bash
 cd android && ./gradlew :app:assembleRelease
 ```
@@ -1710,8 +1509,6 @@ cd android && ./gradlew :app:assembleRelease
 
 1. 封闭测试（internal testing）；收集并修复回归；输出发布候选。
 
-验收：发布候选清单完成并记录。
-
 ### [ ] T138 灰度发布与回滚
 
 依赖：T137。
@@ -1719,8 +1516,6 @@ cd android && ./gradlew :app:assembleRelease
 实施：
 
 1. 按渠道逐步发布；回滚路径为发布历史版本（本地数据兼容由 Room/DataStore 迁移保证，无服务端回滚概念）。
-
-验收：发布流程记录到 `docs/`。
 
 ## 15. 外部阻塞项
 

@@ -1,6 +1,5 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasScrollAction
@@ -44,8 +43,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 import java.time.ZoneId
 import java.time.LocalDate
 import java.util.UUID
@@ -102,7 +99,7 @@ class MergedSettingsEditorDeviceTest {
         compose.onNodeWithText("闹钟与通勤").assertExists()
         compose.onNodeWithTag("setting-reliability-summary").assertExists()
         compose.onNodeWithText("权限与诊断").assertExists()
-        screenshot("settings-collapsed.png")
+
         compose.onNodeWithTag("setting-open-diagnostics").performClick()
         compose.onNodeWithTag("permission_diagnostics").assertIsDisplayed()
         compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasTestTag("settings_full_screen"))
@@ -155,7 +152,7 @@ class MergedSettingsEditorDeviceTest {
             WeatherBufferProfile(31, 32, 33),
             resolveProfile(LocalDate.of(2026, 9, 7), mapOf("2026-09-07" to DayStatus.HOLIDAY), profiles),
         )
-        screenshot("settings-weather-buffers.png")
+
     }
 
     @Test
@@ -170,11 +167,10 @@ class MergedSettingsEditorDeviceTest {
         compose.onNodeWithTag("workday_preview").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("workday_preview_grid").assertExists()
         (0..3).forEach { compose.onNodeWithTag("workday_week_$it").assertExists() }
-        screenshot("editor-workday-preview.png")
 
         compose.onNodeWithTag("alarm_editor_commute_advance").performScrollTo()
         compose.onNodeWithTag("arrival_time").assertDoesNotExist()
-        screenshot("editor-commute-collapsed.png")
+
         compose.onNodeWithTag("alarm_editor_commute_summary", useUnmergedTree = true)
             .assertTextEquals("使用本计划通勤覆盖")
         compose.onNodeWithTag("alarm_editor_commute_advance").performClick()
@@ -182,12 +178,10 @@ class MergedSettingsEditorDeviceTest {
         compose.onNodeWithTag("preparation_minutes").assertExists()
         compose.onNodeWithTag("max_advance_minutes").assertExists()
         compose.onNodeWithTag("open_plan_commute_override").performScrollTo()
-        screenshot("editor-commute-expanded.png")
 
         compose.onNodeWithTag("open_plan_commute_override").performScrollTo().performClick()
         waitForPlanCommute(second.name)
         compose.onNodeWithTag("plan_commute_selected_plan").assertTextEquals(second.name)
-        screenshot("editor-second-plan-commute.png")
 
         compose.onNodeWithText("‹").performClick()
         compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("plan_note"))
@@ -230,7 +224,6 @@ class MergedSettingsEditorDeviceTest {
         selectCustomCommuteUsingGlobalPlaces()
         compose.onNodeWithText("完成通勤配置").performClick()
         compose.onNodeWithTag("plan_note").assertTextEquals("备注（可选）", draftName)
-        screenshot("editor-new-plan-draft.png")
 
         saveEditorThroughPermissionGuide()
         val saved = runBlocking { dependencies.plans().observeAll().first().single { it.name == draftName } }
@@ -404,16 +397,4 @@ class MergedSettingsEditorDeviceTest {
 
     private val globalOrigin = PlaceRef("ui-global-home", "全局测试起点", "全局测试起点", 116.30, 39.90, "110000", "010")
     private val globalDestination = PlaceRef("ui-global-work", "全局测试终点", "全局测试终点", 116.40, 39.80, "110000", "010")
-
-    private fun screenshot(name: String) {
-        compose.waitForIdle()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val directory = requireNotNull(instrumentation.targetContext.getExternalFilesDir("merged-settings-editor-qa"))
-        directory.mkdirs()
-        FileOutputStream(File(directory, name)).use {
-            assertTrue("无法保存截图", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        bitmap.recycle()
-    }
 }

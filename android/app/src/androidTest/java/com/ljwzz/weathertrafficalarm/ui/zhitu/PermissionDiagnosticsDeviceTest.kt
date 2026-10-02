@@ -1,6 +1,5 @@
 package com.ljwzz.weathertrafficalarm.ui.zhitu
 
-import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -11,7 +10,6 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityCheck
 import com.ljwzz.weathertrafficalarm.core.alarm.check.RingtoneReadabilityResult
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticEvent
@@ -23,12 +21,9 @@ import com.ljwzz.weathertrafficalarm.core.data.local.CalendarRefreshOutcome
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceAttempt
 import com.ljwzz.weathertrafficalarm.core.data.local.CalendarSourceOutcome
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 
 /** Pure Compose rendering contract; no activity, settings intent, or application state is used. */
 @RunWith(AndroidJUnit4::class)
@@ -42,7 +37,7 @@ class PermissionDiagnosticsDeviceTest {
 
         compose.onNodeWithTag("permission_diagnostics").assertExists()
         compose.onNodeWithText("小米系统显示").assertDoesNotExist()
-        writeScreenshot("permission-diagnostics-general.png")
+
     }
 
     @Test
@@ -60,7 +55,7 @@ class PermissionDiagnosticsDeviceTest {
         compose.onNodeWithTag("confirm_xiaomi_lock").performScrollTo().performClick()
         assertEquals(XiaomiDisplayPermission.LockScreen, confirmed.value)
         compose.onNodeWithTag("confirm_xiaomi_background").performScrollTo()
-        writeScreenshot("permission-diagnostics-xiaomi.png")
+
     }
 
     @Test
@@ -133,7 +128,7 @@ class PermissionDiagnosticsDeviceTest {
         compose.onNodeWithTag("permission_diagnostics").performScrollToNode(hasTestTag("diagnostic_event_1_CALENDAR_REFRESH"))
         compose.onNodeWithTag("diagnostic_event_1_CALENDAR_REFRESH").assertExists()
         compose.onNodeWithText("never-render-this", substring = true).assertDoesNotExist()
-        writeScreenshot("diagnostics-unified-records.png")
+
     }
 
     @Test
@@ -216,17 +211,4 @@ class PermissionDiagnosticsDeviceTest {
             servicesEnabled = true,
         ),
     )
-
-    private fun writeScreenshot(fileName: String) {
-        compose.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        val directory = requireNotNull(
-            InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("permission-qa"),
-        )
-        directory.mkdirs()
-        FileOutputStream(File(directory, fileName)).use {
-            assertTrue("Unable to write screenshot $fileName", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        bitmap.recycle()
-    }
 }
