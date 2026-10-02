@@ -3,6 +3,10 @@ package com.ljwzz.weathertrafficalarm.evaluation
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.AlarmSchedule
 import com.ljwzz.weathertrafficalarm.core.model.CommuteMode
+import com.ljwzz.weathertrafficalarm.core.model.DailySettingsResolver
+import com.ljwzz.weathertrafficalarm.core.model.SingleDayOverride
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputs
+import com.ljwzz.weathertrafficalarm.core.data.preferences.LocalSettings
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -44,19 +48,46 @@ class EvaluationWorkerExpiredDecisionTest {
     }
 
     @Test
-    fun `same revision preserves the evaluation time snapshot`() {
+    fun `same generation records verified effective day inputs`() {
         val plan = plan(revision = 2, zoneId = "Asia/Shanghai", name = "评估时计划", wake = "07:30", preparation = 35)
-        val run = run(revision = 2, zoneId = "Asia/Shanghai")
+        val run = run(revision = 2, zoneId = "Asia/Shanghai").copy(dayRevision = 5)
+        val override = SingleDayOverride(plan.id, run.targetDate.toString(), wakeLocalTime = "08:15",
+            arrivalLocalTime = "10:00", preparationMinutes = 55, dayRevision = 5)
+        val inputs = DailyEvaluationInputs(plan, run.targetDate, LocalSettings(), override, 5, emptyMap(),
+            DailySettingsResolver.resolve(plan, run.targetDate, null),
+            DailySettingsResolver.resolve(plan, run.targetDate, override), null, null)
 
-        val decision = expiredDecision(plan, run, "worker-current", now)
-        val expectedWake = LocalDate.parse("2026-09-08").atTime(7, 30).atZone(ZoneId.of("Asia/Shanghai")).toInstant().toString()
+        val decision = expiredDecision(plan, run, "worker-current", now, 5, inputs)
+        val expectedWake = run.targetDate.atTime(8, 15).atZone(ZoneId.of("Asia/Shanghai")).toInstant().toString()
 
         assertEquals("EVALUATION_WINDOW_EXPIRED", decision.failureReason)
         assertEquals("评估时计划", decision.planName)
         assertEquals(expectedWake, decision.defaultWakeAt)
         assertEquals(expectedWake, decision.recommendedWakeAt)
-        assertEquals(35, decision.preparationMinutes)
+        assertEquals(55, decision.preparationMinutes)
+        assertEquals("10:00", decision.arrivalLocalTime)
+        assertEquals(5L, decision.dayRevision)
         assertEquals("Asia/Shanghai", decision.zoneId)
+    }
+
+    @Test
+    fun `changed day generation is recorded without current fields`() {
+        val decision = expiredDecision(plan(), run().copy(dayRevision = 7), "changed-day", now, 8)
+        assertEquals(7L, decision.dayRevision)
+        assertEquals("EVALUATION_INPUTS_CHANGED", decision.failureReason)
+        assertNull(decision.defaultWakeAt)
+        assertNull(decision.planName)
+        assertNull(decision.arrivalLocalTime)
+        assertEquals(0, decision.preparationMinutes)
+    }
+
+    @Test
+    fun `a missing input snapshot never falls back to plan defaults`() {
+        val decision = expiredDecision(plan(), run(), "missing-inputs", now)
+        assertEquals("EVALUATION_WINDOW_EXPIRED", decision.failureReason)
+        assertNull(decision.defaultWakeAt)
+        assertNull(decision.planName)
+        assertEquals("", decision.recommendedWakeAt)
     }
 
     private fun plan(

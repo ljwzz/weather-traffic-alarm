@@ -82,6 +82,15 @@ class DailyEvaluationSchedulingRegressionTest {
             work.any { !it.state.isFinished && "target:$date" in it.tags })
     }
 
+    @Test fun reviewExpiredWorkerPreservesItsQueuedDayRevision() {
+        val plan = plan()
+        val run = EvaluationWorkRun(LocalDate.parse(date), now.minusSeconds(60), now.minusSeconds(1),
+            0, "night", plan.revision, plan.zoneId, dayRevision = 7)
+        val decision = expiredDecision(plan, run, "review-stale-worker", now)
+        assertEquals("expired run day revision=7 was recorded as ${decision.dayRevision}; reason=${decision.failureReason}; baseline=${decision.defaultWakeAt}",
+            7L, decision.dayRevision)
+    }
+
     private class HoldingWorkerFactory : WorkerFactory() {
         override fun createWorker(appContext: Context, workerClassName: String,
             workerParameters: WorkerParameters): ListenableWorker? =

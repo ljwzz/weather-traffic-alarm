@@ -11,6 +11,8 @@ import com.ljwzz.weathertrafficalarm.core.data.diagnostics.DiagnosticResultCode
 import com.ljwzz.weathertrafficalarm.core.data.diagnostics.RedactingEventLogger
 import com.ljwzz.weathertrafficalarm.core.data.repository.DecisionRepository
 import com.ljwzz.weathertrafficalarm.core.data.repository.WorkdayOverrideRepository
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputResolver
+import com.ljwzz.weathertrafficalarm.core.data.repository.DailyEvaluationInputs
 import com.ljwzz.weathertrafficalarm.core.model.AlarmDecision
 import com.ljwzz.weathertrafficalarm.core.model.AlarmPlan
 import com.ljwzz.weathertrafficalarm.core.model.EvaluationOutcome
@@ -31,6 +33,7 @@ class EvaluationWorker @AssistedInject constructor(
     private val scheduler: EvaluationWorkScheduler,
     private val decisions: DecisionRepository,
     private val dayOverrides: WorkdayOverrideRepository,
+    private val dailyInputs: DailyEvaluationInputResolver,
     private val clock: Clock,
     private val diagnostics: RedactingEventLogger,
 ) : CoroutineWorker(context, parameters) {
@@ -41,12 +44,6 @@ class EvaluationWorker @AssistedInject constructor(
         val plan = plans.getById(planId)?.takeIf { it.enabled } ?: return Result.success()
         // Arrange future work before any potentially failing network request.
         scheduler.ensureNightly(plan)
-        val now = clock.instant()
-        if (plan.revision != run.revision || plan.zoneId != run.zoneId ||
-            !EvaluationWorkPolicy.mayExecute(now, run.notBefore, run.deadline)) {
-            recordExpired(plan, run)
-            return Result.success()
-        }
         if (run.dayRevision == EvaluationWorkRun.LEGACY_DAY_REVISION) {
             // Work enqueued before day-revision aware identities is superseded by the work
             // arranged above instead of being matched to whatever the date says now.
@@ -56,9 +53,12 @@ class EvaluationWorker @AssistedInject constructor(
             )
             return Result.success()
         }
-        if (dayOverrides.committedRevision(plan.id, run.targetDate.toString()) != run.dayRevision) {
+        val now = clock.instant()
+        val dayRevision = dayOverrides.committedRevision(plan.id, run.targetDate.toString())
+        if (plan.revision != run.revision || plan.zoneId != run.zoneId || dayRevision != run.dayRevision ||
+            !EvaluationWorkPolicy.mayExecute(now, run.notBefore, run.deadline)) {
             // The date generation changed after this run was queued: do not evaluate stale inputs.
-            recordExpired(plan, run)
+            recordExpired(plan, run, dayRevision)
             return Result.success()
         }
         val result = try {
@@ -82,8 +82,13 @@ class EvaluationWorker @AssistedInject constructor(
         return Result.success()
     }
 
-    private suspend fun recordExpired(plan: AlarmPlan, run: EvaluationWorkRun) {
-        decisions.save(expiredDecision(plan, run, id.toString(), clock.instant()))
+    private suspend fun recordExpired(plan: AlarmPlan, run: EvaluationWorkRun, dayRevision: Long) {
+        val resolved = if (plan.revision == run.revision && plan.zoneId == run.zoneId && dayRevision == run.dayRevision) {
+            dailyInputs.resolve(plan, run.targetDate)
+        } else null
+        val observedRevision = resolved?.committedRevision ?: dayRevision
+        decisions.save(expiredDecision(plan, run, id.toString(), clock.instant(), observedRevision,
+            resolved?.takeIf { it.committedRevision == run.dayRevision }))
         diagnostics.record(DiagnosticEventType.EVALUATION, DiagnosticResultCode.STALE,
             planId = plan.id, timestamp = clock.millis())
         decisions.deleteOlderThan(clock.instant().minus(Duration.ofDays(30)).toEpochMilli())
@@ -91,22 +96,29 @@ class EvaluationWorker @AssistedInject constructor(
 }
 
 /**
- * Produces a record for this exact Worker attempt. A current plan can only supply historical
- * display fields when it is the same evaluated revision and civil-time zone as the run.
+ * Produces a record for this exact Worker attempt. Display fields require a verified effective
+ * input snapshot with the same plan, date generation and civil-time zone as the queued run.
  */
 internal fun expiredDecision(
     plan: AlarmPlan,
     run: EvaluationWorkRun,
     workId: String,
     now: java.time.Instant,
+    currentDayRevision: Long = run.dayRevision,
+    inputs: DailyEvaluationInputs? = null,
 ): AlarmDecision {
-    val inputsUnchanged = plan.revision == run.revision && plan.zoneId == run.zoneId
-    val baseline = if (inputsUnchanged) {
+    require(run.dayRevision >= 0) { "legacy work has no verifiable day revision" }
+    val inputsUnchanged = plan.revision == run.revision && plan.zoneId == run.zoneId && currentDayRevision == run.dayRevision
+    val snapshot = inputs?.takeIf {
+        inputsUnchanged && it.plan.id == plan.id && it.plan.revision == run.revision &&
+            it.plan.zoneId == run.zoneId && it.date == run.targetDate && it.committedRevision == run.dayRevision
+    }
+    val baseline = snapshot?.let {
         runCatching {
-            run.targetDate.atTime(java.time.LocalTime.parse(plan.defaultWakeLocalTime))
+            run.targetDate.atTime(java.time.LocalTime.parse(it.effective.defaultWakeLocalTime))
                 .atZone(java.time.ZoneId.of(run.zoneId)).toInstant().toString()
         }.getOrNull()
-    } else null
+    }
     return AlarmDecision(
         decisionId = UUID.nameUUIDFromBytes("expired-worker:$workId".toByteArray(Charsets.UTF_8)).toString(),
         planId = plan.id, planRevision = run.revision, targetDate = run.targetDate.toString(),
@@ -118,7 +130,9 @@ internal fun expiredDecision(
         generatedAt = now.toString(), expiresAt = run.deadline.toString(), evaluationOutcome = EvaluationOutcome.STALE,
         failureReason = if (inputsUnchanged) "EVALUATION_WINDOW_EXPIRED" else "EVALUATION_INPUTS_CHANGED",
         attemptNumber = run.attempt, applicationOutcome = "NOT_APPLIED",
-        preparationMinutes = if (inputsUnchanged) plan.preparationMinutes else 0,
-        defaultWakeAt = baseline, planName = plan.name.takeIf { inputsUnchanged }, zoneId = run.zoneId,
+        preparationMinutes = snapshot?.effective?.preparationMinutes ?: 0,
+        defaultWakeAt = baseline, planName = snapshot?.plan?.name, zoneId = run.zoneId,
+        arrivalLocalTime = snapshot?.effective?.arrivalLocalTime,
+        dayRevision = run.dayRevision,
     )
 }
