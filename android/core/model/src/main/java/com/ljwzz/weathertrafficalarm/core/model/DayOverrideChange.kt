@@ -58,7 +58,7 @@ enum class DayRegistrationState {
     /** A new instance was registered for the changed date. */
     SCHEDULED,
 
-    /** The plan is disabled or has no next instance, so nothing was registered. */
+    /** The plan is disabled, has no next instance or lacks the capability to register one. */
     NOT_ARMED,
 
     /** The date change did not require a new registration. */

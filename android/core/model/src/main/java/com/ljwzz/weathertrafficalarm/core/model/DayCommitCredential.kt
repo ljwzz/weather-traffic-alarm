@@ -18,4 +18,8 @@ data class DayCommitCredential(
     val occurrenceId: String? = null,
     val targetDate: String? = null,
     val triggerAtMillis: Long? = null,
+    val cancelledOccurrenceIds: List<String> = emptyList(),
+    val revisedOccurrenceIds: List<String> = emptyList(),
+    val armedState: AlarmArmedState? = null,
+    val scheduleError: String? = null,
 )
